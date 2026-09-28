@@ -1,26 +1,270 @@
+/* Clerk components render in the "clerk" layer, before utilities, so token
+   classes in lib/auth/appearance.ts override Clerk defaults. */
+@layer theme, base, clerk, components, utilities;
+
 @import "tailwindcss";
 
+/* Keep Tailwind's class scan to app code: the 3 MB design reference and the
+   context docs only slow every rebuild. */
+@source not "../LMS Design System & Wireframes.html";
+@source not "../context";
+
+/* Studyhall design tokens — source of truth: context/ui-context.md.
+   This is the ONLY file in the app allowed to contain hex values.
+   Light theme only: there is intentionally no dark-mode block. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette */
+  --bg-base: #fbf8f3; /* Cream — page ground */
+  --bg-surface: #fffefb; /* Paper — cards, inputs */
+  --bg-sunken: #f4efe6; /* Oat — sidebar, sunken areas, table heads */
+  --border-default: #e8e0d3; /* Line — borders, dividers */
+  --border-strong: #cfc5b5; /* empty step rings */
+  --text-primary: #221e19; /* Ink */
+  --text-muted: #5f574c; /* Ink soft */
+
+  --accent-primary: #b84f26; /* Terracotta — the one primary action */
+  --accent-primary-hover: #9e4220;
+  --accent-tint: #f6e2d6; /* Clay tint — selected, hover, focus ring */
+  --accent-ink: #8e3c1c; /* text on clay tint */
+  --accent-stripe: #f2d9ca; /* clay stripe second tone */
+
+  --state-success: #4e7a5a; /* Sage — progress, done */
+  --state-success-bg: #e2ece1; /* Sage tint */
+  --state-success-ink: #33573d;
+  --state-warning: #e9b949; /* Butter — highlight, due */
+  --state-warning-bg: #fbf1d2; /* Butter tint — notices */
+  --state-warning-ink: #7a5a0e;
+
+  --bg-stripe: #efe8dc; /* placeholder stripe second tone */
+  --bg-media: #2b2620; /* video player */
+  --bg-backdrop: rgba(34, 30, 25, 0.4); /* dialog backdrop (warm ink) */
+
+  /* Elevation (warm-tinted, never grey) */
+  --shadow-hairline-value: 0 1px 2px rgba(60, 40, 20, 0.06);
+  --shadow-raised-value:
+    0 1px 2px rgba(60, 40, 20, 0.06), 0 10px 28px rgba(60, 40, 20, 0.08);
+
+  color-scheme: light;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Colors → bg-*, text-*, border-*, ring-*, fill-*, stroke-* */
+  --color-cream: var(--bg-base);
+  --color-paper: var(--bg-surface);
+  --color-oat: var(--bg-sunken);
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text-primary);
+  --color-ink-soft: var(--text-muted);
+
+  --color-terracotta: var(--accent-primary);
+  --color-terracotta-hover: var(--accent-primary-hover);
+  --color-clay: var(--accent-tint);
+  --color-clay-ink: var(--accent-ink);
+  --color-clay-stripe: var(--accent-stripe);
+
+  --color-sage: var(--state-success);
+  --color-sage-tint: var(--state-success-bg);
+  --color-sage-ink: var(--state-success-ink);
+  --color-butter: var(--state-warning);
+  --color-butter-tint: var(--state-warning-bg);
+  --color-butter-ink: var(--state-warning-ink);
+
+  --color-stripe: var(--bg-stripe);
+  --color-media: var(--bg-media);
+  --color-backdrop: var(--bg-backdrop);
+
+  /* Semantic aliases (prefer these in components) */
+  --color-page: var(--bg-base);
+  --color-surface: var(--bg-surface);
+  --color-sunken: var(--bg-sunken);
+
+  /* Fonts — next/font sets the --font-*-src variables on <html> */
+  --font-serif: var(--font-instrument-serif-src), Georgia, serif;
+  --font-sans: var(--font-geist-src), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono-src), ui-monospace, monospace;
+
+  /* Type scale → text-display, text-h1 … (size + line-height) */
+  --text-display: 72px;
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: 44px;
+  --text-h1--line-height: 1.1;
+  --text-h2: 24px;
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h3: 18px;
+  --text-h3--line-height: 1.35;
+  --text-body: 16px;
+  --text-body--line-height: 1.6;
+  --text-small: 14px;
+  --text-small--line-height: 1.5;
+  --text-meta: 13px;
+  --text-meta--line-height: 1.45;
+  --text-label: 12px;
+  --text-label--line-height: 1.4;
+  --text-label--letter-spacing: 0.12em;
+
+  /* Radius additions (Tailwind defaults cover lg=8, xl=12, 2xl=16, 3xl=24) */
+  --radius-tile: 10px;
+  --radius-card: 20px;
+  --radius-panel: 28px;
+
+  /* Shadows → shadow-hairline, shadow-raised */
+  --shadow-hairline: var(--shadow-hairline-value);
+  --shadow-raised: var(--shadow-raised-value);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Placeholder covers (course thumbnails without an image) */
+@utility bg-stripe {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--bg-sunken) 0 10px,
+    var(--bg-stripe) 10px 20px
+  );
+}
+
+@utility bg-stripe-clay {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--accent-tint) 0 12px,
+    var(--accent-stripe) 12px 24px
+  );
+}
+
+@layer base {
+  html {
+    background: var(--bg-base);
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--accent-primary);
+  }
+
+  a:hover {
+    color: var(--accent-primary-hover);
+  }
+
+  ::selection {
+    background: var(--accent-tint);
+    color: var(--text-primary);
+  }
+
+  /* Clay-tint focus ring (ui-context.md → Inputs) */
+  :focus-visible {
+    outline: 1.5px solid var(--accent-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--accent-tint);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Rendered notes Markdown (feature 12, components/player/study-notes.tsx).
+   The HTML comes from lib/markdown, so it can't carry utility classes. */
+@layer components {
+  .study-notes {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--text-primary);
+  }
+  .study-notes > * + * {
+    margin-top: 12px;
+  }
+  .study-notes p,
+  .study-notes ul,
+  .study-notes ol,
+  .study-notes blockquote,
+  .study-notes pre,
+  .study-notes table {
+    margin-bottom: 0;
+  }
+  .study-notes p:first-child {
+    margin-top: 0;
+  }
+  .study-notes ul,
+  .study-notes ol {
+    padding-left: 22px;
+  }
+  .study-notes li + li {
+    margin-top: 4px;
+  }
+  .study-notes strong {
+    font-weight: 600;
+  }
+  .study-notes code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--bg-sunken);
+    border-radius: 6px;
+    padding: 1px 5px;
+  }
+  .study-notes pre {
+    background: var(--bg-sunken);
+    border-radius: 14px;
+    padding: 14px 16px;
+    overflow-x: auto;
+  }
+  .study-notes pre code {
+    background: none;
+    padding: 0;
+  }
+  .study-notes blockquote {
+    margin-left: 0;
+    margin-right: 0;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: var(--state-warning-bg);
+    color: var(--state-warning-ink);
+  }
+  .study-notes table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+  }
+  .study-notes th,
+  .study-notes td {
+    border-bottom: 1px solid var(--border-default);
+    padding: 8px 10px;
+    text-align: left;
+  }
+  .study-notes th {
+    background: var(--bg-sunken);
+    font-weight: 600;
+  }
+  .study-notes .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0;
+  }
+
+  /* The assistant's inline citation (feature 14): a small video-time chip
+     inside rendered answer HTML. components/assistant/answer-body.tsx. */
+  .cite-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    margin: 0 2px;
+    padding: 0 7px;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--accent-tint);
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    vertical-align: 1px;
+    cursor: pointer;
+  }
+  .cite-chip:hover {
+    background: var(--accent-stripe);
+  }
 }

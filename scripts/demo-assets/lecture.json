@@ -1,0 +1,3394 @@
+{
+  "version": 1,
+  "lessonTitle": "Linear combinations and span",
+  "promptsVersion": 2,
+  "video": {
+    "blobUrl": "https://5q8sbfm197udycfw.public.blob.vercel-storage.com/demo/lecture/source-uBf9IBQaYG8ZNFD4jGuYs3FHkULhZl.mp4",
+    "pathname": "demo/lecture/source-uBf9IBQaYG8ZNFD4jGuYs3FHkULhZl.mp4",
+    "posterUrl": "https://5q8sbfm197udycfw.public.blob.vercel-storage.com/demo/lecture/poster-OyEJ1QJZ6qDGpK9ic8Gp395jpwPk7f.jpg",
+    "vttUrl": "https://5q8sbfm197udycfw.public.blob.vercel-storage.com/demo/lecture/captions-9SoVu5MS162WsDnml2FsJ2HH4FcY7X.vtt",
+    "durationSec": 1200,
+    "width": 854,
+    "height": 480,
+    "codec": "h264/aac",
+    "sizeBytes": 10786345
+  },
+  "segments": [
+    {
+      "startSec": 0.18,
+      "endSec": 2.04,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 2.91,
+      "endSec": 6.45,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 6.96,
+      "endSec": 9.74,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 10.47,
+      "endSec": 15.09,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 15.93,
+      "endSec": 19.63,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 20.19,
+      "endSec": 25.59,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 26.1,
+      "endSec": 30.26,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 31.08,
+      "endSec": 35.5,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 36.3,
+      "endSec": 39.58,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 40.38,
+      "endSec": 44.7,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 45.48,
+      "endSec": 51.54,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 51.99,
+      "endSec": 53.91,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 54.45,
+      "endSec": 58.35,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 58.83,
+      "endSec": 61.61,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 62.34,
+      "endSec": 66.98,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 67.77,
+      "endSec": 71.49,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 72.06,
+      "endSec": 77.46,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 77.97,
+      "endSec": 82.13,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 82.95,
+      "endSec": 87.37,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 88.14,
+      "endSec": 91.74,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 92.25,
+      "endSec": 96.57,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 97.35,
+      "endSec": 103.11,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 103.86,
+      "endSec": 105.78,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 106.65,
+      "endSec": 110.19,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 110.67,
+      "endSec": 113.47,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 114.18,
+      "endSec": 118.82,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 119.64,
+      "endSec": 123.36,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 123.9,
+      "endSec": 129.34,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 129.81,
+      "endSec": 134.01,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 134.79,
+      "endSec": 139.23,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 140.01,
+      "endSec": 143.61,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 144.12,
+      "endSec": 148.44,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 149.22,
+      "endSec": 154.98,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 155.73,
+      "endSec": 157.65,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 158.49,
+      "endSec": 162.09,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 162.54,
+      "endSec": 165.66,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 166.05,
+      "endSec": 171.01,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 171.48,
+      "endSec": 175.26,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 175.77,
+      "endSec": 181.21,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 181.68,
+      "endSec": 185.88,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 186.66,
+      "endSec": 191.4,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 191.88,
+      "endSec": 195.18,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 195.99,
+      "endSec": 200.31,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 201.09,
+      "endSec": 206.83,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 207.6,
+      "endSec": 209.52,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 210.36,
+      "endSec": 214.2,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 214.41,
+      "endSec": 217.53,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 217.92,
+      "endSec": 222.56,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 223.35,
+      "endSec": 227.13,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 227.64,
+      "endSec": 233.04,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 233.55,
+      "endSec": 237.71,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 238.53,
+      "endSec": 242.97,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 243.75,
+      "endSec": 247.03,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 247.86,
+      "endSec": 252.18,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 252.93,
+      "endSec": 258.99,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 259.44,
+      "endSec": 261.38,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 262.23,
+      "endSec": 266.01,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 266.28,
+      "endSec": 269.08,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 269.79,
+      "endSec": 274.41,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 275.22,
+      "endSec": 279,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 279.51,
+      "endSec": 284.91,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 285.42,
+      "endSec": 289.58,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 290.4,
+      "endSec": 294.84,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 295.59,
+      "endSec": 299.19,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 299.7,
+      "endSec": 304.02,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 304.8,
+      "endSec": 310.86,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 311.31,
+      "endSec": 313.23,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 314.1,
+      "endSec": 317.66,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 318.12,
+      "endSec": 321.3,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 321.63,
+      "endSec": 326.61,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 327.09,
+      "endSec": 330.87,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 331.35,
+      "endSec": 336.79,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 337.29,
+      "endSec": 341.45,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 342.24,
+      "endSec": 346.64,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 347.46,
+      "endSec": 351.06,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 351.57,
+      "endSec": 355.89,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 356.67,
+      "endSec": 362.43,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 363.18,
+      "endSec": 369.54,
+      "text": "Welcome back to Linear Algebra. In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 369.99,
+      "endSec": 372.79,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 373.5,
+      "endSec": 378.48,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 378.96,
+      "endSec": 382.52,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 383.22,
+      "endSec": 388.66,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 389.13,
+      "endSec": 393.33,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 394.11,
+      "endSec": 398.85,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 399.33,
+      "endSec": 402.93,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 403.44,
+      "endSec": 407.76,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 408.54,
+      "endSec": 414.3,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 415.05,
+      "endSec": 416.97,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 417.81,
+      "endSec": 421.65,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 421.86,
+      "endSec": 424.66,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 425.37,
+      "endSec": 430.35,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 430.8,
+      "endSec": 434.58,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 435.09,
+      "endSec": 440.53,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 441,
+      "endSec": 445.16,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 445.98,
+      "endSec": 450.42,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 451.2,
+      "endSec": 454.54,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 455.31,
+      "endSec": 459.63,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 460.38,
+      "endSec": 466.44,
+      "text": "Before then, try sketching the span of two vectors of your own, and check whether one can be written using the other."
+    },
+    {
+      "startSec": 466.92,
+      "endSec": 468.84,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 469.68,
+      "endSec": 473.46,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 473.73,
+      "endSec": 477.01,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 477.24,
+      "endSec": 481.88,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 482.67,
+      "endSec": 486.45,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 486.96,
+      "endSec": 492.36,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 492.87,
+      "endSec": 497.03,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 497.85,
+      "endSec": 502.29,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 503.07,
+      "endSec": 506.37,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 507.18,
+      "endSec": 511.46,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 512.25,
+      "endSec": 518.31,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 518.76,
+      "endSec": 520.68,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 521.55,
+      "endSec": 525.15,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 525.6,
+      "endSec": 528.88,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 529.11,
+      "endSec": 533.73,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 534.54,
+      "endSec": 538.32,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 538.83,
+      "endSec": 544.23,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 544.74,
+      "endSec": 548.9,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 549.72,
+      "endSec": 554.16,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 554.91,
+      "endSec": 558.51,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 559.02,
+      "endSec": 563.34,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 564.12,
+      "endSec": 569.88,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 570.63,
+      "endSec": 572.55,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 573.42,
+      "endSec": 576.98,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 577.44,
+      "endSec": 580.74,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 580.98,
+      "endSec": 585.6,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 586.41,
+      "endSec": 590.19,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 590.67,
+      "endSec": 596.11,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 596.58,
+      "endSec": 599.68,
+      "text": "The set of all linear combinations of a group of vectors"
+    },
+    {
+      "startSec": 599.76,
+      "endSec": 600.8,
+      "text": "is called their span."
+    },
+    {
+      "startSec": 601.62,
+      "endSec": 606.04,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 606.84,
+      "endSec": 610.12,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 610.95,
+      "endSec": 615.23,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 616.02,
+      "endSec": 621.78,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 622.56,
+      "endSec": 624.46,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 625.32,
+      "endSec": 628.86,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 629.37,
+      "endSec": 632.37,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 632.88,
+      "endSec": 637.52,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 638.31,
+      "endSec": 642.03,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 642.6,
+      "endSec": 648,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 648.51,
+      "endSec": 652.67,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 653.46,
+      "endSec": 657.92,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 658.68,
+      "endSec": 662.28,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 662.79,
+      "endSec": 667.11,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 667.89,
+      "endSec": 673.65,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 674.4,
+      "endSec": 676.32,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 677.19,
+      "endSec": 680.73,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 681.21,
+      "endSec": 684.33,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 684.75,
+      "endSec": 689.69,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 690.18,
+      "endSec": 693.9,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 694.44,
+      "endSec": 699.88,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 700.38,
+      "endSec": 704.54,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 705.36,
+      "endSec": 709.78,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 710.55,
+      "endSec": 714.15,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 714.66,
+      "endSec": 718.98,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 719.76,
+      "endSec": 725.52,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 726.27,
+      "endSec": 728.19,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 729.03,
+      "endSec": 732.63,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 733.08,
+      "endSec": 736.2,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 736.59,
+      "endSec": 741.23,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 742.05,
+      "endSec": 745.77,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 746.31,
+      "endSec": 751.71,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 752.22,
+      "endSec": 756.38,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 757.2,
+      "endSec": 761.64,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 762.42,
+      "endSec": 765.72,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 766.53,
+      "endSec": 770.83,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 771.63,
+      "endSec": 777.39,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 778.14,
+      "endSec": 780.06,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 780.9,
+      "endSec": 784.22,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 784.95,
+      "endSec": 788.07,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 788.46,
+      "endSec": 793.42,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 793.89,
+      "endSec": 797.67,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 798.18,
+      "endSec": 803.58,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 804.09,
+      "endSec": 808.25,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 809.07,
+      "endSec": 813.51,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 814.29,
+      "endSec": 817.57,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 818.4,
+      "endSec": 822.68,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 823.47,
+      "endSec": 829.53,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 829.98,
+      "endSec": 831.92,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 832.77,
+      "endSec": 836.37,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 836.82,
+      "endSec": 839.94,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 840.33,
+      "endSec": 844.95,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 845.76,
+      "endSec": 849.54,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 850.05,
+      "endSec": 855.45,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 855.96,
+      "endSec": 860.12,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 860.94,
+      "endSec": 865.38,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 866.13,
+      "endSec": 869.73,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 870.24,
+      "endSec": 874.56,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 875.34,
+      "endSec": 881.1,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 881.85,
+      "endSec": 883.77,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 884.64,
+      "endSec": 889.92,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 888.66,
+      "endSec": 891.82,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 892.2,
+      "endSec": 896.82,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 897.63,
+      "endSec": 901.41,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 901.92,
+      "endSec": 907.32,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 907.83,
+      "endSec": 911.99,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 912.81,
+      "endSec": 917.23,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 918,
+      "endSec": 921.6,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 922.14,
+      "endSec": 926.42,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 927.21,
+      "endSec": 932.97,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 933.72,
+      "endSec": 940.04,
+      "text": "Welcome back to Linear Algebra. In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 940.53,
+      "endSec": 943.33,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 944.04,
+      "endSec": 949.02,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 949.5,
+      "endSec": 953.22,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 953.76,
+      "endSec": 959.2,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 959.7,
+      "endSec": 963.86,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 964.65,
+      "endSec": 969.09,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 969.87,
+      "endSec": 973.47,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 973.98,
+      "endSec": 978.3,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 979.08,
+      "endSec": 984.84,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 985.59,
+      "endSec": 987.51,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 988.38,
+      "endSec": 991.92,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 992.4,
+      "endSec": 995.52,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 995.91,
+      "endSec": 1000.87,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 1001.37,
+      "endSec": 1005.09,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 1005.63,
+      "endSec": 1011.03,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 1011.54,
+      "endSec": 1015.72,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 1016.52,
+      "endSec": 1020.96,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 1021.74,
+      "endSec": 1025.08,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 1025.85,
+      "endSec": 1030.17,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 1030.92,
+      "endSec": 1036.68,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 1037.46,
+      "endSec": 1039.38,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 1040.22,
+      "endSec": 1044,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 1044.27,
+      "endSec": 1047.39,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 1047.78,
+      "endSec": 1054.5,
+      "text": "We can add two vectors by placing them tip to tail and the result is a new vector."
+    },
+    {
+      "startSec": 1053.21,
+      "endSec": 1056.99,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 1057.5,
+      "endSec": 1062.9,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 1063.41,
+      "endSec": 1067.57,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 1068.39,
+      "endSec": 1072.83,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 1073.61,
+      "endSec": 1076.89,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 1077.72,
+      "endSec": 1082,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 1082.79,
+      "endSec": 1088.85,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 1089.33,
+      "endSec": 1091.25,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 1092.09,
+      "endSec": 1095.69,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 1096.14,
+      "endSec": 1098.92,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 1099.65,
+      "endSec": 1104.27,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 1105.11,
+      "endSec": 1108.87,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 1109.37,
+      "endSec": 1114.77,
+      "text": "A linear combination mixes both ideas, we scale some vectors and then add them together."
+    },
+    {
+      "startSec": 1115.28,
+      "endSec": 1119.44,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 1120.26,
+      "endSec": 1124.7,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 1125.48,
+      "endSec": 1128.78,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 1129.56,
+      "endSec": 1133.88,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 1134.66,
+      "endSec": 1140.72,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 1141.17,
+      "endSec": 1143.09,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 1143.96,
+      "endSec": 1147.28,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    },
+    {
+      "startSec": 1148.01,
+      "endSec": 1150.79,
+      "text": "A vector is an arrow with a direction and a length."
+    },
+    {
+      "startSec": 1151.52,
+      "endSec": 1156.16,
+      "text": "We can add two vectors by placing them tip to tail, and the result is a new vector."
+    },
+    {
+      "startSec": 1156.95,
+      "endSec": 1160.73,
+      "text": "We can also scale a vector by a number which stretches or shrinks it."
+    },
+    {
+      "startSec": 1161.21,
+      "endSec": 1166.65,
+      "text": "A linear combination mixes both ideas. We scale some vectors and then add them together."
+    },
+    {
+      "startSec": 1167.15,
+      "endSec": 1171.31,
+      "text": "The set of all linear combinations of a group of vectors is called their span."
+    },
+    {
+      "startSec": 1172.13,
+      "endSec": 1176.55,
+      "text": "If two vectors point in different directions in the plane, their span is the whole plane."
+    },
+    {
+      "startSec": 1177.32,
+      "endSec": 1180.92,
+      "text": "If they point along the same line, their span is only that line."
+    },
+    {
+      "startSec": 1181.43,
+      "endSec": 1185.75,
+      "text": "That leads to the idea of linear independence, which we will explore next time."
+    },
+    {
+      "startSec": 1186.53,
+      "endSec": 1192.29,
+      "text": "Before then, try sketching the span of two vectors of your own and check whether one can be written using the other."
+    },
+    {
+      "startSec": 1193.04,
+      "endSec": 1194.96,
+      "text": "Welcome back to Linear Algebra."
+    },
+    {
+      "startSec": 1195.83,
+      "endSec": 1201.11,
+      "text": "In this lecture we study vectors and the spaces they live in."
+    }
+  ],
+  "chapters": [
+    {
+      "title": "Introduction to Vectors",
+      "startSec": 0,
+      "summary": "This chapter introduces vectors as arrows with direction and length, and explains basic operations like addition and scaling."
+    },
+    {
+      "title": "Linear Combinations and Span",
+      "startSec": 20.19,
+      "summary": "This section defines linear combinations and introduces the concept of a span as the set of all possible linear combinations of vectors."
+    },
+    {
+      "title": "Introduction to Linear Independence",
+      "startSec": 92.25,
+      "summary": "This chapter briefly introduces the concept of linear independence and hints at its exploration in the next lecture."
+    },
+    {
+      "title": "Vector Operations Revisited",
+      "startSec": 162.54,
+      "summary": "This chapter reviews vector addition and scaling, reinforcing the foundational concepts of vector manipulation."
+    },
+    {
+      "title": "Understanding Vector Span",
+      "startSec": 279.51,
+      "summary": "This chapter reiterates the definition of span and how it relates to vectors pointing in the same or different directions."
+    },
+    {
+      "title": "Combining Vectors",
+      "startSec": 373.5,
+      "summary": "This chapter explains how linear combinations are formed by scaling and adding vectors."
+    },
+    {
+      "title": "Span of Vectors in a Plane",
+      "startSec": 492.87,
+      "summary": "This chapter provides examples of vector spans, particularly focusing on how two vectors can span a line or a plane."
+    },
+    {
+      "title": "Preparing for Linear Independence",
+      "startSec": 610.95,
+      "summary": "This chapter encourages students to practice sketching vector spans in preparation for the upcoming topic of linear independence."
+    },
+    {
+      "title": "Core Vector Concepts",
+      "startSec": 733.08,
+      "summary": "This chapter offers a concise recap of the core definitions and operations related to vectors."
+    },
+    {
+      "title": "Practical Application of Span",
+      "startSec": 850.05,
+      "summary": "This chapter demonstrates the practical implications of a vector's span, specifically how it defines a space."
+    },
+    {
+      "title": "Anticipating Future Topics",
+      "startSec": 973.98,
+      "summary": "This chapter briefly looks ahead to the next lecture, which will delve deeper into the concept of linear independence."
+    },
+    {
+      "title": "Review of Vector Basics",
+      "startSec": 1105.11,
+      "summary": "This chapter provides a quick review of how to add and scale vectors, foundational skills for linear algebra."
+    },
+    {
+      "title": "Concluding Thoughts on Vectors",
+      "startSec": 1195.83,
+      "summary": "This concluding chapter summarizes the lecture's focus on vectors and the spaces they inhabit."
+    }
+  ],
+  "note": {
+    "title": "Eigenvectors, visually",
+    "blocks": [
+      {
+        "id": "fa8ce254-5709-4717-8f0c-b402f9ad1848",
+        "text": "This lecture introduces the fundamental concepts of vectors, their basic operations, and how these operations lead to the idea of linear combinations and span. It progresses from defining a vector as an arrow with direction and length to explaining vector addition and scalar multiplication. The core concept of a linear combination is then built upon these operations, culminating in the definition and geometric interpretation of the span of a set of vectors, particularly in a 2D plane. The lecture consistently previews the upcoming topic of linear independence, highlighting its connection to the geometric properties of span.",
+        "type": "paragraph"
+      },
+      {
+        "id": "5a4a607c-9485-43a9-ae67-de7979063f27",
+        "text": "Introduction to Vectors",
+        "type": "heading2",
+        "startSec": 0
+      },
+      {
+        "id": "7c8037fa-5309-45cf-a57d-1eaeac4f4892",
+        "text": "What is a vector?",
+        "type": "heading3"
+      },
+      {
+        "id": "ffa04f29-ec10-465c-99e2-cc5523ea7966",
+        "text": "A **vector** is represented as an **arrow** that has both a **direction** and a **length** (magnitude).",
+        "type": "bullet"
+      },
+      {
+        "id": "529f55ca-a2a7-4a52-9cbf-620d171f31ac",
+        "text": "Vector addition",
+        "type": "heading3"
+      },
+      {
+        "id": "6bf11f26-02f4-4bd0-b581-2052f988b238",
+        "text": "To add two vectors, place the **tip** of the first vector at the **tail** of the second (tip‑to‑tail method).",
+        "type": "bullet"
+      },
+      {
+        "id": "3cbaf4c3-c47e-42ac-8b02-d93945c1acf0",
+        "text": "The **resultant** vector runs from the tail of the first to the tip of the second.",
+        "type": "bullet"
+      },
+      {
+        "id": "57139113-2484-4230-8ff1-f4804c6f64b0",
+        "text": "In symbols: if $\\vec{u}$ and $\\vec{v}$ are vectors, then their sum is $$\\vec{u} + \\vec{v} = \\vec{w}.$$",
+        "type": "bullet"
+      },
+      {
+        "id": "8500029f-8a3f-45e5-9dbc-6c30fd2c53a4",
+        "text": "Scalar multiplication (scaling)",
+        "type": "heading3"
+      },
+      {
+        "id": "f09e0afd-0192-4976-b35c-6116a4dc22b1",
+        "text": "Multiplying a vector by a **real number** (scalar) $c$ changes its length: the vector is stretched if $|c|>1$, shrunk if $|c|<1$, and reversed if $c<0$.",
+        "type": "bullet"
+      },
+      {
+        "id": "d86d299c-179d-442f-8f60-42deef2b03d9",
+        "text": "The direction stays the same when $c>0$ and flips when $c<0$.",
+        "type": "bullet"
+      },
+      {
+        "id": "e6355755-d7ab-4ccc-a235-bd7122c51782",
+        "text": "In symbols: $$c\\vec{v}$$ denotes the scaled vector.",
+        "type": "bullet"
+      },
+      {
+        "id": "966ca24d-9601-428a-81fe-988c051fed00",
+        "text": "Comparison of operations",
+        "type": "heading3"
+      },
+      {
+        "id": "089ffcfb-79b8-4036-ad57-ee57b89c0004",
+        "rows": [
+          [
+            "Operation",
+            "Description",
+            "Effect on vector"
+          ],
+          [
+            "Addition ($\\vec{u}+\\vec{v}$)",
+            "Tip‑to‑tail combination",
+            "New vector whose start is tail of $\\vec{u}$ and end is tip of $\\vec{v}$"
+          ],
+          [
+            "Scaling ($c\\vec{v}$)",
+            "Multiply by scalar $c$",
+            "Length multiplied by $",
+            "c",
+            "$; direction unchanged if $c>0$, reversed if $c<0$"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "e09196b7-cd30-48e8-83ec-69d10fe55b20",
+        "text": "Linear Combinations and Span",
+        "type": "heading2",
+        "startSec": 20.19
+      },
+      {
+        "id": "8405f204-cb91-499f-81a8-9d5f369327d0",
+        "text": "Definition of a Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "29ecf959-052c-491d-9bfc-e25acadf71cb",
+        "text": "A **linear combination** of vectors \\(\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\) is formed by scaling each vector with a scalar (real number) and then adding the results:",
+        "type": "paragraph"
+      },
+      {
+        "id": "82b5ab37-eaeb-4c06-bfd0-d66965321733",
+        "text": "\\mathbf{w} = c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n,\n\\qquad c_i \\in \\mathbb{R}.",
+        "type": "math"
+      },
+      {
+        "id": "f74cac50-f870-4ecf-b939-55d74a500be7",
+        "text": "The scalars \\(c_1, c_2, \\dots, c_n\\) are called the **coefficients** of the combination.",
+        "type": "paragraph"
+      },
+      {
+        "id": "250a1597-b93c-44ca-b074-1fd212d3bfdc",
+        "text": "Definition of Span",
+        "type": "heading3"
+      },
+      {
+        "id": "cc9eeea7-9f90-4003-a057-d944755f7eae",
+        "text": "The **span** of a set of vectors \\(\\{\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\}\\) is the collection of **all** possible linear combinations of those vectors:",
+        "type": "paragraph"
+      },
+      {
+        "id": "ec6e061a-a87c-442b-9c27-407c6199642c",
+        "text": "\\operatorname{Span}\\{\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\}\n= \\{\\,c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n \\mid c_i \\in \\mathbb{R}\\,\\}.",
+        "type": "math"
+      },
+      {
+        "id": "9c1181a0-534c-4aaf-a0a2-c50015494ed7",
+        "text": "Geometrically, the span is the set of points you can reach by scaling and adding the given vectors.",
+        "type": "paragraph"
+      },
+      {
+        "id": "6f139682-06c4-4448-8ae1-554e5ec1cbbd",
+        "text": "Visual Examples in the Plane",
+        "type": "heading3"
+      },
+      {
+        "id": "b5d15816-2b45-45aa-bcf9-acaedd38b1a7",
+        "rows": [
+          [
+            "Situation",
+            "Description",
+            "Span"
+          ],
+          [
+            "**Two vectors pointing in different directions**",
+            "They are not collinear; each points along a distinct line through the origin.",
+            "The whole plane \\(\\mathbb{R}^2\\)."
+          ],
+          [
+            "**Two vectors pointing along the same line**",
+            "They are scalar multiples of each other (collinear).",
+            "Only that line through the origin."
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "e1f0e3b0-8df4-4bea-938c-ad69ec8a23a7",
+        "text": "*Key observation*: If the vectors are not multiples of each other, their span fills the entire space they inhabit; if they are multiples, the span collapses to a line.",
+        "type": "paragraph"
+      },
+      {
+        "id": "27e11820-22aa-44fb-a75e-9cf54cbb7470",
+        "text": "How to Test Whether One Vector Lies in the Span of Another",
+        "type": "heading3"
+      },
+      {
+        "id": "a0411fd7-83bb-40bd-a4f4-24164c152af0",
+        "text": "Given vectors \\(\\mathbf{a}\\) and \\(\\mathbf{b}\\), ask: *Can \\(\\mathbf{b}\\) be written as a scalar multiple of \\(\\mathbf{a}\\)?*  \nMathematically, does there exist a scalar \\(c\\) such that",
+        "type": "paragraph"
+      },
+      {
+        "id": "b78db311-21ff-4f60-b1b0-c19dc5614949",
+        "text": "\\mathbf{b} = c\\mathbf{a}\\;?",
+        "type": "math"
+      },
+      {
+        "id": "191f7a62-708e-444d-8af8-310a49ce809e",
+        "text": "If yes, then \\(\\mathbf{b}\\) is in the span of \\(\\{\\mathbf{a}\\}\\) (and vice‑versa). If no, the two vectors together span a larger set (the plane, in \\(\\mathbb{R}^2\\)).",
+        "type": "paragraph"
+      },
+      {
+        "id": "147fdb99-aa55-4e5f-9426-ba8f3eda8726",
+        "text": "Connection to Linear Independence (preview)",
+        "type": "heading3"
+      },
+      {
+        "id": "f3b1a62b-4703-4c24-8601-d23ecc5085e3",
+        "text": "The lecture notes that the idea of **linear independence** will be explored next time. Roughly, a set of vectors is linearly independent when none of them can be expressed as a linear combination of the others—equivalently, when the only way to obtain the zero vector as a linear combination is by taking all coefficients zero. This property determines whether the span of the set is as large as possible given the number of vectors.",
+        "type": "paragraph"
+      },
+      {
+        "id": "752839a1-33a9-4caa-8a5a-568f318a82b0",
+        "text": "Suggested Activity",
+        "type": "heading3"
+      },
+      {
+        "id": "ef3e26db-bc57-431d-984e-34da1c042e27",
+        "text": "Sketch two vectors of your choice in the plane.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "98ffc8c8-728c-457b-89f8-961b3ee960d5",
+        "text": "Shade the region that represents all their linear combinations (their span).  ",
+        "type": "bullet"
+      },
+      {
+        "id": "e45367a8-e715-4e2a-acd4-f92864c2b588",
+        "text": "Check whether one vector can be written as a scalar multiple of the other; this tells you if the span is a line or the whole plane.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "96790698-70c2-45b5-bab7-36859685d677",
+        "text": "",
+        "type": "divider"
+      },
+      {
+        "id": "f694bf4b-01c5-4cf4-b16c-32df625be952",
+        "text": "*End of chapter notes.*",
+        "type": "paragraph"
+      },
+      {
+        "id": "ddd0959c-11cb-4dc0-84f5-be20fde176d7",
+        "text": "Introduction to Linear Independence",
+        "type": "heading2",
+        "startSec": 92.25
+      },
+      {
+        "id": "40e27f8b-1888-434a-9eeb-0ff4835ace91",
+        "text": "Vector Basics",
+        "type": "heading3"
+      },
+      {
+        "id": "530239a3-4892-4aa9-8beb-999096be370a",
+        "text": "A **vector** is an arrow with a **direction** and a **length**.",
+        "type": "bullet"
+      },
+      {
+        "id": "ec5d14df-a268-49f9-8a8f-f01469ea04ad",
+        "text": "Vector addition: place vectors tip to tail; the result is a new vector $\\mathbf{u}+\\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "3c905c40-8e7f-426a-8a64-2690a7512f6c",
+        "text": "Scaling: multiply a vector by a scalar $c$ to stretch or shrink it: $c\\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "acf51c8d-0269-4034-a425-0a63d2c9fd73",
+        "text": "Linear Combination and Span",
+        "type": "heading3"
+      },
+      {
+        "id": "fc8f4325-3e47-4474-a9b6-a43593aea399",
+        "text": "A **linear combination** of vectors $\\mathbf{v}_1,\\dots,\\mathbf{v}_n$ is formed by scaling each and adding: $$c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$$ where $c_i$ are scalars.",
+        "type": "bullet"
+      },
+      {
+        "id": "93636970-f37a-4787-a98b-600dae1bcd78",
+        "text": "The **span** of a set of vectors is the set of all their linear combinations: $$\\text{Span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}= \\{c_1\\mathbf{v}_1+\\dots+c_n\\mathbf{v}_n \\mid c_i\\in\\mathbb{R}\\}.$$",
+        "type": "bullet"
+      },
+      {
+        "id": "90ba635e-641d-46c8-800d-42df811a2027",
+        "text": "Geometric Interpretation of Span (Two Vectors)",
+        "type": "heading3"
+      },
+      {
+        "id": "285b20a1-9d05-4852-bfe9-c0c8ef9201d9",
+        "rows": [
+          [
+            "Configuration of vectors",
+            "Description",
+            "Span"
+          ],
+          [
+            "Point in different directions (not collinear)",
+            "They are not scalar multiples of each other",
+            "The whole plane"
+          ],
+          [
+            "Point along the same line (collinear)",
+            "One is a scalar multiple of the other",
+            "Only that line"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "afdf564d-f5ba-4279-bea4-0602f30dc6b2",
+        "text": "Mathematically, if $\\mathbf{w}\\neq c\\mathbf{v}$ for any scalar $c$, then $\\text{Span}\\{\\mathbf{v},\\mathbf{w}\\}$ fills the plane; if $\\mathbf{w}=c\\mathbf{v}$, then $\\text{Span}\\{\\mathbf{v},\\mathbf{w}\\}=\\{t\\mathbf{v}\\mid t\\in\\mathbb{R}\\}$.",
+        "type": "paragraph"
+      },
+      {
+        "id": "37006820-ebea-43c6-bece-751b35a26075",
+        "text": "Toward Linear Independence",
+        "type": "heading3"
+      },
+      {
+        "id": "6e36c2a8-c9dd-449b-8621-b438f4c3894c",
+        "text": "The idea of **linear independence** arises when asking whether one vector in a set can be written as a linear combination of the others.",
+        "type": "bullet"
+      },
+      {
+        "id": "7771b20a-c923-46a9-b4de-5b2baed5b557",
+        "text": "For two vectors, check if one can be expressed using the other; if not, they are linearly independent.",
+        "type": "bullet"
+      },
+      {
+        "id": "94f5e7a3-2c9d-4b62-866c-3fe90b3ce756",
+        "text": "Before next lecture, try sketching the span of two vectors of your own and see whether one can be written using the other.",
+        "type": "bullet"
+      },
+      {
+        "id": "9948e038-fd62-415e-95fc-2650f2b49aaa",
+        "text": "Vector Operations Revisited",
+        "type": "heading2",
+        "startSec": 162.54
+      },
+      {
+        "id": "733e328b-5189-43a3-90dd-15d9ad44a4a5",
+        "text": "Vector Addition",
+        "type": "heading3"
+      },
+      {
+        "id": "c23849d0-b16f-43fe-832e-713fd455ac37",
+        "text": "**Definition**: Placing two vectors tip‑to‑tail yields a new vector that represents their sum.",
+        "type": "bullet"
+      },
+      {
+        "id": "10c48970-e741-4ab1-b454-50a0527e2bb6",
+        "text": "**Notation**: If $\\mathbf{u}$ and $\\mathbf{v}$ are vectors, their sum is written $\\mathbf{u} + \\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "18eef5df-488c-43a3-9b64-7b4719004008",
+        "text": "Scalar Multiplication",
+        "type": "heading3"
+      },
+      {
+        "id": "8f120c4b-6ec0-4a5a-9521-d016cc2f0d58",
+        "text": "**Definition**: Multiplying a vector by a number stretches or shrinks it (and may reverse direction if the number is negative).",
+        "type": "bullet"
+      },
+      {
+        "id": "387a5ae5-817e-49b5-881f-bb8f3f39e77c",
+        "text": "**Notation**: For a vector $\\mathbf{v}$ and a number $c$, the scaled vector is $c\\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "d32dcd3b-00b4-46d2-8320-ffc649a98abe",
+        "text": "Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "4ec12de0-ab56-43b6-a418-d689995d76f7",
+        "text": "**Definition**: A linear combination mixes scaling and addition: each vector is scaled by a number and then all are added together.",
+        "type": "bullet"
+      },
+      {
+        "id": "4347b9e1-ea85-4d91-83b6-3b5b94b805ac",
+        "text": "**Notation**: For vectors $\\mathbf{v}_1,\\dots,\\mathbf{v}_n$ and numbers $c_1,\\dots,c_n$, the combination is $$c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n.$$",
+        "type": "bullet"
+      },
+      {
+        "id": "7479eab8-7b08-4874-8690-b068de7b21ca",
+        "text": "Span",
+        "type": "heading3"
+      },
+      {
+        "id": "63d73f9b-2caa-4079-b9ad-bb0658a5a608",
+        "text": "**Definition**: The set of all possible linear combinations of a given collection of vectors is called their **span**.",
+        "type": "bullet"
+      },
+      {
+        "id": "3b6690e5-4a7a-4f19-be21-e9e841241f89",
+        "text": "**Notation**: $$\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\{c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\mid c_i \\text{ are numbers}\\}.$$",
+        "type": "bullet"
+      },
+      {
+        "id": "8992d7dc-6a33-4b44-a281-ff47d5b4a809",
+        "text": "Geometric Interpretation of Span (in the plane)",
+        "type": "heading3"
+      },
+      {
+        "id": "e965a0da-8c80-4311-8a2c-f1db78275a8e",
+        "rows": [
+          [
+            "Situation",
+            "Description",
+            "Span"
+          ],
+          [
+            "Two vectors point in **different directions**",
+            "They are not collinear",
+            "The whole plane $\\mathbb{R}^2$"
+          ],
+          [
+            "Two vectors point along the **same line**",
+            "They are collinear (one is a scalar multiple of the other)",
+            "Only that line"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "317d040d-9820-4d57-8822-4fd12e608841",
+        "text": "**Note**: If one vector can be written as a scalar multiple of the other, then the span does not expand beyond the line they share.",
+        "type": "bullet"
+      },
+      {
+        "id": "1e2ed1e0-d738-4bfd-8c3a-567bf3159a00",
+        "text": "Understanding Vector Span",
+        "type": "heading2",
+        "startSec": 279.51
+      },
+      {
+        "id": "bbdc2b5d-b389-492f-aecc-3b73420b9175",
+        "text": "What is a vector?",
+        "type": "heading3"
+      },
+      {
+        "id": "d6b7c035-5059-4b59-acb2-b4fb44fc78e6",
+        "text": "A vector is an **arrow** with a **direction** and a **length** (magnitude).",
+        "type": "bullet"
+      },
+      {
+        "id": "7ff6e2ca-318a-4e18-9fa4-d40515e86f17",
+        "text": "Notated as $\\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "9de025a6-6851-437b-a737-eedd561ca878",
+        "text": "Basic operations on vectors",
+        "type": "heading3"
+      },
+      {
+        "id": "df5504f4-6903-4d8e-badd-b7a981f61b2f",
+        "text": "**Addition**: place vectors tip‑to‑tail; the resultant vector is $\\mathbf{u} + \\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "327f4625-a325-430d-bacb-7bde5d1794d9",
+        "text": "**Scaling**: multiply a vector by a number (scalar) $c$ to stretch or shrink it: $c\\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "424ffef1-2d64-4485-a76a-7ec056137fa2",
+        "text": "$c>1$ lengthens, $0<c<1$ shortens, $c<0$ reverses direction.",
+        "type": "bullet"
+      },
+      {
+        "id": "0cf7d54a-2349-4498-8c72-06d544357784",
+        "text": "Linear combination",
+        "type": "heading3"
+      },
+      {
+        "id": "28ff6c1a-8305-40ea-92c2-df023be90037",
+        "text": "A **linear combination** mixes scaling and addition: we scale some vectors and then add them.",
+        "type": "bullet"
+      },
+      {
+        "id": "1645af70-92ce-4da7-a97e-1de7e21d74ff",
+        "text": "For vectors $\\mathbf{v}_1,\\dots,\\mathbf{v}_n$ and scalars $c_1,\\dots,c_n$:",
+        "type": "bullet"
+      },
+      {
+        "id": "8422129e-8d53-4d70-b104-781727c65e36",
+        "text": "c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n",
+        "type": "math"
+      },
+      {
+        "id": "c0c5d402-2c4d-4b9b-8f50-31328f049995",
+        "text": "The set of **all** such combinations is called the **span** of the vectors.",
+        "type": "bullet"
+      },
+      {
+        "id": "fae33399-b306-43f1-8cad-ddbcdb66e05b",
+        "text": "Span",
+        "type": "heading3"
+      },
+      {
+        "id": "3a69b307-2627-40f3-aa6e-b6160586d1a4",
+        "text": "Definition: the **span** of a set $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}$ is",
+        "type": "bullet"
+      },
+      {
+        "id": "89696f68-d065-4b4e-ab64-1c1f459c72b6",
+        "text": "\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\{\\,c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\mid c_i\\in\\mathbb{R}\\,\\}.",
+        "type": "math"
+      },
+      {
+        "id": "0a238fd7-00cd-4d85-800f-d64a37b11f2f",
+        "text": "Geometric interpretation in the plane ($\\mathbb{R}^2$):",
+        "type": "bullet"
+      },
+      {
+        "id": "fa80aaee-7612-4fd2-9ae8-58661a9b3712",
+        "text": "If two vectors point in **different directions**, their span fills the **whole plane**.",
+        "type": "bullet"
+      },
+      {
+        "id": "b65f3bc3-39d9-4dd5-bc58-3752850d4b5c",
+        "text": "If they point along the **same line** (are collinear), their span is just that **line**.",
+        "type": "bullet"
+      },
+      {
+        "id": "e941b4c0-f67f-4a80-9f85-553404bb5d90",
+        "text": "Comparison of cases",
+        "type": "heading3"
+      },
+      {
+        "id": "cfe7271a-27f3-429d-beae-c296474e08c8",
+        "rows": [
+          [
+            "Situation",
+            "Description",
+            "Span"
+          ],
+          [
+            "Vectors point in different directions",
+            "Not collinear",
+            "Whole plane ($\\mathbb{R}^2$)"
+          ],
+          [
+            "Vectors point along same line",
+            "Collinear (one is a scalar multiple of the other)",
+            "That line"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "6382dbd1-1807-41f6-b3ea-ccc07c07284e",
+        "text": "This observation leads to the idea of **linear independence**, which will be explored next time.",
+        "type": "bullet"
+      },
+      {
+        "id": "822c7939-30c1-491b-86de-269bbed7bebc",
+        "text": "Exercise suggestion",
+        "type": "heading3"
+      },
+      {
+        "id": "ea77029f-2a6f-46ac-a61f-512a203d8dd6",
+        "text": "Sketch the span of two vectors of your own choosing.",
+        "type": "bullet"
+      },
+      {
+        "id": "fa4ac256-8178-4ac4-8b78-bee68f1977e5",
+        "text": "Check whether one vector can be written as a scalar multiple of the other (i.e., whether it lies in the span of the single vector).",
+        "type": "bullet"
+      },
+      {
+        "id": "073d8f6e-dd0e-401b-8a4b-7631d37d7575",
+        "text": "Combining Vectors",
+        "type": "heading2",
+        "startSec": 373.5
+      },
+      {
+        "id": "5cdda0da-64f1-4976-b678-030a26a2d134",
+        "text": "Vector Addition",
+        "type": "heading3"
+      },
+      {
+        "id": "bc25dfe2-811a-4f9b-a995-8130f54221a0",
+        "text": "Place vectors **tip to tail**.",
+        "type": "bullet"
+      },
+      {
+        "id": "30ccba42-84e2-4023-b4d6-f3d69b8b5834",
+        "text": "The resultant vector is $\\mathbf{u} + \\mathbf{v}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "60c1772c-0279-4274-b705-1b5e86acb77c",
+        "text": "Scaling Vectors",
+        "type": "heading3"
+      },
+      {
+        "id": "cee31ed2-1242-472f-aa38-54cf2c035a61",
+        "text": "Multiply a vector by a scalar $c$.",
+        "type": "bullet"
+      },
+      {
+        "id": "945be313-0a05-4d87-9d96-e725e68ed7d4",
+        "text": "Result: $c\\mathbf{v}$ (stretches if $|c|>1$, shrinks if $|c|<1$, reverses direction if $c<0$).",
+        "type": "bullet"
+      },
+      {
+        "id": "c245b53e-b5e7-455a-9831-1bf91936c97c",
+        "text": "Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "f71bec84-ee2e-413e-8cf3-fdd9f9c0f949",
+        "text": "Scale each vector then add them.",
+        "type": "bullet"
+      },
+      {
+        "id": "ba9ec416-76f9-43dc-9405-cfaf8013e49b",
+        "text": "General form: $$c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$$ where $c_i\\in\\mathbb{R}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "479b795e-090e-423c-97d9-31bd1adc9fe0",
+        "text": "Span",
+        "type": "heading3"
+      },
+      {
+        "id": "1ac252ed-ce6d-44bf-9192-124b27a68e7d",
+        "text": "The **span** of a set $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}$ is the set of all their linear combinations.",
+        "type": "bullet"
+      },
+      {
+        "id": "098a529d-fea9-4297-b7d2-50ca1499d0d7",
+        "text": "Notation: $$\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\bigl\\{c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\;\\big|\\; c_i\\in\\mathbb{R}\\bigr\\}.$$",
+        "type": "bullet"
+      },
+      {
+        "id": "2a98fc20-7752-4ab2-a0c4-e833de959d98",
+        "text": "Geometric Interpretation of Span (in the plane)",
+        "type": "heading3"
+      },
+      {
+        "id": "6511da12-b7c7-4810-b0d3-27ff80fd73df",
+        "text": "If two vectors point in **different directions**, their span is the **whole plane**: $\\operatorname{span}\\{\\mathbf{a},\\mathbf{b}\\} = \\mathbb{R}^2$.",
+        "type": "bullet"
+      },
+      {
+        "id": "ba51bf15-d0d4-4aae-b230-ce94c9f0f45c",
+        "text": "If they point along the **same line**, their span is that **line**: $\\operatorname{span}\\{\\mathbf{a},\\mathbf{b}\\} = \\{t\\mathbf{a}\\mid t\\in\\mathbb{R}\\}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "66022454-b87d-4d2b-b742-26a239e65cb0",
+        "text": "Linear Independence (preview)",
+        "type": "heading3"
+      },
+      {
+        "id": "20c1fc78-3bde-44e0-bc5b-5cec1dbbab63",
+        "text": "Vectors are **linearly independent** when none can be written as a linear combination of the others.",
+        "type": "bullet"
+      },
+      {
+        "id": "1d773271-230b-4d9c-b305-025cfa13b5b6",
+        "text": "Equivalent: the only solution to $c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n = \\mathbf{0}$ is $c_1=\\dots=c_n=0$.",
+        "type": "bullet"
+      },
+      {
+        "id": "0e20bb7d-ccbf-44f8-bdf8-c38096054a17",
+        "text": "We will explore this next time.",
+        "type": "bullet"
+      },
+      {
+        "id": "030cf66d-d18a-4d89-883b-b5e30e147f7c",
+        "text": "Span of Vectors in a Plane",
+        "type": "heading2",
+        "startSec": 492.87
+      },
+      {
+        "id": "01e2e935-8936-474d-b0f8-de115338ccde",
+        "text": "Definition of a Vector",
+        "type": "heading3"
+      },
+      {
+        "id": "cacda2c6-cdbe-4e1e-8406-bfe6d703df64",
+        "text": "A **vector** is an arrow that has both a **direction** and a **length** (magnitude).",
+        "type": "paragraph"
+      },
+      {
+        "id": "424d1b81-5ba6-470d-82b0-f975064b5e92",
+        "text": "Vector Operations",
+        "type": "heading3"
+      },
+      {
+        "id": "45a39c46-d841-4ceb-bb36-6fcd446e97e1",
+        "text": "**Addition**: place the tail of the second vector at the tip of the first; the resultant vector $\\mathbf{w}$ is  ",
+        "type": "bullet"
+      },
+      {
+        "id": "456cd97a-3a44-4040-ba4f-ea2cc8a33a49",
+        "text": "\\mathbf{u} + \\mathbf{v} = \\mathbf{w}.",
+        "type": "math"
+      },
+      {
+        "id": "3e283dfb-2def-4451-be57-2b51c793c696",
+        "text": "**Scalar multiplication**: multiply a vector by a real number $c$ to stretch or shrink it:  ",
+        "type": "bullet"
+      },
+      {
+        "id": "4203acc3-a2c4-488e-8319-359406cbb49a",
+        "text": "c\\mathbf{v}.",
+        "type": "math"
+      },
+      {
+        "id": "b41a41e8-c3dc-408e-8096-03847ab2c865",
+        "text": "Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "9bdddabb-6af6-416a-99ca-5bddaf3a73c6",
+        "text": "A **linear combination** mixes scaling and addition: for vectors $\\mathbf{v}_1,\\dots,\\mathbf{v}_n$ and scalars $c_1,\\dots,c_n\\in\\mathbb{R}$,",
+        "type": "paragraph"
+      },
+      {
+        "id": "8fe257bd-cf0d-4b67-9168-be98c4d6ef1d",
+        "text": "c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n.",
+        "type": "math"
+      },
+      {
+        "id": "b49d16ce-796d-4f11-af0a-d6dff6060e2a",
+        "text": "Span",
+        "type": "heading3"
+      },
+      {
+        "id": "e1f9d332-c942-4024-8c5b-d996fe6c5538",
+        "text": "The **span** of a set of vectors is the set of all possible linear combinations of those vectors:",
+        "type": "paragraph"
+      },
+      {
+        "id": "6631bbbc-5848-4fdf-8de7-e4c7ecc51aae",
+        "text": "\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\bigl\\{c_1\\mathbf{v}_1+\\dots+c_n\\mathbf{v}_n \\;\\big|\\; c_i\\in\\mathbb{R}\\bigr\\}.",
+        "type": "math"
+      },
+      {
+        "id": "c0c814d2-3712-43c9-8f77-8e59493b529a",
+        "text": "Span of Two Vectors in the Plane",
+        "type": "heading3"
+      },
+      {
+        "id": "c9acf185-1534-4829-bd34-278ee798c072",
+        "rows": [
+          [
+            "Relationship of the two vectors",
+            "Geometric description of their span",
+            "Algebraic description"
+          ],
+          [
+            "Point in **different directions** (not collinear)",
+            "The whole plane $\\mathbb{R}^2$",
+            "$\\operatorname{span}\\{\\mathbf{v}_1,\\mathbf{v}_2\\} = \\mathbb{R}^2$"
+          ],
+          [
+            "Point along the **same line** (collinear)",
+            "Only that line (all scalar multiples of one vector)",
+            "$\\operatorname{span}\\{\\mathbf{v}_1,\\mathbf{v}_2\\} = \\{t\\mathbf{v}_1 \\mid t\\in\\mathbb{R}\\}$ (or similarly with $\\mathbf{v}_2$)"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "bdfcda3a-7d91-443a-99cd-166f340fa675",
+        "text": "Connection to Linear Independence",
+        "type": "heading3"
+      },
+      {
+        "id": "4696fcb4-fa07-4448-a3f9-c476d881f65d",
+        "text": "If the two vectors are not collinear, neither can be written as a scalar multiple of the other; this situation will be called **linear independence** in the next lecture. If they are collinear, one **can** be written using the other (i.e., one is a scalar multiple of the other), indicating **linear dependence**.",
+        "type": "paragraph"
+      },
+      {
+        "id": "a5c4787f-ab47-440a-a2b7-3b84a8fcbb1b",
+        "text": "Suggested Exercise",
+        "type": "heading3"
+      },
+      {
+        "id": "ec692c6e-48a2-4aaf-80e9-477f43c5d476",
+        "text": "Sketch the span of two vectors of your own choosing. Then check whether one vector can be expressed as a scalar multiple of the other. This test helps you see whether the span fills the whole plane or only a line.",
+        "type": "paragraph"
+      },
+      {
+        "id": "cbe2d0df-5293-4f3b-bae5-77e5a31ca1ea",
+        "text": "Preparing for Linear Independence",
+        "type": "heading2",
+        "startSec": 610.95
+      },
+      {
+        "id": "8f854357-5524-4b57-a787-0763e634ee86",
+        "text": "Vectors and Operations",
+        "type": "heading3"
+      },
+      {
+        "id": "bb8b7373-56a5-4a70-b1b5-5692f0eaadfb",
+        "text": "A **vector** is an arrow with a **direction** and a **length**.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "3a83c670-37e3-4b3f-9f3c-73cf7d8c7d74",
+        "text": "Vector **addition**: placing the tip of one vector at the tail of another gives the resultant $\\mathbf{u}+\\mathbf{v}$.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "95eb2682-01a1-4e83-9a65-c2daf8a8140d",
+        "text": "**Scalar multiplication**: multiplying a vector by a number $c$ stretches or shrinks it, producing $c\\mathbf{u}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "8c663045-283a-4e15-8234-a21eeae3be36",
+        "text": "Linear Combination and Span",
+        "type": "heading3"
+      },
+      {
+        "id": "e7de5ea4-a842-4213-bc64-4dea1fe4ceb9",
+        "text": "A **linear combination** of vectors $\\mathbf{v}_1,\\dots,\\mathbf{v}_n$ is formed by scaling each and adding them:  ",
+        "type": "bullet"
+      },
+      {
+        "id": "a2e4896b-46a1-4642-8417-18d27b136f55",
+        "text": "c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\cdots + c_n\\mathbf{v}_n",
+        "type": "math"
+      },
+      {
+        "id": "f7c45381-7722-411f-8c5f-a0afefa0c964",
+        "text": "where each $c_i$ is a scalar.",
+        "type": "paragraph"
+      },
+      {
+        "id": "cf1221fa-2937-4859-95bb-d1f8e5b904b4",
+        "text": "The **span** of a set of vectors is the set of all possible linear combinations:  ",
+        "type": "bullet"
+      },
+      {
+        "id": "836d51bd-45ef-44e2-8cda-6097ae066de1",
+        "text": "\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\{c_1\\mathbf{v}_1 + \\cdots + c_n\\mathbf{v}_n \\mid c_i\\in\\mathbb{R}\\}.",
+        "type": "math"
+      },
+      {
+        "id": "68379491-4cf5-42b9-a034-ff2d6e3b6756",
+        "text": "Geometric Interpretation of Span (in the plane)",
+        "type": "heading3"
+      },
+      {
+        "id": "53be1888-7bfc-462e-9366-ba6cd681094a",
+        "text": "If two vectors point in **different directions**, their span is the whole plane:  ",
+        "type": "bullet"
+      },
+      {
+        "id": "5343ef7f-13b6-4de7-92cf-250ed814a9b9",
+        "text": "\\operatorname{span}\\{\\mathbf{a},\\mathbf{b}\\} = \\mathbb{R}^2.",
+        "type": "math"
+      },
+      {
+        "id": "180e0fe4-db9d-4227-b979-42eef3e1c66c",
+        "text": "If the two vectors lie on the **same line** (are collinear), their span is just that line:  ",
+        "type": "bullet"
+      },
+      {
+        "id": "c46e6974-8e57-4e2c-9e4e-41593229f24f",
+        "text": "\\operatorname{span}\\{\\mathbf{a},\\mathbf{b}\\} = \\{t\\mathbf{a}\\mid t\\in\\mathbb{R}\\}.",
+        "type": "math"
+      },
+      {
+        "id": "deb33aa9-b102-4f66-a864-f5e0988db17b",
+        "text": "Toward Linear Independence",
+        "type": "heading3"
+      },
+      {
+        "id": "bc8ca8b8-6806-4ee1-bd5c-7e45bf86befa",
+        "text": "The idea of **linear independence** emerges when we ask whether any vector in a set can be written as a linear combination of the others.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "5793c413-1278-477c-a63f-3986fafa36fd",
+        "text": "As a preparation, sketch the span of two vectors of your own and check whether one can be expressed using the other.",
+        "type": "bullet"
+      },
+      {
+        "id": "66e24101-0e5c-45dc-99c3-f3f8bc035f72",
+        "text": "Core Vector Concepts",
+        "type": "heading2",
+        "startSec": 733.08
+      },
+      {
+        "id": "76de8659-8a53-4d40-82ab-aca4047ba4c2",
+        "text": "Vector Basics",
+        "type": "heading3"
+      },
+      {
+        "id": "25cc9d12-f0c3-4ed3-8a3f-ac58d9034230",
+        "text": "A **vector** is an arrow that has both a **direction** and a **length** (magnitude).  ",
+        "type": "bullet"
+      },
+      {
+        "id": "ef176a68-256d-4d27-ad6e-4845ee3ddc37",
+        "text": "Vectors can be represented geometrically as directed line segments.",
+        "type": "bullet"
+      },
+      {
+        "id": "ba8791cb-251d-495f-87ce-dd7322e27522",
+        "text": "Operations on Vectors",
+        "type": "heading3"
+      },
+      {
+        "id": "a407dfc2-3423-4791-a107-3be0a0403e1d",
+        "text": "**Addition**: Place the tail of the second vector at the tip of the first (tip‑to‑tail). The resultant vector runs from the tail of the first to the tip of the second.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "7045623b-ed6c-45be-843f-42a18dd51236",
+        "text": "\\mathbf{v} + \\mathbf{w}",
+        "type": "math"
+      },
+      {
+        "id": "6da8be56-fffa-4e3c-8db9-bb6d4dc012af",
+        "text": "**Scaling**: Multiply a vector by a real number (scalar) $c$. This stretches the vector if $|c|>1$, shrinks it if $|c|<1$, and reverses its direction if $c<0$.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "027a4e86-a049-46c8-8973-d60684553254",
+        "text": "c\\mathbf{v}",
+        "type": "math"
+      },
+      {
+        "id": "938f8e8d-910d-411f-8f2c-77c17d49481a",
+        "text": "Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "4f42f80b-24be-4413-b648-b3d3cb60eafd",
+        "text": "A **linear combination** combines scaling and addition: take several vectors, scale each by a scalar, then add the results.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "dd7c1742-b779-421d-a5fa-9b6bdb4012c9",
+        "text": "\\sum_{i=1}^{k} c_i \\mathbf{v}_i \\quad\\text{with } c_i\\in\\mathbb{R}",
+        "type": "math"
+      },
+      {
+        "id": "8c1c0042-9025-43b1-b3c1-1c58d7c54f55",
+        "text": "Span",
+        "type": "heading3"
+      },
+      {
+        "id": "bd594eae-46bd-40e5-93ea-faaf6fee7b65",
+        "text": "The **span** of a set of vectors $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_k\\}$ is the set of all possible linear combinations of those vectors.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "1f804992-93ec-48d8-b0fd-220a8abd2160",
+        "text": "\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_k\\} = \\Bigl\\{ \\sum_{i=1}^{k} c_i \\mathbf{v}_i \\;\\Big|\\; c_i\\in\\mathbb{R} \\Bigr\\}",
+        "type": "math"
+      },
+      {
+        "id": "10c69d78-883f-43a5-8089-c44e5748223e",
+        "text": "Geometric interpretation in the plane:  ",
+        "type": "bullet"
+      },
+      {
+        "id": "1fc49dee-d04f-4a6c-8ff2-b4922b8b82c9",
+        "text": "If two vectors point in **different directions**, their span fills the entire plane.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "68ecfb24-dac1-480e-89c3-fef4595187c7",
+        "text": "If they point along the **same line** (are collinear), their span is just that line.",
+        "type": "bullet"
+      },
+      {
+        "id": "23a75b8b-1e92-4de6-9eed-3fb46e9bc76a",
+        "text": "Connection to Linear Independence",
+        "type": "heading3"
+      },
+      {
+        "id": "f68e0e23-b063-4f04-82ec-9ec58abffd50",
+        "text": "The notion of **linear independence** arises when examining whether one vector in a set can be expressed as a linear combination of the others.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "43cde6da-506c-4829-9b68-ba1ed7348f16",
+        "text": "If two vectors are not collinear, neither can be written using the other, indicating independence; if they are collinear, one is a scalar multiple of the other, indicating dependence.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "8da8ba7a-54b9-44e3-b5d9-7afd7981d50d",
+        "text": "*Before the next lecture, sketch the span of two vectors of your own and test whether one can be written using the other.*",
+        "type": "paragraph"
+      },
+      {
+        "id": "bee1f23b-d936-4a94-9af8-885f2742e96f",
+        "text": "Practical Application of Span",
+        "type": "heading2",
+        "startSec": 850.05
+      },
+      {
+        "id": "5c5109de-6c3a-46f8-a14b-67f0c48bcd66",
+        "text": "Definition of a Vector",
+        "type": "heading3"
+      },
+      {
+        "id": "be39b51d-17b3-4e3f-b58d-94a9a48750bb",
+        "text": "A **vector** is an arrow that has both a direction and a length. In the plane we can think of it as an ordered pair of numbers, but the geometric picture is enough for the ideas discussed here.",
+        "type": "paragraph"
+      },
+      {
+        "id": "8d8ff8a6-a72b-4b77-92fa-33a9e3a7d732",
+        "text": "Vector Addition and Scaling",
+        "type": "heading3"
+      },
+      {
+        "id": "4119a68b-429f-459b-a395-87455f84e6b2",
+        "text": "Adding two vectors $\\mathbf{u}$ and $\\mathbf{v}$ is done by placing the tail of $\\mathbf{v}$ at the tip of $\\mathbf{u}$; the resulting vector $\\mathbf{u}+\\mathbf{v}$ stretches from the tail of $\\mathbf{u}$ to the tip of $\\mathbf{v}$.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "f3502f3c-04ce-4f51-b7eb-05ec637b8dca",
+        "text": "Scaling a vector $\\mathbf{v}$ by a number $c$ produces $c\\mathbf{v}$, which stretches or shrinks the arrow while preserving its direction if $c>0$ and reversing it if $c<0$.",
+        "type": "bullet"
+      },
+      {
+        "id": "4f5b9c55-cd16-463a-87e4-04329084bd9f",
+        "text": "Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "66a75139-43c2-4758-97c1-773f8f0293a1",
+        "text": "A **linear combination** mixes scaling and addition. For vectors $\\mathbf{v}_1,\\mathbf{v}_2,\\dots,\\mathbf{v}_n$ and scalars $c_1,c_2,\\dots,c_n$ the combination is",
+        "type": "paragraph"
+      },
+      {
+        "id": "fab80f95-dee4-439a-b849-a62e039f5fa1",
+        "text": "c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n .",
+        "type": "math"
+      },
+      {
+        "id": "9e7950ed-51a1-4934-8af5-2f5db2df333f",
+        "text": "The set of all such combinations is called the **span** of the vectors.",
+        "type": "paragraph"
+      },
+      {
+        "id": "00675a79-216b-44c1-b697-a843800e2f0f",
+        "text": "Span – Formal Definition",
+        "type": "heading3"
+      },
+      {
+        "id": "71b01852-41d7-4843-a143-ae78a99d6e65",
+        "text": "The span of a collection $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}$ is",
+        "type": "paragraph"
+      },
+      {
+        "id": "717383b4-5d7d-4cff-921f-94df1a56791e",
+        "text": "\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}\n   = \\{\\,c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\mid c_i\\in\\mathbb{R}\\,\\}.",
+        "type": "math"
+      },
+      {
+        "id": "8e74a46c-ddce-4598-b838-f13e5fc0e4b6",
+        "text": "Span in the Plane – Two‑Vector Cases",
+        "type": "heading3"
+      },
+      {
+        "id": "efacf2da-40f1-477d-abb3-4f20d1287da0",
+        "rows": [
+          [
+            "Relationship of the two vectors",
+            "Geometric description of their span"
+          ],
+          [
+            "Point in **different directions** (not collinear)",
+            "The span fills the **entire plane** $\\mathbb{R}^2$."
+          ],
+          [
+            "Point along the **same line** (collinear, possibly opposite)",
+            "The span is just that **line** through the origin."
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "1ddae94a-2c23-4a66-b903-76724f3ef12b",
+        "text": "This table follows directly from the lecture: when the vectors are not multiples of each other, any vector in the plane can be expressed as a linear combination; when they are multiples, all combinations stay on the same line.",
+        "type": "paragraph"
+      },
+      {
+        "id": "95e1fca4-d636-4bb3-8fde-7ee921130aae",
+        "text": "Connection to Linear Independence",
+        "type": "heading3"
+      },
+      {
+        "id": "413790a5-1c59-44ef-b225-91a900da19b3",
+        "text": "The lecture notes that observing when the span is a line versus the whole plane leads naturally to the idea of **linear independence**—a topic to be explored in the next session. In short, two vectors are linearly independent exactly when their span is the whole plane; they are linearly dependent when their span is only a line.",
+        "type": "paragraph"
+      },
+      {
+        "id": "a21ef834-0ed5-4822-b0b2-62fd18292337",
+        "text": "Suggested Exercise",
+        "type": "heading3"
+      },
+      {
+        "id": "6181611b-0d88-46bb-9b62-b9eb3579677b",
+        "text": "Before the next lecture, sketch two vectors of your own choosing and determine whether one can be written as a scalar multiple of the other. This checks if their span is a line or the whole plane, reinforcing the link between span and linear independence.",
+        "type": "paragraph"
+      },
+      {
+        "id": "6c231a5b-4c49-4e0b-aa99-3e9b5b293f4d",
+        "text": "Anticipating Future Topics",
+        "type": "heading2",
+        "startSec": 973.98
+      },
+      {
+        "id": "a7ca1330-4dc4-4f7b-b7b8-c63b2e18a648",
+        "text": "Vectors and Basic Operations",
+        "type": "heading3"
+      },
+      {
+        "id": "87bea892-3dba-4662-b596-257e40951ec6",
+        "text": "A **vector** is an arrow with a **direction** and a **length** (magnitude).",
+        "type": "bullet"
+      },
+      {
+        "id": "d04c30dc-fe3a-4b84-afe7-fcfc9fa00687",
+        "text": "Vector addition: place vectors tip‑to‑tail; the resultant vector is \\(\\mathbf{u}+\\mathbf{v}\\).",
+        "type": "bullet"
+      },
+      {
+        "id": "de65c0c8-b9e6-4cf3-9851-68e5195be193",
+        "text": "Scaling a vector by a scalar \\(c\\) stretches or shrinks it: \\(c\\mathbf{v}\\).",
+        "type": "bullet"
+      },
+      {
+        "id": "a195c023-ed7a-4699-bf77-bac0448fc6d6",
+        "text": "Linear Combinations and Span",
+        "type": "heading3"
+      },
+      {
+        "id": "0c9df8fb-95a4-4471-a6fc-8f573699bb48",
+        "text": "A **linear combination** of vectors \\(\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\) is formed by scaling each and adding: ",
+        "type": "bullet"
+      },
+      {
+        "id": "adc0483a-eafa-46ea-af1d-7b4321d1e38e",
+        "text": "c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n",
+        "type": "math"
+      },
+      {
+        "id": "ae8049dc-de5d-4b8b-9c65-fd7dd0f6c33b",
+        "text": "The **span** of a set of vectors is the set of all possible linear combinations:",
+        "type": "bullet"
+      },
+      {
+        "id": "a741343e-37dc-48db-8be1-a1fb8764d661",
+        "text": "\\text{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\{c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\mid c_i\\in\\mathbb{R}\\}",
+        "type": "math"
+      },
+      {
+        "id": "f972c1ea-0625-4786-807e-713094336ce4",
+        "text": "Geometric Interpretation of Span in the Plane",
+        "type": "heading3"
+      },
+      {
+        "id": "ac592c73-cab8-494e-9663-0dd788e3430b",
+        "rows": [
+          [
+            "Configuration of two vectors",
+            "Resulting span"
+          ],
+          [
+            "Point in **different directions** (not collinear)",
+            "The whole plane \\(\\mathbb{R}^2\\)"
+          ],
+          [
+            "Point along the **same line** (collinear)",
+            "Only that line (a 1‑dimensional subspace)"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "b9f94839-c9f5-4882-b5ca-0e5fb0bedabc",
+        "text": "If \\(\\mathbf{v}_2 = k\\mathbf{v}_1\\) for some scalar \\(k\\), then every linear combination reduces to a scalar multiple of \\(\\mathbf{v}_1\\), so the span is a line.",
+        "type": "bullet"
+      },
+      {
+        "id": "3825434e-3402-4c96-8781-407900ad6e3b",
+        "text": "If no such scalar exists, the two vectors generate all of \\(\\mathbb{R}^2\\).",
+        "type": "bullet"
+      },
+      {
+        "id": "bd7fbf29-5e43-415e-93d8-15c281b2db5a",
+        "text": "Connection to Linear Independence (preview)",
+        "type": "heading3"
+      },
+      {
+        "id": "2cc36a41-3dd7-447e-8b75-97c5b6d5227e",
+        "text": "The ability to write one vector as a scalar multiple of another (\\(\\mathbf{v}_2 = k\\mathbf{v}_1\\)) indicates **dependence**.",
+        "type": "bullet"
+      },
+      {
+        "id": "fd791b7c-199f-4fad-9fa1-90b14983f9c9",
+        "text": "When no such relation exists, the vectors are **independent**, and their span fills the plane.",
+        "type": "bullet"
+      },
+      {
+        "id": "ac5ff5ce-a283-4043-bcf7-36b1a2341bed",
+        "text": "The upcoming lecture will formalize **linear independence** and test it via the equation \\(c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 = \\mathbf{0}\\) having only the trivial solution.",
+        "type": "bullet"
+      },
+      {
+        "id": "7351ca6d-1fb3-48b9-ae4d-a283ee328179",
+        "text": "Exercise Suggestion",
+        "type": "heading3"
+      },
+      {
+        "id": "35bb0f83-aa96-4528-8846-e64ad0ba64fd",
+        "text": "Sketch the span of two vectors of your own choosing.",
+        "type": "bullet"
+      },
+      {
+        "id": "76ccec21-0104-4b75-9bcf-3c6257880d3a",
+        "text": "Check whether one vector can be expressed using the other (i.e., whether \\(\\mathbf{v}_2 = k\\mathbf{v}_1\\) for some \\(k\\)).",
+        "type": "bullet"
+      },
+      {
+        "id": "fb9046a2-6101-45d7-9948-f691b00c1f66",
+        "text": "This exercise builds intuition for the dependence/independence distinction.",
+        "type": "bullet"
+      },
+      {
+        "id": "a83bdc3f-cb04-45d1-befb-f220fa3caab5",
+        "text": "Review of Vector Basics",
+        "type": "heading2",
+        "startSec": 1105.11
+      },
+      {
+        "id": "e3fa2efe-ea15-4719-a001-23583677e86c",
+        "text": "Vector Representation",
+        "type": "heading3"
+      },
+      {
+        "id": "9e5a3d09-227c-4028-b955-3010c7762996",
+        "text": "A **vector** is an arrow that has both a **direction** and a **length** (magnitude).  ",
+        "type": "bullet"
+      },
+      {
+        "id": "a7b918a7-eaa8-42fb-8cfd-d575d23a69b2",
+        "text": "We denote vectors with symbols such as $\\vec{v}$ or $\\vec{w}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "616070a9-699e-4497-a9d1-3658dc07b884",
+        "text": "Vector Addition",
+        "type": "heading3"
+      },
+      {
+        "id": "44bb6039-b834-4bb3-8d39-7e580a76b868",
+        "text": "To add two vectors, place the tip of the first at the tail of the second (tip‑to‑tail).  ",
+        "type": "bullet"
+      },
+      {
+        "id": "b3cd7e8c-0d17-4963-93a8-ae1ab6632f08",
+        "text": "The resulting vector from the tail of the first to the tip of the second is the sum.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "586467e9-ebb1-458f-8bfa-6fd06d831276",
+        "text": "**Formula:** $$\\vec{v} + \\vec{w}$$  ",
+        "type": "bullet"
+      },
+      {
+        "id": "bf760ccf-ce6f-417b-8a80-f49d1eb88ed8",
+        "text": "Scalar Multiplication",
+        "type": "heading3"
+      },
+      {
+        "id": "f157ab01-6856-47c0-bda8-08eb59ad7a65",
+        "text": "Multiplying a vector by a real number (scalar) stretches or shrinks it; if the scalar is negative, it also reverses direction.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "611f594b-af68-4e0e-ad67-635f93afb24d",
+        "text": "**Formula:** $$c\\,\\vec{v}$$ where $c\\in\\mathbb{R}$.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "092b86dd-684f-4628-a327-241e1513641a",
+        "text": "Linear Combination",
+        "type": "heading3"
+      },
+      {
+        "id": "9ae95dbb-5517-49bd-95b4-d1c1b4540e23",
+        "text": "A **linear combination** combines scaling and addition: each vector is scaled by a scalar, then all scaled vectors are added together.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "6bde1e24-efd9-426d-bb0f-63d1ee32c8ea",
+        "text": "**Formula for a set $\\{\\vec{v}_1,\\dots,\\vec{v}_n\\}$:** $$\\sum_{i=1}^{n} c_i\\,\\vec{v}_i \\quad\\text{with }c_i\\in\\mathbb{R}$$  ",
+        "type": "bullet"
+      },
+      {
+        "id": "892186a1-8992-4ebb-8d0c-4310d095d8a6",
+        "text": "Span",
+        "type": "heading3"
+      },
+      {
+        "id": "11e18fdb-6193-41b4-97f3-731d64f0d479",
+        "text": "The **span** of a collection of vectors is the set of **all** possible linear combinations of those vectors.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "993c3570-4ae0-47ef-baaa-9edbd66a9430",
+        "text": "**Notation:** $$\\text{Span}\\{\\vec{v}_1,\\dots,\\vec{v}_k\\} = \\left\\{\\,\\sum_{i=1}^{k} c_i\\,\\vec{v}_i \\;\\middle|\\; c_i\\in\\mathbb{R}\\,\\right\\}$$  ",
+        "type": "bullet"
+      },
+      {
+        "id": "95e206cf-87a7-4265-acfa-c83d3ba9bb19",
+        "text": "Geometric Interpretation (from the lecture)",
+        "type": "heading3"
+      },
+      {
+        "id": "bc078574-395a-4df1-a100-3b00ba907654",
+        "rows": [
+          [
+            "Configuration of two vectors in the plane",
+            "Resulting span"
+          ],
+          [
+            "Point in **different directions** (not collinear)",
+            "The **whole plane** $\\mathbb{R}^2$"
+          ],
+          [
+            "Point along the **same line** (collinear, possibly opposite)",
+            "Only that **line** (a 1‑dimensional subspace)"
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "864bc02d-8857-473a-8040-9c9846917060",
+        "text": "Connection to Linear Independence",
+        "type": "heading3"
+      },
+      {
+        "id": "5a0b3095-e0aa-4310-882e-c44d2fdd6a6f",
+        "text": "Whether one vector can be expressed as a linear combination of the others determines if the set is **linearly independent** or **dependent**.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "b63bec3c-cf73-4987-b545-eaff84d06348",
+        "text": "The lecture notes that this idea will be explored in the next session; a quick check is to sketch the span of two vectors and see if one lies in the span of the other.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "b3cbd60e-b678-4f22-b3bc-9e2af4c1cb92",
+        "text": "",
+        "type": "divider"
+      },
+      {
+        "id": "5655392f-af95-4390-8fc3-fe1433bad7e0",
+        "text": "*Try drawing two vectors of your own, compute their span, and verify whether each vector can be written using the other.*",
+        "type": "paragraph"
+      },
+      {
+        "id": "087c6360-9f7d-4349-9aaf-17ee7509c465",
+        "text": "Concluding Thoughts on Vectors",
+        "type": "heading2",
+        "startSec": 1195.83
+      },
+      {
+        "id": "d49af3ac-7a44-411c-b36b-cd5b060422ca",
+        "text": "What are Vectors?",
+        "type": "heading3"
+      },
+      {
+        "id": "493f3907-33cb-410c-b887-40dfae314e57",
+        "text": "A **vector** is an object that possesses both magnitude and direction.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "f2597610-8185-4760-b323-87212666bc26",
+        "text": "Vectors belong to a **vector space**, which is a set equipped with two operations: vector addition and scalar multiplication.",
+        "type": "bullet"
+      },
+      {
+        "id": "0b89466b-1ebb-48ef-87ad-24e546f1c346",
+        "text": "Properties of Vector Spaces",
+        "type": "heading3"
+      },
+      {
+        "id": "41468b66-cf78-4440-a042-16dcba57e00a",
+        "rows": [
+          [
+            "Property",
+            "Description"
+          ],
+          [
+            "Closure under addition",
+            "For any vectors $\\mathbf{u}, \\mathbf{v}$ in the space, $\\mathbf{u} + \\mathbf{v}$ is also in the space."
+          ],
+          [
+            "Closure under scalar multiplication",
+            "For any vector $\\mathbf{v}$ and scalar $c$, $c\\mathbf{v}$ is in the space."
+          ],
+          [
+            "Existence of zero vector",
+            "There exists a vector $\\mathbf{0}$ such that $\\mathbf{v} + \\mathbf{0} = \\mathbf{v}$ for all $\\mathbf{v}$."
+          ],
+          [
+            "Existence of additive inverses",
+            "For each $\\mathbf{v}$ there is $-\\mathbf{v}$ with $\\mathbf{v} + (-\\mathbf{v}) = \\mathbf{0}$."
+          ]
+        ],
+        "text": "",
+        "type": "table"
+      },
+      {
+        "id": "0e8df067-f096-40f0-8ba4-b4986f7c7621",
+        "text": "Key Formulas",
+        "type": "heading3"
+      },
+      {
+        "id": "a8559c0e-21b7-4892-89b3-129039050cd3",
+        "text": "Vector addition: $$\\mathbf{u} + \\mathbf{v} = \\mathbf{w}$$",
+        "type": "bullet"
+      },
+      {
+        "id": "39b83ddf-3e62-4e47-bb8e-096550f665c3",
+        "text": "Scalar multiplication: $$c\\mathbf{v} = \\mathbf{w}$$",
+        "type": "bullet"
+      },
+      {
+        "id": "2fbb47f0-f86e-41fa-bcf2-82f0b36b730b",
+        "text": "Zero vector property: $$\\mathbf{v} + \\mathbf{0} = \\mathbf{v}$$",
+        "type": "bullet"
+      },
+      {
+        "id": "5b9ed599-286f-4d4f-8e0c-88c41da4c484",
+        "text": "Additive inverse: $$\\mathbf{v} + (-\\mathbf{v}) = \\mathbf{0}$$",
+        "type": "bullet"
+      },
+      {
+        "id": "8a7ef289-d5a6-43d9-bd53-911e1309e4b9",
+        "text": "Studying Vectors and Their Spaces",
+        "type": "heading3"
+      },
+      {
+        "id": "5dcbd956-4cc7-4c57-9871-311ca6576d67",
+        "text": "We examine how vectors combine via addition.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "9495eb86-5040-4927-9687-03b1dc06b455",
+        "text": "We explore how scaling affects vectors.  ",
+        "type": "bullet"
+      },
+      {
+        "id": "5f81e285-ab35-4a9e-9d14-12e6e1670172",
+        "text": "We investigate the structure that makes a set a vector space.",
+        "type": "bullet"
+      },
+      {
+        "id": "a020dd6d-a069-4d93-aac0-1fecbcd0508d",
+        "text": "Key Takeaways",
+        "type": "heading2"
+      },
+      {
+        "id": "9005e52c-6432-4fd7-9838-a22b7eed7cb3",
+        "text": "A **vector** is an **arrow** with both a **direction** and a **length** (magnitude).",
+        "type": "bullet"
+      },
+      {
+        "id": "94f0d494-aee4-4a31-9916-c935f3950046",
+        "text": "**Vector addition** ($\\vec{u} + \\vec{v}$) combines vectors by placing them tip-to-tail, and **scalar multiplication** ($c\\vec{v}$) changes a vector's length and potentially its direction.",
+        "type": "bullet"
+      },
+      {
+        "id": "72711039-585b-444c-ac70-d0a9fc46dc16",
+        "text": "A **linear combination** of vectors is formed by scaling each vector with a scalar and then adding the results: $\\mathbf{w} = c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$.",
+        "type": "bullet"
+      },
+      {
+        "id": "215b3a6f-2fcb-49d8-91e1-6377221013e7",
+        "text": "The **span** of a set of vectors is the collection of **all** possible linear combinations of those vectors: $\\operatorname{Span}\\{\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\} = \\{\\,c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n \\mid c_i \\in \\mathbb{R}\\,\\}$.",
+        "type": "bullet"
+      },
+      {
+        "id": "eb64c6f7-e7e1-4497-859d-23e24790cb9a",
+        "text": "Geometrically, for two vectors in a plane, their span is the **whole plane** ($\\mathbb{R}^2$) if they point in **different directions** (not collinear), and only that **line** if they point along the **same line** (collinear).",
+        "type": "bullet"
+      },
+      {
+        "id": "748f878b-7b55-48f4-ac03-9d372b2c731d",
+        "text": "The concept of **linear independence** is introduced as a key property determining whether vectors' span fills a larger space or collapses to a smaller one.",
+        "type": "bullet"
+      }
+    ]
+  },
+  "cards": [
+    {
+      "front": "What is a vector?",
+      "back": "A vector is represented as an arrow that has both a direction and a length (magnitude).",
+      "topic": "Vector Definition",
+      "startSec": 0
+    },
+    {
+      "front": "How do you add two vectors?",
+      "back": "To add two vectors, place the tip of the first vector at the tail of the second (tip-to-tail method). The resultant vector runs from the tail of the first to the tip of the second. In symbols: if $\\vec{u}$ and $\\vec{v}$ are vectors, then their sum is $\\vec{u} + \\vec{v} = \\vec{w}$.",
+      "topic": "Vector Addition",
+      "startSec": 0
+    },
+    {
+      "front": "How does scalar multiplication affect a vector?",
+      "back": "Multiplying a vector by a real number (scalar) $c$ changes its length: the vector is stretched if $|c|>1$, shrunk if $|c|<1$, and reversed if $c<0$. The direction stays the same when $c>0$ and flips when $c<0$. In symbols: $c\\vec{v}$ denotes the scaled vector.",
+      "topic": "Scalar Multiplication",
+      "startSec": 0
+    },
+    {
+      "front": "Define a linear combination of vectors.",
+      "back": "A linear combination of vectors $\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n$ is formed by scaling each vector with a scalar (real number) and then adding the results: $\\mathbf{w} = c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$, where $c_i \\in \\mathbb{R}$. The scalars $c_1, c_2, \\dots, c_n$ are called the coefficients of the combination.",
+      "topic": "Linear Combination",
+      "startSec": 20.19
+    },
+    {
+      "front": "What is the span of a set of vectors?",
+      "back": "The span of a set of vectors $\\{\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\}$ is the collection of all possible linear combinations of those vectors: $\\operatorname{Span}\\{\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\} = \\{\\,c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n \\mid c_i \\in \\mathbb{R}\\,\\}$. Geometrically, the span is the set of points you can reach by scaling and adding the given vectors.",
+      "topic": "Span Definition",
+      "startSec": 20.19
+    },
+    {
+      "front": "When does the span of two vectors in $\\mathbb{R}^2$ fill the whole plane?",
+      "back": "The span of two vectors in $\\mathbb{R}^2$ fills the whole plane if they point in different directions, meaning they are not collinear and each points along a distinct line through the origin.",
+      "topic": "Span Geometry",
+      "startSec": 20.19
+    },
+    {
+      "front": "How do you test if one vector lies in the span of another?",
+      "back": "To test if vector $\\mathbf{b}$ lies in the span of vector $\\mathbf{a}$, ask: \"Can $\\mathbf{b}$ be written as a scalar multiple of $\\mathbf{a}$?\" Mathematically, does there exist a scalar $c$ such that $\\mathbf{b} = c\\mathbf{a}$? If yes, then $\\mathbf{b}$ is in the span of $\\{\\mathbf{a}\\}$.",
+      "topic": "Testing Span",
+      "startSec": 20.19
+    },
+    {
+      "front": "How are linear combinations formed?",
+      "back": "A linear combination of vectors $\\mathbf{v}_1,\\dots,\\mathbf{v}_n$ is formed by scaling each vector with a scalar $c_i$ and adding the results: $c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$.",
+      "topic": "Linear Combinations",
+      "startSec": 92.25
+    },
+    {
+      "front": "What does it mean for two vectors to be collinear?",
+      "back": "Two vectors are collinear if one is a scalar multiple of the other. Geometrically, they point along the same line.",
+      "topic": "Collinear Vectors",
+      "startSec": 92.25
+    },
+    {
+      "front": "What is linear independence (preview)?",
+      "back": "The idea of linear independence arises when asking whether one vector in a set can be written as a linear combination of the others. For two vectors, they are linearly independent if one cannot be expressed as a scalar multiple of the other.",
+      "topic": "Linear Independence",
+      "startSec": 92.25
+    },
+    {
+      "front": "How is vector addition denoted?",
+      "back": "If $\\mathbf{u}$ and $\\mathbf{v}$ are vectors, their sum is written $\\mathbf{u} + \\mathbf{v}$.",
+      "topic": "Vector Addition Notation",
+      "startSec": 162.54
+    },
+    {
+      "front": "How is scalar multiplication denoted?",
+      "back": "For a vector $\\mathbf{v}$ and a number $c$, the scaled vector is $c\\mathbf{v}$.",
+      "topic": "Scalar Multiplication Notation",
+      "startSec": 162.54
+    },
+    {
+      "front": "What is the geometric interpretation of the span of two collinear vectors?",
+      "back": "If two vectors are collinear (one is a scalar multiple of the other), their span is only the line they share through the origin.",
+      "topic": "Span Geometry",
+      "startSec": 162.54
+    },
+    {
+      "front": "What is the key takeaway regarding linear combinations and span?",
+      "back": "A linear combination involves scaling vectors and then adding them. The span is the set of all possible results from such combinations.",
+      "topic": "Linear Combo & Span",
+      "startSec": 279.51
+    },
+    {
+      "front": "When does the span of two vectors in $\\mathbb{R}^2$ result in a line?",
+      "back": "The span of two vectors in $\\mathbb{R}^2$ results in a line if they point along the same line (are collinear), meaning one is a scalar multiple of the other.",
+      "topic": "Span Geometry",
+      "startSec": 279.51
+    },
+    {
+      "front": "What is the notation for the span of a set of vectors?",
+      "back": "The span of a set $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}$ is denoted as $\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\bigl\\{c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\;\\big|\\; c_i\\in\\mathbb{R}\\bigr\\}$.",
+      "topic": "Span Notation",
+      "startSec": 373.5
+    },
+    {
+      "front": "When are vectors linearly independent (preview)?",
+      "back": "Vectors are linearly independent when none can be written as a linear combination of the others. Equivalently, the only solution to $c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n = \\mathbf{0}$ is $c_1=\\dots=c_n=0$.",
+      "topic": "Linear Independence",
+      "startSec": 373.5
+    },
+    {
+      "front": "What are the two common vector operations?",
+      "back": "The two common vector operations are addition (placing vectors tip-to-tail) and scalar multiplication (stretching or shrinking a vector by multiplying it by a real number).",
+      "topic": "Vector Operations",
+      "startSec": 492.87
+    },
+    {
+      "front": "How does linear dependence relate to the span of two vectors?",
+      "back": "If two vectors are collinear, one can be written as a scalar multiple of the other, indicating linear dependence and their span being a line. If they are not collinear, they are linearly independent and their span is the entire plane.",
+      "topic": "Linear Dependence",
+      "startSec": 492.87
+    },
+    {
+      "front": "What is the effect of scalar multiplication on a vector?",
+      "back": "Multiplying a vector by a scalar $c$ stretches or shrinks it. If $c<0$, it also reverses the vector's direction.",
+      "topic": "Scalar Multiplication",
+      "startSec": 610.95
+    },
+    {
+      "front": "What is the geometric interpretation of the span of two vectors that are not collinear?",
+      "back": "If two vectors point in different directions (are not collinear), their span is the entire plane ($\\mathbb{R}^2$).",
+      "topic": "Span Geometry",
+      "startSec": 610.95
+    },
+    {
+      "front": "How can you geometrically represent vectors?",
+      "back": "Vectors can be represented geometrically as directed line segments, or arrows, possessing both a direction and a length.",
+      "topic": "Vector Representation",
+      "startSec": 733.08
+    },
+    {
+      "front": "What defines the span of a set of vectors?",
+      "back": "The span of a set of vectors $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_k\\}$ is the set of all possible linear combinations of those vectors.",
+      "topic": "Span Definition",
+      "startSec": 733.08
+    },
+    {
+      "front": "What is the formal definition of the span of a collection of vectors?",
+      "back": "The span of a collection $\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\}$ is $\\operatorname{span}\\{\\mathbf{v}_1,\\dots,\\mathbf{v}_n\\} = \\{\\,c_1\\mathbf{v}_1 + \\dots + c_n\\mathbf{v}_n \\mid c_i\\in\\mathbb{R}\\,\\}$.",
+      "topic": "Span Formal Definition",
+      "startSec": 850.05
+    },
+    {
+      "front": "How do vectors relate to linear independence when their span is a line versus a plane?",
+      "back": "When the span of two vectors is a line, they are linearly dependent. When their span is the whole plane, they are linearly independent.",
+      "topic": "Span & Independence",
+      "startSec": 850.05
+    },
+    {
+      "front": "What does it mean if $\\mathbf{v}_2 = k\\mathbf{v}_1$ for two vectors $\\mathbf{v}_1, \\mathbf{v}_2$ and a scalar $k$?",
+      "back": "If $\\mathbf{v}_2 = k\\mathbf{v}_1$ for some scalar $k$, it means the two vectors are collinear, and this indicates dependence. Their span would be a line.",
+      "topic": "Vector Dependence",
+      "startSec": 973.98
+    },
+    {
+      "front": "How will linear independence be formalized in the upcoming lecture?",
+      "back": "Linear independence will be formalized by testing whether the equation $c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 = \\mathbf{0}$ has only the trivial solution (i.e., $c_1=0$ and $c_2=0$).",
+      "topic": "Linear Independence",
+      "startSec": 973.98
+    },
+    {
+      "front": "What is the formula for vector addition?",
+      "back": "The formula for vector addition is $\\vec{v} + \\vec{w}$.",
+      "topic": "Vector Addition Formula",
+      "startSec": 1105.11
+    },
+    {
+      "front": "What is the formula for a linear combination of vectors?",
+      "back": "For a set $\\{\\vec{v}_1,\\dots,\\vec{v}_n\\}$, the formula for a linear combination is $\\sum_{i=1}^{n} c_i\\,\\vec{v}_i \\quad\\text{with }c_i\\in\\mathbb{R}$.",
+      "topic": "Linear Combination Formula",
+      "startSec": 1105.11
+    },
+    {
+      "front": "What key properties define a vector space?",
+      "back": "A vector space is a set equipped with vector addition and scalar multiplication such that it satisfies closure under addition, closure under scalar multiplication, existence of a zero vector, and existence of additive inverses.",
+      "topic": "Vector Space Properties",
+      "startSec": 1195.83
+    },
+    {
+      "front": "What is the zero vector property?",
+      "back": "The zero vector property states that there exists a vector $\\mathbf{0}$ such that $\\mathbf{v} + \\mathbf{0} = \\mathbf{v}$ for all vectors $\\mathbf{v}$ in the space.",
+      "topic": "Zero Vector",
+      "startSec": 1195.83
+    }
+  ],
+  "questions": [
+    {
+      "type": "mcq",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Vector Basics",
+      "question": "What two properties define a vector?",
+      "options": [
+        "Color and Size",
+        "Direction and Length (magnitude)",
+        "Position and Velocity",
+        "Shape and Mass"
+      ],
+      "correctIndex": 1,
+      "explanation": "According to Chapter 1, a vector is represented as an arrow that has both a direction and a length (magnitude).",
+      "startSec": 0
+    },
+    {
+      "type": "true_false",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Vector Operations",
+      "question": "When adding two vectors using the tip-to-tail method, the resultant vector runs from the tip of the first to the tail of the second.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 1 states that the resultant vector runs from the tail of the first to the tip of the second, not the other way around.",
+      "startSec": 0
+    },
+    {
+      "type": "fill_blank",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Scalar Multiplication",
+      "question": "Multiplying a vector by a scalar $c$ changes its length: the vector is stretched if $|c|>1$, shrunk if $|c|<1$, and reversed if $c$ is ___.",
+      "options": [
+        "negative"
+      ],
+      "correctIndex": 0,
+      "explanation": "Chapter 1 explains that if $c<0$, the vector's direction is reversed, which is synonymous with 'negative'.",
+      "startSec": 0
+    },
+    {
+      "type": "mcq",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Linear Combinations",
+      "question": "In a linear combination $\\mathbf{w} = c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$, what are the scalars $c_i$ called?",
+      "options": [
+        "Components",
+        "Dimensions",
+        "Coefficients",
+        "Magnitudes"
+      ],
+      "correctIndex": 2,
+      "explanation": "Chapter 2 defines the scalars $c_1, c_2, \\dots, c_n$ as the coefficients of the combination.",
+      "startSec": 20.19
+    },
+    {
+      "type": "true_false",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Span",
+      "question": "If two vectors in $\\mathbb{R}^2$ are scalar multiples of each other, their span is the entire plane.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 2 states that if two vectors are scalar multiples of each other (collinear), their span is only that line through the origin, not the whole plane.",
+      "startSec": 20.19
+    },
+    {
+      "type": "fill_blank",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Geometric Span",
+      "question": "When two vectors in the plane point in different directions (are not collinear), their span is the whole plane, denoted as ___.",
+      "options": [
+        "$\\mathbb{R}^2$"
+      ],
+      "correctIndex": 0,
+      "explanation": "Chapter 4 and multiple other chapters consistently state that the span of two non-collinear vectors in the plane is the whole plane, or $\\mathbb{R}^2$.",
+      "startSec": 162.54
+    },
+    {
+      "type": "mcq",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Vector Properties",
+      "question": "Which of the following is NOT a property of vector spaces mentioned in the notes?",
+      "options": [
+        "Closure under addition",
+        "Closure under scalar multiplication",
+        "Existence of a zero vector",
+        "Existence of a unit vector"
+      ],
+      "correctIndex": 3,
+      "explanation": "Chapter 13 lists closure under addition, closure under scalar multiplication, existence of zero vector, and existence of additive inverses as properties of vector spaces, but not the existence of a unit vector.",
+      "startSec": 1195.83
+    },
+    {
+      "type": "true_false",
+      "difficulty": "basic",
+      "bank": "practice",
+      "topic": "Linear Independence",
+      "question": "If two vectors are collinear, they are considered linearly independent.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 7 indicates that if vectors are collinear, one can be written as a scalar multiple of the other, indicating linear dependence, not independence.",
+      "startSec": 492.87
+    },
+    {
+      "type": "mcq",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Vector Basics",
+      "question": "Which of the following best describes the geometric interpretation of scalar multiplication $c\\vec{v}$ when $c < 0$?",
+      "options": [
+        "The vector is stretched, and its direction remains the same.",
+        "The vector is shrunk, and its direction remains the same.",
+        "The vector's length changes (stretched or shrunk), and its direction is reversed.",
+        "The vector's length remains the same, but its direction is reversed."
+      ],
+      "correctIndex": 2,
+      "explanation": "According to Chapter 1, if $c < 0$, the vector is stretched if $|c|>1$, shrunk if $|c|<1$, and its direction is reversed.",
+      "startSec": 0
+    },
+    {
+      "type": "true_false",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Span",
+      "question": "If two vectors in $\\mathbb{R}^2$ point in different directions, their span is only a line through the origin.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 2 states that if two vectors in $\\mathbb{R}^2$ point in different directions (are not collinear), their span is the whole plane $\\mathbb{R}^2$, not just a line.",
+      "startSec": 20.19
+    },
+    {
+      "type": "fill_blank",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Linear Combination",
+      "question": "A linear combination of vectors $\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n$ is formed by scaling each vector with a scalar and then adding the results, expressed as $c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$, where the scalars $c_i$ are called the ___ of the combination.",
+      "options": [
+        "coefficients"
+      ],
+      "correctIndex": 0,
+      "explanation": "As defined in Chapter 2, the scalars $c_1, c_2, \\dots, c_n$ in a linear combination are called the coefficients.",
+      "startSec": 20.19
+    },
+    {
+      "type": "mcq",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Span",
+      "question": "Consider two vectors $\\mathbf{a}$ and $\\mathbf{b}$ in $\\mathbb{R}^2$. If $\\mathbf{b} = c\\mathbf{a}$ for some scalar $c$, what is the geometric interpretation of their span?",
+      "options": [
+        "The entire plane $\\mathbb{R}^2$",
+        "A single point (the origin)",
+        "Only the line through the origin containing $\\mathbf{a}$ and $\\mathbf{b}$",
+        "A plane that does not pass through the origin"
+      ],
+      "correctIndex": 2,
+      "explanation": "Chapter 3 explains that if two vectors are scalar multiples of each other (collinear), their span is only the line through the origin that contains them.",
+      "startSec": 92.25
+    },
+    {
+      "type": "true_false",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Vector Operations",
+      "question": "In vector addition using the tip-to-tail method, the resultant vector runs from the tip of the first to the tail of the second.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 1 states that in the tip-to-tail method, the resultant vector runs from the tail of the first to the tip of the second, not the other way around.",
+      "startSec": 0
+    },
+    {
+      "type": "fill_blank",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Span",
+      "question": "The span of a set of vectors $\\{\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n\\}$ is the collection of ___ possible linear combinations of those vectors.",
+      "options": [
+        "all"
+      ],
+      "correctIndex": 0,
+      "explanation": "Chapter 2 defines the span as the collection of all possible linear combinations of a set of vectors.",
+      "startSec": 20.19
+    },
+    {
+      "type": "mcq",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Linear Independence (Preview)",
+      "question": "What property of vectors determines whether their span fills the entire space they inhabit or collapses to a line, leading to the idea of linear independence?",
+      "options": [
+        "Their individual magnitudes.",
+        "Whether they are orthogonal.",
+        "Whether one vector can be expressed as a scalar multiple of the other.",
+        "The number of vectors in the set."
+      ],
+      "correctIndex": 2,
+      "explanation": "Chapter 2 and subsequent chapters consistently highlight that the ability for one vector to be written as a scalar multiple of another (collinearity) determines if the span is a line or a plane, leading to the concept of linear independence.",
+      "startSec": 20.19
+    },
+    {
+      "type": "true_false",
+      "difficulty": "intermediate",
+      "bank": "practice",
+      "topic": "Scalar Multiplication",
+      "question": "If a vector is multiplied by a scalar $c$ where $0 < c < 1$, the vector is stretched.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 1 states that if $|c| < 1$ (which includes $0 < c < 1$), the vector is shrunk, not stretched.",
+      "startSec": 0
+    },
+    {
+      "type": "mcq",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Vector Basics",
+      "question": "Which of the following best describes a vector?",
+      "options": [
+        "A quantity with only magnitude.",
+        "An arrow that has both a direction and a length (magnitude).",
+        "A point in space.",
+        "A real number."
+      ],
+      "correctIndex": 1,
+      "explanation": "According to Chapter 1, a vector is defined as an arrow that has both a direction and a length (magnitude).",
+      "startSec": 0
+    },
+    {
+      "type": "true_false",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Scalar Multiplication",
+      "question": "If a vector is multiplied by a scalar $c$ where $c < 0$, its direction always stays the same.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 1 states that if $c < 0$, the direction of the vector flips.",
+      "startSec": 0
+    },
+    {
+      "type": "fill_blank",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Linear Combination",
+      "question": "A linear combination of vectors $\\mathbf{v}_1, \\mathbf{v}_2, \\dots, \\mathbf{v}_n$ is formed by scaling each vector with a scalar and then adding the results: $\\mathbf{w} = c_1\\mathbf{v}_1 + c_2\\mathbf{v}_2 + \\dots + c_n\\mathbf{v}_n$. The scalars $c_1, c_2, \\dots, c_n$ are called the ___ of the combination.",
+      "options": [
+        "coefficients"
+      ],
+      "correctIndex": 0,
+      "explanation": "Chapter 2 defines the scalars $c_i$ in a linear combination as the coefficients of the combination.",
+      "startSec": 20.19
+    },
+    {
+      "type": "mcq",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Span",
+      "question": "What is the span of two vectors in $\\mathbb{R}^2$ if they are scalar multiples of each other (collinear)?",
+      "options": [
+        "The whole plane $\\mathbb{R}^2$.",
+        "Only the origin point.",
+        "Only that line through the origin.",
+        "A circle."
+      ],
+      "correctIndex": 2,
+      "explanation": "Chapter 2 explains that if two vectors are scalar multiples of each other, their span is only the line through the origin along which they point.",
+      "startSec": 20.19
+    },
+    {
+      "type": "true_false",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Linear Independence",
+      "question": "A set of vectors is linearly independent when at least one of them can be expressed as a linear combination of the others.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 2 previews linear independence as when none of the vectors can be expressed as a linear combination of the others.",
+      "startSec": 20.19
+    },
+    {
+      "type": "fill_blank",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Span Definition",
+      "question": "The collection of all possible linear combinations of a set of vectors is called their ___.",
+      "options": [
+        "span"
+      ],
+      "correctIndex": 0,
+      "explanation": "Chapter 4, among others, explicitly defines the span as the set of all possible linear combinations of a given collection of vectors.",
+      "startSec": 162.54
+    },
+    {
+      "type": "mcq",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Geometric Interpretation of Span",
+      "question": "If two vectors in the plane point in different directions, what is the geometric interpretation of their span?",
+      "options": [
+        "A single point (the origin).",
+        "A line through the origin.",
+        "The entire plane $\\mathbb{R}^2$.",
+        "A finite line segment."
+      ],
+      "correctIndex": 2,
+      "explanation": "Chapter 7 states that if two vectors point in different directions (not collinear), their span is the whole plane $\\mathbb{R}^2$.",
+      "startSec": 492.87
+    },
+    {
+      "type": "true_false",
+      "difficulty": "exam",
+      "bank": "practice",
+      "topic": "Vector Space Properties",
+      "question": "According to Chapter 13, for any vectors $\\mathbf{u}, \\mathbf{v}$ in a vector space, $\\mathbf{u} + \\mathbf{v}$ must also be in the space. This property is known as closure under scalar multiplication.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correctIndex": 1,
+      "explanation": "Chapter 13 describes this property as 'Closure under addition', not 'Closure under scalar multiplication'.",
+      "startSec": 1195.83
+    }
+  ]
+}

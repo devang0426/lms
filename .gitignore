@@ -38,4 +38,10 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# trigger.dev dev worker (generated bundles; also keeps Tailwind's source scan small)
+/.trigger/
+
+# Kilo Code agent worktrees
+/.kilo/
 next-env.d.ts
