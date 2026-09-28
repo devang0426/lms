@@ -588,5 +588,76 @@ export const cardReviews = pgTable(
 
 export type CardReview = typeof cardReviews.$inferSelect;
 
+/* ---- Quizzes (feature 16) ---------------------------------------------------
+   Practice draws from a lesson's `practice` bank; a graded quiz is a set of
+   the instructor's picked questions, which move to the `graded` bank so
+   practice never shows them (or their answers). Every answer is checked on
+   the server. `score` is the fraction correct, 0–1; a graded quiz's points
+   multiply it in the gradebook (feature 20). An attempt left unsubmitted
+   still counts toward the limit. */
+
+export const quizModeEnum = pgEnum("quiz_mode", ["practice", "graded"]);
+export type QuizMode = (typeof quizModeEnum.enumValues)[number];
+
+export const gradedQuizzes = pgTable(
+  "graded_quizzes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    questionIds: uuid("question_ids").array().notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    maxAttempts: integer("max_attempts").notNull().default(1),
+    points: integer("points").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    ...timestamps,
+  },
+  (t) => [index("graded_quizzes_lesson_idx").on(t.lessonId, t.dueAt)],
+);
+
+export const quizAttempts = pgTable(
+  "quiz_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    mode: quizModeEnum("mode").notNull(),
+    /* Set for graded attempts: the attempt limit counts per quiz. */
+    gradedQuizId: uuid("graded_quiz_id").references(() => gradedQuizzes.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    score: numeric("score", { precision: 5, scale: 4, mode: "number" }),
+  },
+  (t) => [
+    index("quiz_attempts_user_lesson_idx").on(t.userId, t.lessonId),
+    index("quiz_attempts_graded_idx").on(t.gradedQuizId, t.userId),
+  ],
+);
+
+export const quizAnswers = pgTable(
+  "quiz_answers",
+  {
+    attemptId: uuid("attempt_id")
+      .notNull()
+      .references(() => quizAttempts.id, { onDelete: "cascade" }),
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => quizQuestions.id, { onDelete: "cascade" }),
+    /* The chosen option's index for mcq / true_false, the typed text for fill_blank. */
+    answer: text("answer").notNull(),
+    correct: boolean("correct").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.attemptId, t.questionId] }), index("quiz_answers_question_idx").on(t.questionId)],
+);
+
+export type GradedQuiz = typeof gradedQuizzes.$inferSelect;
+export type QuizAttemptRow = typeof quizAttempts.$inferSelect;
+
 export type ChatThread = typeof chatThreads.$inferSelect;
 export type ChatTurn = typeof chatTurns.$inferSelect;

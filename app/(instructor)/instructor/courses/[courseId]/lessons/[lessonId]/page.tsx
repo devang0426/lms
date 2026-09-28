@@ -9,6 +9,7 @@ import { VideoUploader } from "@/components/video/video-uploader";
 import { requireCourseStaff } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
 import { contentCounts } from "@/lib/db/lesson-content";
+import { gradedQuizzesForStaff } from "@/lib/db/quizzes";
 import { getJobAccessToken } from "@/lib/jobs";
 import { VIDEO_STAGES } from "@/lib/jobs/stages";
 import { formatClock } from "@/lib/utils/format";
@@ -16,7 +17,7 @@ import { getLessonVideoState } from "@/lib/video/lessons";
 import { retryVideo } from "./actions";
 
 /* Lesson editor (feature 10): upload a lecture, watch it process, preview
-   the result. Progress survives closing the tab — the run lives on
+   the result. Feature 16 adds the lesson's graded quizzes. Progress survives closing the tab — the run lives on
    Trigger.dev and its state is read back here on every visit. */
 export default async function LessonEditorPage({ params }: PageProps<"/instructor/courses/[courseId]/lessons/[lessonId]">) {
   const { courseId, lessonId } = await params;
@@ -61,7 +62,11 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
     );
   }
 
-  const [{ latest, live, job, segmentCount }, counts] = await Promise.all([getLessonVideoState(lessonId), contentCounts(lessonId)]);
+  const [{ latest, live, job, segmentCount }, counts, graded] = await Promise.all([
+    getLessonVideoState(lessonId),
+    contentCounts(lessonId),
+    gradedQuizzesForStaff(lessonId),
+  ]);
   const token = job ? await getJobAccessToken(job) : null;
   const processing = latest?.status === "processing";
   const showJob = job && token && latest && (processing || latest.status === "failed" || (latest.status === "ready" && job.status !== "completed"));
@@ -108,6 +113,41 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
               ? "Chapters, notes, flashcards and a quiz are drafted after transcription. Check back once processing finishes."
               : `${counts.chapters} chapters · ${counts.notes ? "notes" : "no notes"} · ${counts.cards} flashcards · ${counts.questions} quiz questions${counts.drafts > 0 ? " · not yet published" : ""}`}
           </p>
+        </Card>
+      )}
+
+      {counts.questions > 0 && (
+        <Card className="gap-3">
+          <CardHeader
+            title="Graded quizzes"
+            action={
+              <Button asChild variant="secondary" size="sm">
+                <Link href={`/instructor/courses/${courseId}/lessons/${lessonId}/graded-quizzes/new`}>Create graded quiz from bank</Link>
+              </Button>
+            }
+          />
+          {graded.length === 0 ? (
+            <p className="m-0 text-small text-ink-soft">
+              None yet. Pick questions from the lesson&apos;s bank, set a due date and points; students take it in the lesson&apos;s Quiz tab.
+            </p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col p-0">
+              {graded.map(({ quiz, submissions }) => (
+                <li key={quiz.id} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line py-2.5 last:border-b-0">
+                  <span className="text-[15px] font-medium">{quiz.title}</span>
+                  <span className="text-meta text-ink-soft">
+                    {[
+                      `Due ${quiz.dueAt.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`,
+                      `${quiz.points} points`,
+                      `${quiz.questionIds.length} questions`,
+                      `${quiz.maxAttempts} ${quiz.maxAttempts === 1 ? "attempt" : "attempts"}`,
+                      `${submissions} submitted`,
+                    ].join(" · ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
 

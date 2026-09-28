@@ -12,7 +12,7 @@
 import { createClerkClient } from "@clerk/backend";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { chatThreads, lessonNotes, users, watchProgress, type User } from "@/lib/db/schema";
+import { cardReviews, chatThreads, lessonNotes, quizAttempts, users, watchProgress, type User } from "@/lib/db/schema";
 import { DEMO_ACCOUNTS, ensureDemoClerkUser, isDemoMode } from "@/lib/demo/accounts";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
@@ -29,6 +29,15 @@ const RESET_STEPS: ResetStep[] = [
   {
     label: "Lesson notes",
     run: async (s) => (await db.delete(lessonNotes).where(eq(lessonNotes.userId, s.id)).returning()).length,
+  },
+  {
+    label: "Flashcard reviews",
+    run: async (s) => (await db.delete(cardReviews).where(eq(cardReviews.userId, s.id)).returning()).length,
+  },
+  {
+    // Answers go with their attempt (cascade). Graded quizzes stay: they're the instructor's.
+    label: "Quiz attempts",
+    run: async (s) => (await db.delete(quizAttempts).where(eq(quizAttempts.userId, s.id)).returning()).length,
   },
   {
     // Turns go with their thread (cascade).

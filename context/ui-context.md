@@ -222,6 +222,17 @@ Shadows are always tinted warm brown (`rgba(60,40,20,…)`), never grey or black
     callouts). KaTeX CSS is loaded by `StudyNotes`.
   - The review screen's editors live in `components/lesson-review/`.
     Publish is its one Terracotta action.
+- Feature 16 (`components/study/`): quiz answers are 48px `rounded-2xl`
+  option rows (selected: Ink border on Oat; after checking: Sage tint for
+  right, Clay for wrong). Feedback panels use Sage tint / Clay. Mastery
+  bars are 6px on Oat: Sage from 80%, Butter from 50%, `terracotta/55`
+  below (Clay tint is too faint as a fill). Scores are 48px serif.
+- Feature 15 (`components/study/flashcard-deck.tsx`): a Paper card
+  (`rounded-3xl`), serif front, back below a Line rule once flipped.
+  Rating buttons are quiet pills (Good is secondary) with the next
+  interval in mono under each label. "Show answer" is primary on `/study`
+  and secondary in the player. "Review in video" is the Clay time chip.
+  The sidebar notice card reads "N cards due today" (eyebrow "Today").
 - Feature 14 (`components/assistant/`):
   - Citation chip "▶ Lecture 2 · 12:48": the video-time chip style,
     28px. Inside answer text the chip is `.cite-chip` (20px, mono 11px) in

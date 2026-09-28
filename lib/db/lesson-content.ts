@@ -106,7 +106,9 @@ export async function replaceCards(lessonId: string, videoId: string, noteId: st
   await db.batch([db.delete(flashcards).where(eq(flashcards.lessonId, lessonId)), ...insert]);
 }
 
-/* One difficulty level at a time, so a quiz run resumes where it stopped. */
+/* One difficulty level at a time, so a quiz run resumes where it stopped.
+   Only the practice bank is replaced: questions an instructor put in a
+   graded quiz (feature 16) stay, with the students' answers to them. */
 export async function replaceQuizLevel(
   lessonId: string,
   videoId: string,
@@ -122,7 +124,9 @@ export async function replaceQuizLevel(
       ]
     : [];
   await db.batch([
-    db.delete(quizQuestions).where(and(eq(quizQuestions.lessonId, lessonId), eq(quizQuestions.difficulty, level))),
+    db
+      .delete(quizQuestions)
+      .where(and(eq(quizQuestions.lessonId, lessonId), eq(quizQuestions.difficulty, level), eq(quizQuestions.bank, "practice"))),
     ...insert,
   ]);
 }

@@ -8,8 +8,9 @@ Update this file after every meaningful implementation change.
   (video upload and processing), 11 (lesson player) and 12 (AI lesson
   content and review).
 - Phase 3 (Course assistant) is done: features 13 (indexing and
-  retrieval) and 14 (the course assistant). Next is feature 15
-  (flashcards).
+  retrieval) and 14 (the course assistant).
+- Phase 4 (Study tools): features 15 (flashcards) and 16 (quizzes and
+  mastery) are done. Next is feature 17 (podcast).
 - Open: the app feels slow. Measured 2026-09-28: each Neon query is
   ~310 ms from here (us-east-2), 1–2.4 s after idle, and pages make
   several in sequence (pages took 1.9–3.5 s on the production server).
@@ -491,6 +492,113 @@ Update this file after every meaningful implementation change.
     - Only one lesson is indexed, so no chip points at a different lesson
       yet. The course-wide page's chips all link to it with `?t=`.
 
+- **Feature 15, flashcards (2026-09-28):**
+  - Migration 0009 (applied): `card_reviews`, keyed by (user, card), with
+    the `card_state` enum and an index on (user, due). Deleting a card
+    deletes its reviews.
+  - `lib/db/study.ts`:
+    - `dueCards`, `studyQueue` (due cards plus total and next-due time, in
+      one round trip), `dueCountsByCourse`, `recordReview`,
+      `previewCards`.
+    - A student sees a card only when it is published, its lesson, module
+      and course are published, and they're actively enrolled, checked in
+      SQL.
+    - Ratings are applied on the server with `fsrs.ts`.
+  - `lib/study/cards.ts` (pure, 6 tests): the shared `StudyCard`, each
+    button's interval preview (same math as the server), and the session
+    queue ("Again" goes to the back).
+  - `FlashcardDeck`:
+    - Space flips; 1–4 rate, with the next interval under each button.
+    - Session progress, "Review in video" (seeks in the player, otherwise
+      opens `?t=`), an end-of-session summary, and an empty state with the
+      next due time.
+  - Where students see it:
+    - A Flashcards tab in the player (staff preview: the whole deck,
+      nothing saved).
+    - `/study` across enrolled courses, with `?course=` filters and a
+      "Study" nav item.
+    - A "N cards due today" sidebar notice, streamed with Suspense.
+  - `npm run demo:reset` clears the demo student's reviews.
+  - Verified with 13 database checks (a temporary second student was
+    created, then removed):
+    - All 31 cards start new and due.
+    - Easy → 2.80 days; Again → 10.0 minutes (and a review card goes to
+      relearning); Good → 2 days.
+    - Two students keep separate schedules on one card, and rated cards
+      leave the due count.
+    - A user who isn't enrolled, a draft card and an unpublished lesson
+      all give nothing and refuse a rating.
+    - The staff preview has all 31 cards.
+    - When caught up, the page shows the next due time.
+  - The production server renders the home notice ("31 cards due today"),
+    `/study` (with a bad filter too) and the player's Flashcards tab for
+    the student.
+  - Build and lint pass. Tests: 219/223 (the same 4 older engine tests).
+  - Not verified in a browser: flipping, the keyboard shortcuts, and
+    "Review in video" seeking. The link form `?t=` and the seek call match
+    the assistant's chips.
+
+- **Feature 16, quizzes and mastery (2026-09-28):**
+  - Migration 0010 (applied): `graded_quizzes`, `quiz_attempts` (with a
+    `gradedQuizId` not in the spec, so attempts count per quiz; `score` is
+    0–1), `quiz_answers`, and the `quiz_mode` enum.
+  - `lib/study/quiz.ts` (pure, 6 tests): answer checking and the
+    fill-in-the-blank normalizer (case, spacing, end punctuation,
+    articles, `$…$`, and `0.50` = `.5` = `1/2`, `1,000` = `1000`).
+  - `lib/db/quizzes.ts`:
+    - Practice (practice bank only), re-scored on save.
+    - Graded: start or resume, with the due date and attempt limit checked
+      in one insert, and submit scored on the server.
+    - Mastery through `masteryByTopic`, plus the bank and
+      create-statements for instructors.
+  - Player Quiz tab:
+    - Graded list (due, points, attempts used, best score;
+      Start/Continue).
+    - Practice with a difficulty picker and instant feedback plus
+      explanation.
+    - One question at a time; graded results with explanations after
+      submit.
+    - Mastery bars with "Review in video" for weak topics.
+    - Staff preview can practise but saves nothing and can't take graded
+      quizzes.
+  - Instructor: a "Graded quizzes" card on the lesson editor links to
+    "Create graded quiz from bank". It has a question picker, due date in
+    the instructor's time zone, attempts and points, and one audited batch
+    that also moves the picked questions to the graded bank.
+  - Changed in feature 12's code: regenerating a quiz level now replaces
+    only the practice bank, so graded questions and students' answers
+    survive.
+  - `npm run demo:reset` clears the demo student's quiz attempts.
+  - Verified with 16 database checks (a temporary quiz and student,
+    removed afterwards):
+    - Practice is scored on the server (6/8 = 0.75, stray ids ignored),
+      and mastery by topic appears.
+    - Picked questions leave practice, and a question from another lesson
+      is refused.
+    - A started attempt has no `correctIndex`, explanations or fill-in
+      answer, and resumes when started again.
+    - Submit scores 2/3, a second submit is refused, and another student
+      can't submit it. The second attempt scores 1.0 (the fill-in answer
+      " The SPAN. " is accepted), and the third is refused (limit 2).
+    - Scores are saved.
+    - After the due date, no new or resumed attempt is allowed, but one
+      started before it can still be submitted.
+  - Verified on the production server with a graded quiz in place:
+    - The student's lesson page lists the quiz, and none of its question
+      text or explanations, and no `correctIndex`, is in the HTML.
+    - The lesson editor lists it, the create page renders the bank, and a
+      student is redirected away from it.
+    - Warm player requests take 2.2–2.5 s (the slowness is still open).
+  - Build and lint pass. Tests: 225/229 (the same 4 older engine tests).
+  - Not built: editing or deleting a graded quiz.
+  - Not verified in a browser: the runner's clicks, the practice flow end
+    to end through its server actions, and "Review in video" seeking.
+  - Known edges:
+    - Two simultaneous "Start" clicks could both pass the limit check.
+    - Deleting a graded question on the review screen deletes students'
+      answers to it (cascade).
+    - Moving a graded question back to practice there would expose it.
+
 ## In Progress
 
 - None.
@@ -573,8 +681,9 @@ are the same plan grouped for reading.
 
 **Phase 4: Study tools and private space (demo steps 7 and 8)**
 
-16. Flashcard review with per-student FSRS, and a "due today" queue.
-17. Quizzes: practice and graded, with mastery.
+16. ~~Flashcard review with per-student FSRS, and a "due today" queue.~~
+    Done (feature 15).
+17. ~~Quizzes: practice and graded, with mastery.~~ Done (feature 16).
 18. Podcast generated only on demand: script, TTS, MP3 in Blob.
 19. Student private space: PDF/DOCX/URL/audio ingest tasks with an SSRF
     guard, plus the NitroAI features on private notes.

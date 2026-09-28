@@ -20,8 +20,12 @@ import { formatLessonLength } from "@/lib/utils/format";
 import { getLessonPlayback } from "@/lib/video/lessons";
 import { getPlayerNote, listChapters } from "@/lib/db/lesson-content";
 import { StudyNotes } from "@/components/player/study-notes";
+import { FlashcardDeck } from "@/components/study/flashcard-deck";
+import { QuizTab } from "@/components/study/quiz-tab";
+import { quizTabData } from "@/lib/db/quizzes";
+import { previewCards, studyQueue } from "@/lib/db/study";
 
-/* Lesson player (wireframe 05, features 11, 12 and 14 — the Ask tab). getLessonForUser is the gate:
+/* Lesson player (wireframe 05, features 11, 12, 14 (Ask), 15 (Flashcards) and 16 (Quiz)). getLessonForUser is the gate:
    a student gets the lesson only when enrolled and the course, module and
    lesson are all published; anything else is a 404 before any video URL
    is loaded. Staff open the same page as a preview (drafts included, no
@@ -34,7 +38,7 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
   const { lesson, module, course } = found;
   const preview = found.access === "staff";
 
-  const [contents, playback, progress, notes, completed, chapters, studyNotes, askThread] = await Promise.all([
+  const [contents, playback, progress, notes, completed, chapters, studyNotes, askThread, deck, quiz] = await Promise.all([
     getCourseForUser(courseId, user),
     lesson.kind === "video" ? getLessonPlayback(lessonId) : Promise.resolve(null),
     preview ? Promise.resolve(null) : getWatchProgress(user.id, lessonId),
@@ -45,7 +49,13 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
     getPlayerNote(lessonId, { publishedOnly: !preview }),
     // The assistant reopens the newest conversation about this lesson.
     latestThread({ userId: user.id, courseId, lessonId }),
+    // Flashcards: the student's due cards; staff preview the whole deck unsaved.
+    preview
+      ? previewCards(lessonId).then((cards) => ({ cards, total: cards.length, nextDueAt: null }))
+      : studyQueue(user.id, { lessonId }, 100),
+    quizTabData(user.id, lessonId, preview),
   ]);
+  const hasQuiz = quiz.graded.length > 0 || Object.values(quiz.levelCounts).some((n) => n > 0);
 
   const modules = contents?.modules ?? [];
   const ordered = modules.flatMap((m) => m.lessons);
@@ -137,6 +147,12 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                   {studyNotes && <TabsTrigger value="study">Study notes</TabsTrigger>}
                   <TabsTrigger value="notes">{studyNotes ? "My notes" : "Notes"}</TabsTrigger>
                   {chapters.length > 0 && <TabsTrigger value="chapters" count={chapters.length}>Chapters</TabsTrigger>}
+                  {deck.total > 0 && (
+                    <TabsTrigger value="flashcards" count={deck.cards.length || undefined}>
+                      Flashcards
+                    </TabsTrigger>
+                  )}
+                  {hasQuiz && <TabsTrigger value="quiz">Quiz</TabsTrigger>}
                   <TabsTrigger value="transcript">Transcript</TabsTrigger>
                   <TabsTrigger value="ask">Ask</TabsTrigger>
                   <TabsTrigger value="resources">Resources</TabsTrigger>
@@ -156,6 +172,22 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                 {chapters.length > 0 && (
                   <TabsContent value="chapters">
                     <ChapterList chapters={chapters} />
+                  </TabsContent>
+                )}
+                {deck.total > 0 && (
+                  <TabsContent value="flashcards">
+                    <FlashcardDeck
+                      cards={deck.cards}
+                      total={deck.total}
+                      nextDueAt={deck.nextDueAt}
+                      record={!preview}
+                      currentLessonId={lessonId}
+                    />
+                  </TabsContent>
+                )}
+                {hasQuiz && (
+                  <TabsContent value="quiz">
+                    <QuizTab courseId={courseId} lessonId={lessonId} preview={preview} {...quiz} />
                   </TabsContent>
                 )}
                 <TabsContent value="transcript">

@@ -70,3 +70,22 @@ export function formatInterval(ms: number): string {
   if (months < 12) return `${months}mo`;
   return `${Math.round(days / 365)}y`;
 }
+
+/* ---- A review session ---------------------------------------------------------
+   The queue is the session's remaining cards, current card first. After a
+   rating the card leaves the queue, except "again": it goes to the back
+   with its new schedule, so it comes back in this same session (the
+   stored schedule also brings it back in 10 minutes). */
+
+export interface SessionStep {
+  queue: StudyCard[];
+  /* The rated card with its new schedule. */
+  rated: StudyCard;
+}
+
+export function rateCurrent(queue: StudyCard[], rating: Rating, nowMs: number): SessionStep {
+  const [current, ...rest] = queue;
+  if (!current) throw new Error("rateCurrent: the session is empty.");
+  const rated = applyRating(current, rating, nowMs);
+  return { rated, queue: rating === "again" ? [...rest, rated] : rest };
+}

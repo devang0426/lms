@@ -295,6 +295,19 @@ their own uploads.
   every query), the rate-limit counter, transcript lines for placing
   chips. `app/api/assistant/route.ts` streams NDJSON.
   `components/assistant/`: the chat, answer body, citation chip, refusal.
+- Flashcards (feature 15): `lib/db/study.ts` (due queue, counts,
+  `recordReview` — visibility in SQL, FSRS applied on the server),
+  `lib/study/cards.ts` (pure: the `StudyCard` type, interval previews,
+  the session queue), `components/study/flashcard-deck.tsx`, `/study`, and
+  the `rateCard` action next to it.
+- Quizzes (feature 16): `lib/study/quiz.ts` (pure: answer checking with
+  the fill-in-the-blank normalizer, and the shapes the browser may see),
+  `lib/db/quizzes.ts` (practice, graded attempts with the limit and due
+  date in SQL, mastery through `lib/study/mastery.ts`, the question bank),
+  the player's Quiz tab (`components/study/quiz-tab.tsx`,
+  `quiz-runner.tsx`, `mastery-bars.tsx`) with its actions in
+  `…/lessons/[lessonId]/quiz-actions.ts`, and the instructor's create page
+  under `…/lessons/[lessonId]/graded-quizzes/new`.
 - `lib/db/chunks.ts`: `content_chunks` writes (`replaceLessonChunks`,
   `deleteLessonChunks`) and the search queries, with the access filter
   inside the SQL (admin, course staff, or active enrollment with course,
@@ -327,10 +340,16 @@ their own uploads.
   `promptsVersion`, and a `status` that Publish sets):
   - `notes`: one per lesson (`lessonId` unique), or private with
     `ownerId` (feature 19); block JSON; a heading may carry `startSec`.
-  - `flashcards` (front, back, topic, startSec), and later `card_reviews`
-    holding FSRS state per (student, card).
+  - `flashcards` (front, back, topic, startSec), and `card_reviews`
+    holding FSRS state per (student, card): due, stability (days),
+    difficulty, reps, lapses, lastReview, state. No row = new, due now.
   - `quiz_questions` (type, difficulty, bank practice/graded, options,
-    correctIndex, explanation, startSec), and later `quiz_attempts`.
+    correctIndex, explanation, startSec). A question in a graded quiz is
+    in the `graded` bank and never served to practice.
+  - `graded_quizzes` (lessonId, title, questionIds, dueAt, maxAttempts,
+    points), `quiz_attempts` (userId, lessonId, mode, gradedQuizId,
+    startedAt, submittedAt, score 0–1) and `quiz_answers` (attemptId,
+    questionId, answer, correct). Answers are scored on the server only.
   - Students see an item only when it is published and the lesson is
     visible to them.
 - Coursework: `assignments`, `submissions`, `grades`.

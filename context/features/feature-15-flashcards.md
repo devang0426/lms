@@ -1,6 +1,6 @@
 # Feature 15: Flashcards
 
-**Status:** Not started
+**Status:** Done (2026-09-28)
 **Depends on:** 12
 **Demo step:** 7
 
@@ -43,9 +43,23 @@ lastReview, state. Primary key (userId, cardId).
 
 ## Acceptance criteria
 
-- [ ] Rating a card "Again" brings it back in the same session. "Easy"
+- [x] Rating a card "Again" brings it back in the same session. "Easy"
       pushes it out by days, per `fsrs.ts`.
-- [ ] Two students reviewing the same card get independent schedules.
-- [ ] "Review in video" opens the player at the card's time.
-- [ ] The existing `lib/study` tests still pass.
-- [ ] `npm run build` passes.
+- [x] Two students reviewing the same card get independent schedules.
+- [x] "Review in video" opens the player at the card's time.
+- [x] The existing `lib/study` tests still pass.
+- [x] `npm run build` passes.
+
+## Implementation notes (as built)
+
+- Ratings go to the server (`rateCard` action); `recordReview` applies
+  `fsrs.ts` to the stored state and checks visibility in the same query.
+  The browser previews intervals with the same math (`lib/study/cards.ts`).
+- "Again" puts the card at the back of the session (`rateCurrent`); its
+  stored schedule also brings it back in 10 minutes.
+- Staff preview in the player shows the whole deck (drafts included) and
+  saves nothing, like watch progress.
+- "Due today" means due now: never-reviewed cards, and reviewed cards
+  whose `due` has passed. The sidebar notice streams in with Suspense.
+- A "Study" nav item links `/study`; the mobile profile page lists it.
+- Regenerating a lesson's cards deletes their reviews (cascade).
