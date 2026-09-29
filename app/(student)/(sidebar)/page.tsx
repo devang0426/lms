@@ -8,10 +8,13 @@ import {
   ContinueCard,
   CourseFilterChips,
   CourseGrid,
+  DueNotice,
 } from "@/components/student/home-cards";
 import { loadStudentCourses } from "@/components/student/load-courses";
 import { EmptyState, SearchField } from "@/components/ui";
 import { homePathFor, requireAreaRole } from "@/lib/auth";
+import { upcomingEvents } from "@/lib/db/events";
+import { requestTime } from "@/lib/utils/clock";
 import { firstName } from "@/lib/utils/format";
 
 /* Student home (wireframe 02; below 768px, the Mobile home wireframe 07).
@@ -23,9 +26,11 @@ export default async function StudentHomePage({ searchParams }: PageProps<"/">) 
 
   const { show } = await searchParams;
   const filter = parseCourseFilter(show);
-  const courses = await loadStudentCourses(user);
+  const now = requestTime();
+  const [courses, comingUp] = await Promise.all([loadStudentCourses(user), upcomingEvents(user, new Date(now), 3)]);
   const current = pickCurrentCourse(courses);
   const name = firstName(user.name);
+  const nextDeadline = comingUp.find((e) => (e.kind === "due" || e.kind === "quiz") && !e.done);
 
   return (
     <>
@@ -44,8 +49,11 @@ export default async function StudentHomePage({ searchParams }: PageProps<"/">) 
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <ContinueCard course={current} />
         <div className="hidden md:flex">
-          <ComingUpCard />
+          <ComingUpCard events={comingUp} now={now} />
         </div>
+      </div>
+      <div className="md:hidden">
+        <DueNotice event={nextDeadline} />
       </div>
 
       <section aria-labelledby="your-courses" className="flex flex-col gap-4">

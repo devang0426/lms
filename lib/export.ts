@@ -1,7 +1,11 @@
-/* Note export: markdown file, .doc (Word-compatible HTML), and one-click print-to-PDF. */
+/* Note export: markdown file, .doc (Word-compatible HTML), and one-click print-to-PDF.
+   Used by the private space's note page (feature 19); only a note's title
+   and blocks are needed. */
 
 import type { Block, Note } from "@/lib/ai/types";
 import { blocksToMarkdown, renderInline, renderMath } from "./markdown";
+
+type ExportNote = Pick<Note, "title" | "blocks">;
 
 function escapeHtml(text: string): string {
   return text
@@ -13,7 +17,7 @@ function escapeHtml(text: string): string {
 }
 
 /** `# title` + the note body as markdown. */
-export function exportMarkdown(note: Note): string {
+export function exportMarkdown(note: ExportNote): string {
   return `# ${note.title}\n\n${blocksToMarkdown(note.blocks)}`;
 }
 
@@ -83,7 +87,7 @@ const PRINT_STYLE = `
 `;
 
 /** A minimal Word-compatible HTML document string (suitable for saving as .doc). */
-export function exportDocxHtml(note: Note): string {
+export function exportDocxHtml(note: ExportNote): string {
   const bodyHtml = note.blocks.map(blockToHtml).join("\n");
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
@@ -107,7 +111,7 @@ ${bodyHtml}
 }
 
 /** One-click PDF path: open a print window with the rendered note and call print(). */
-export function printPdf(note: Note): void {
+export function printPdf(note: ExportNote): void {
   if (typeof window === "undefined") return;
   const win = window.open("", "_blank");
   if (!win) return;

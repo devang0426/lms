@@ -3,7 +3,7 @@
 
 import "server-only";
 
-import type { SourceKind } from "@/lib/ai/types";
+import type { DocPart, SourceKind } from "@/lib/ai/types";
 import { ingestText } from "./text";
 import { ingestUrl } from "./url";
 import { ingestYoutube } from "./youtube";
@@ -28,6 +28,8 @@ export interface IngestResult {
   audio?: Blob;
   /* PDF only: text of each page (index 0 = page 1), for page citations. */
   pages?: string[];
+  /* Citable pieces: PDF pages, DOCX / web-page sections (feature 18). */
+  parts?: DocPart[];
 }
 
 function titleFromFilename(filename: string): string {

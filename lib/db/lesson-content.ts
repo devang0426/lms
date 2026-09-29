@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { PROMPTS_VERSION } from "@/lib/ai/prompts";
 import type { Block } from "@/lib/ai/types";
 import type { DraftChapter } from "@/lib/ai/generation/chapters";
@@ -8,6 +8,7 @@ import type { DraftCard, DraftQuestion, QuizLevel } from "@/lib/ai/generation/le
 import { db } from "./client";
 import {
   chapters,
+  documents,
   flashcards,
   lessons,
   notes,
@@ -62,13 +63,44 @@ export async function loadLessonSource(lessonId: string): Promise<LessonSource |
   };
 }
 
-/* ---- Idempotency: was this kind already drafted from this video? ---------- */
+/* The source a lesson's drafts come from (feature 18): the live video if
+   it has one; otherwise, for a reading lesson, its ready documents. Other
+   lessons' documents are resources only (indexed, not drafted). */
+export type DraftSource =
+  | ({ mode: "video" } & LessonSource)
+  | { mode: "document"; lessonId: string; lessonTitle: string; videoId: null; createdBy: string | null; documents: { title: string; text: string }[] };
+
+export async function loadDraftSource(lessonId: string): Promise<DraftSource | null> {
+  const video = await loadLessonSource(lessonId);
+  if (video && video.segments.length > 0) return { mode: "video", ...video };
+  const [lesson] = await db.select({ kind: lessons.kind, title: lessons.title }).from(lessons).where(eq(lessons.id, lessonId)).limit(1);
+  if (lesson?.kind !== "reading") return null;
+  const docs = await db
+    .select({ title: documents.title, text: documents.text, createdBy: documents.createdBy })
+    .from(documents)
+    .where(and(eq(documents.lessonId, lessonId), eq(documents.status, "ready")))
+    .orderBy(asc(documents.createdAt));
+  const withText = docs.filter((d) => d.text.trim());
+  if (withText.length === 0) return null;
+  return {
+    mode: "document",
+    lessonId,
+    lessonTitle: lesson.title,
+    videoId: null,
+    createdBy: withText.at(-1)!.createdBy,
+    documents: withText.map((d) => ({ title: d.title, text: d.text })),
+  };
+}
+
+/* ---- Idempotency: was this kind already drafted from this video? ----------
+   Document drafts have no video (videoId null); they are redrafted with
+   `force` whenever a document is added. */
 
 export type ContentKind = "chapters" | "notes" | "cards" | "quiz";
 
-export async function hasContentFor(kind: ContentKind, lessonId: string, videoId: string, level?: QuizLevel): Promise<boolean> {
+export async function hasContentFor(kind: ContentKind, lessonId: string, videoId: string | null, level?: QuizLevel): Promise<boolean> {
   const table = { chapters, notes, cards: flashcards, quiz: quizQuestions }[kind];
-  const where = [eq(table.lessonId, lessonId), eq(table.videoId, videoId)];
+  const where = [eq(table.lessonId, lessonId), videoId === null ? isNull(table.videoId) : eq(table.videoId, videoId)];
   if (kind === "quiz" && level) where.push(eq(quizQuestions.difficulty, level));
   const [row] = await db.select({ id: table.id }).from(table).where(and(...where)).limit(1);
   return Boolean(row);
@@ -76,7 +108,7 @@ export async function hasContentFor(kind: ContentKind, lessonId: string, videoId
 
 /* ---- Writing drafts -------------------------------------------------------- */
 
-export async function replaceChapters(lessonId: string, videoId: string, drafts: DraftChapter[]): Promise<void> {
+export async function replaceChapters(lessonId: string, videoId: string | null, drafts: DraftChapter[]): Promise<void> {
   const insert = drafts.length
     ? [
         db.insert(chapters).values(
@@ -87,7 +119,7 @@ export async function replaceChapters(lessonId: string, videoId: string, drafts:
   await db.batch([db.delete(chapters).where(eq(chapters.lessonId, lessonId)), ...insert]);
 }
 
-export async function replaceLessonNote(input: { lessonId: string; videoId: string; title: string; blocks: Block[] }): Promise<void> {
+export async function replaceLessonNote(input: { lessonId: string; videoId: string | null; title: string; blocks: Block[] }): Promise<void> {
   const values = { ...input, status: "draft" as const, promptsVersion: PROMPTS_VERSION };
   await db
     .insert(notes)
@@ -95,7 +127,7 @@ export async function replaceLessonNote(input: { lessonId: string; videoId: stri
     .onConflictDoUpdate({ target: notes.lessonId, set: { ...values, updatedAt: new Date() } });
 }
 
-export async function replaceCards(lessonId: string, videoId: string, noteId: string | null, drafts: DraftCard[]): Promise<void> {
+export async function replaceCards(lessonId: string, videoId: string | null, noteId: string | null, drafts: DraftCard[]): Promise<void> {
   const insert = drafts.length
     ? [
         db.insert(flashcards).values(
@@ -111,7 +143,7 @@ export async function replaceCards(lessonId: string, videoId: string, noteId: st
    graded quiz (feature 16) stay, with the students' answers to them. */
 export async function replaceQuizLevel(
   lessonId: string,
-  videoId: string,
+  videoId: string | null,
   noteId: string | null,
   level: QuizLevel,
   drafts: DraftQuestion[],

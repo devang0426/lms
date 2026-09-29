@@ -75,7 +75,7 @@ export function RegenerateButton({ lessonId, kind, disabled }: { lessonId: strin
       </DialogTrigger>
       <DialogContent
         title={`Redraft the ${kindLabels[kind]}?`}
-        description={`The AI writes a fresh draft from the transcript. It replaces the current ${kindLabels[kind]}, including your edits, and they stay drafts until you publish.`}
+        description={`The AI writes a fresh draft from the lesson's video or documents. It replaces the current ${kindLabels[kind]}, including your edits, and they stay drafts until you publish.`}
       >
         <div className="flex justify-end gap-2.5">
           <DialogClose asChild>

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCirclePlus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AssistantChat } from "@/components/assistant/assistant-chat";
@@ -9,8 +9,12 @@ import { NotesTab } from "@/components/player/notes-tab";
 import { PlayerProvider } from "@/components/player/player-context";
 import { TranscriptPanel } from "@/components/player/transcript-panel";
 import { VideoPlayer, type PlayerChapter } from "@/components/player/video-player";
+import { ResourceList } from "@/components/documents/resource-list";
 import { FocusHeader } from "@/components/shell/focus-header";
-import { Badge, Button, EmptyState, Eyebrow, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Eyebrow, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { DiscussionList } from "@/components/discussions/discussion-list";
+import { NewDiscussionDialog } from "@/components/discussions/new-discussion-dialog";
+import { listDiscussions } from "@/lib/db/discussions";
 import { toTurnView } from "@/lib/ai/assistant";
 import { requireAreaRole } from "@/lib/auth";
 import { latestThread } from "@/lib/db/chat";
@@ -21,11 +25,18 @@ import { getLessonPlayback } from "@/lib/video/lessons";
 import { getPlayerNote, listChapters } from "@/lib/db/lesson-content";
 import { StudyNotes } from "@/components/player/study-notes";
 import { FlashcardDeck } from "@/components/study/flashcard-deck";
+import { PodcastTab } from "@/components/study/podcast-tab";
 import { QuizTab } from "@/components/study/quiz-tab";
 import { quizTabData } from "@/lib/db/quizzes";
 import { previewCards, studyQueue } from "@/lib/db/study";
+import { getPodcastTabs } from "@/lib/podcast";
+import { lessonDocuments } from "@/lib/db/documents";
+import type { DocumentView } from "@/lib/documents/view";
+import { AssignmentPanel } from "@/components/coursework/assignment-panel";
+import { getAssignment, studentWork } from "@/lib/db/assignments";
+import { requestTime } from "@/lib/utils/clock";
 
-/* Lesson player (wireframe 05, features 11, 12, 14 (Ask), 15 (Flashcards) and 16 (Quiz)). getLessonForUser is the gate:
+/* Lesson player (wireframe 05, features 11, 12, 14 (Ask), 15 (Flashcards), 16 (Quiz), 17 (Podcast), 18 (Resources), 20 (assignments) and 21 (Discussion)). getLessonForUser is the gate:
    a student gets the lesson only when enrolled and the course, module and
    lesson are all published; anything else is a 404 before any video URL
    is loaded. Staff open the same page as a preview (drafts included, no
@@ -38,7 +49,7 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
   const { lesson, module, course } = found;
   const preview = found.access === "staff";
 
-  const [contents, playback, progress, notes, completed, chapters, studyNotes, askThread, deck, quiz] = await Promise.all([
+  const [contents, playback, progress, notes, completed, chapters, studyNotes, askThread, deck, quiz, podcast, resources, work, threads] = await Promise.all([
     getCourseForUser(courseId, user),
     lesson.kind === "video" ? getLessonPlayback(lessonId) : Promise.resolve(null),
     preview ? Promise.resolve(null) : getWatchProgress(user.id, lessonId),
@@ -54,7 +65,30 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
       ? previewCards(lessonId).then((cards) => ({ cards, total: cards.length, nextDueAt: null }))
       : studyQueue(user.id, { lessonId }, 100),
     quizTabData(user.id, lessonId, preview),
+    // Podcast: made from the published notes, only when someone asks.
+    getPodcastTabs(lessonId, found.access),
+    // Documents: students see ready ones; staff also see what's still being read.
+    lessonDocuments(lessonId, { readyOnly: !preview }),
+    // Assignment: the student's own work and returned grade; staff see the instructions.
+    lesson.kind !== "assignment"
+      ? Promise.resolve(null)
+      : preview
+        ? getAssignment(lessonId).then((assignment) => ({ assignment, submission: null, grade: null }))
+        : studentWork(user.id, lessonId),
+    // Discussion: the class's questions about this lesson (feature 21).
+    listDiscussions(user, { lessonId, limit: 30 }),
   ]);
+  const resourceViews: DocumentView[] = resources.map((d) => ({
+    id: d.id,
+    kind: d.kind,
+    title: d.title,
+    status: d.status,
+    pageCount: d.pageCount,
+    durationSec: d.durationSec,
+    sizeBytes: d.sizeBytes,
+    hasFile: d.hasFile,
+  }));
+  const showPodcast = preview || Object.values(podcast).some((e) => e.hasSource || e.hasAudio);
   const hasQuiz = quiz.graded.length > 0 || Object.values(quiz.levelCounts).some((n) => n > 0);
 
   const modules = contents?.modules ?? [];
@@ -96,6 +130,24 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                   initialRanges={progress?.watchedRanges ?? []}
                   trackProgress={!preview}
                 />
+              ) : lesson.kind === "assignment" ? (
+                <AssignmentPanel
+                  lessonId={lessonId}
+                  userId={user.id}
+                  assignment={work?.assignment ?? null}
+                  submission={work?.submission ?? null}
+                  grade={work?.grade ?? null}
+                  preview={preview}
+                  now={requestTime()}
+                />
+              ) : lesson.kind === "reading" ? (
+                <section aria-label="Reading material" className="flex flex-col gap-2 rounded-card border border-line bg-paper px-6 py-5">
+                  <Eyebrow>Reading material</Eyebrow>
+                  <ResourceList
+                    documents={resourceViews}
+                    emptyText="The reading for this lesson hasn't been added yet."
+                  />
+                </section>
               ) : (
                 <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-card bg-media px-6 text-center text-cream">
                   <span className="font-serif text-[28px] leading-[1.15]">
@@ -153,10 +205,15 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                     </TabsTrigger>
                   )}
                   {hasQuiz && <TabsTrigger value="quiz">Quiz</TabsTrigger>}
+                  {showPodcast && <TabsTrigger value="podcast">Podcast</TabsTrigger>}
                   <TabsTrigger value="transcript">Transcript</TabsTrigger>
                   <TabsTrigger value="ask">Ask</TabsTrigger>
-                  <TabsTrigger value="resources">Resources</TabsTrigger>
-                  <TabsTrigger value="discussion">Discussion</TabsTrigger>
+                  <TabsTrigger value="resources" count={resourceViews.length || undefined}>
+                    Resources
+                  </TabsTrigger>
+                  <TabsTrigger value="discussion" count={threads.length || undefined}>
+                    Discussion
+                  </TabsTrigger>
                 </TabsList>
                 {studyNotes && (
                   <TabsContent value="study">
@@ -187,7 +244,16 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                 )}
                 {hasQuiz && (
                   <TabsContent value="quiz">
-                    <QuizTab courseId={courseId} lessonId={lessonId} preview={preview} {...quiz} />
+                    <QuizTab target={{ courseId, lessonId }} preview={preview} {...quiz} />
+                  </TabsContent>
+                )}
+                {showPodcast && (
+                  <TabsContent value="podcast">
+                    <PodcastTab
+                      target={{ lessonId }}
+                      staff={preview}
+                      episodes={podcast}
+                    />
                   </TabsContent>
                 )}
                 <TabsContent value="transcript">
@@ -196,6 +262,7 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                 <TabsContent value="ask">
                   <AssistantChat
                     courseId={courseId}
+                    courseCode={course.code}
                     courseTitle={course.title}
                     lessonId={lessonId}
                     lessonTitle={lesson.title}
@@ -204,10 +271,32 @@ export default async function LessonPlayerPage({ params }: PageProps<"/courses/[
                   />
                 </TabsContent>
                 <TabsContent value="resources">
-                  <EmptyState title="No resources yet" description="Slides, readings and files for this lesson will be listed here." />
+                  <ResourceList documents={resourceViews} />
                 </TabsContent>
                 <TabsContent value="discussion">
-                  <EmptyState title="No discussion yet" description="Questions and replies about this lesson will appear here." />
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="m-0 text-small text-ink-soft">Questions about this lesson. Your instructor and classmates can reply.</p>
+                      <NewDiscussionDialog
+                        courses={[{ id: courseId, code: course.code, title: course.title }]}
+                        lesson={{ id: lessonId, title: lesson.title }}
+                        trigger={
+                          <Button variant="secondary" size="sm" leading={<Icon icon={MessageCirclePlus} size={16} />}>
+                            Ask a question
+                          </Button>
+                        }
+                      />
+                    </div>
+                    <Card padded={false} className="overflow-hidden">
+                      <DiscussionList
+                        items={threads}
+                        basePath={preview ? "/instructor/messages" : "/discussions"}
+                        waiting={preview}
+                        showCourse={false}
+                        empty={<EmptyState title="No questions yet" description="Stuck on something in this lesson? Ask, and you'll get a notification when someone replies." />}
+                      />
+                    </Card>
+                  </div>
                 </TabsContent>
               </Tabs>
             </div>

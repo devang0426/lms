@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { QuizAttempt, QuizQuestion } from "@/lib/ai/types";
 import { masteryByTopic, masteryColor } from "@/lib/study/mastery";
 import {
@@ -21,7 +21,8 @@ import { gradedQuizzes, quizAnswers, quizAttempts, quizQuestions, type GradedQui
    attempt query here is also scoped to its user. Answers are always
    scored here, from the stored questions — never trusted from the client.
    A graded quiz's correct answers leave the server only after its
-   attempt is submitted. */
+   attempt is submitted. A private note's quiz (feature 19) is practice
+   only, and its owner is checked inside every query that reads it. */
 
 export interface SubmittedAnswer {
   questionId: string;
@@ -30,14 +31,32 @@ export interface SubmittedAnswer {
 
 /* ---- Practice -------------------------------------------------------------- */
 
-const practiceBank = (lessonId: string, publishedOnly: boolean) =>
-  and(
-    eq(quizQuestions.lessonId, lessonId),
-    eq(quizQuestions.bank, "practice"),
-    publishedOnly ? eq(quizQuestions.status, "published") : undefined,
-  );
+/* A lesson's practice bank, or a private note's, only while it's the owner asking. */
+type Bank = { lessonId: string; publishedOnly: boolean } | { noteId: string; ownerId: string };
+
+const practiceBank = (bank: Bank): SQL | undefined =>
+  "lessonId" in bank
+    ? and(
+        eq(quizQuestions.lessonId, bank.lessonId),
+        eq(quizQuestions.bank, "practice"),
+        bank.publishedOnly ? eq(quizQuestions.status, "published") : undefined,
+      )
+    : and(
+        eq(quizQuestions.noteId, bank.noteId),
+        isNull(quizQuestions.lessonId),
+        eq(quizQuestions.bank, "practice"),
+        sql`exists (select 1 from notes n where n.id = quiz_questions.note_id and n.owner_id = ${bank.ownerId})`,
+      );
 
 export async function practiceQuestions(lessonId: string, level: QuizLevel, publishedOnly: boolean): Promise<PracticeQuestion[]> {
+  return questionsIn({ lessonId, publishedOnly }, level);
+}
+
+export async function notePracticeQuestions(ownerId: string, noteId: string, level: QuizLevel): Promise<PracticeQuestion[]> {
+  return questionsIn({ noteId, ownerId }, level);
+}
+
+async function questionsIn(bank: Bank, level: QuizLevel): Promise<PracticeQuestion[]> {
   return db
     .select({
       id: quizQuestions.id,
@@ -51,16 +70,20 @@ export async function practiceQuestions(lessonId: string, level: QuizLevel, publ
       explanation: quizQuestions.explanation,
     })
     .from(quizQuestions)
-    .where(and(practiceBank(lessonId, publishedOnly), eq(quizQuestions.difficulty, level)))
+    .where(and(practiceBank(bank), eq(quizQuestions.difficulty, level)))
     .orderBy(asc(quizQuestions.position));
 }
 
 /* Practice questions per level, for the difficulty picker. */
 export async function practiceLevelCounts(lessonId: string, publishedOnly: boolean): Promise<Record<QuizLevel, number>> {
+  return levelCountsIn({ lessonId, publishedOnly });
+}
+
+async function levelCountsIn(bank: Bank): Promise<Record<QuizLevel, number>> {
   const rows = await db
     .select({ level: quizQuestions.difficulty, n: sql<number>`count(*)`.mapWith(Number) })
     .from(quizQuestions)
-    .where(practiceBank(lessonId, publishedOnly))
+    .where(practiceBank(bank))
     .groupBy(quizQuestions.difficulty);
   const counts: Record<QuizLevel, number> = { basic: 0, intermediate: 0, exam: 0 };
   for (const r of rows) counts[r.level] = r.n;
@@ -69,12 +92,26 @@ export async function practiceLevelCounts(lessonId: string, publishedOnly: boole
 
 /* Save a finished practice set: one attempt with its answers, scored here. */
 export async function savePracticeAttempt(userId: string, lessonId: string, answers: SubmittedAnswer[]): Promise<{ score: number } | null> {
+  return saveAttempt(userId, { lessonId }, { lessonId, publishedOnly: true }, answers);
+}
+
+/* The same for a private note: the attempt records the note (feature 19). */
+export async function saveNotePracticeAttempt(ownerId: string, noteId: string, answers: SubmittedAnswer[]): Promise<{ score: number } | null> {
+  return saveAttempt(ownerId, { noteId }, { noteId, ownerId }, answers);
+}
+
+async function saveAttempt(
+  userId: string,
+  on: { lessonId: string } | { noteId: string },
+  bank: Bank,
+  answers: SubmittedAnswer[],
+): Promise<{ score: number } | null> {
   const ids = [...new Set(answers.map((a) => a.questionId))];
   if (ids.length === 0) return null;
   const questions = await db
     .select()
     .from(quizQuestions)
-    .where(and(practiceBank(lessonId, true), inArray(quizQuestions.id, ids)));
+    .where(and(practiceBank(bank), inArray(quizQuestions.id, ids)));
   const byId = new Map(questions.map((q) => [q.id, q]));
   const scored = answers
     .filter((a, i) => byId.has(a.questionId) && answers.findIndex((b) => b.questionId === a.questionId) === i)
@@ -84,7 +121,7 @@ export async function savePracticeAttempt(userId: string, lessonId: string, answ
   const score = scored.filter((a) => a.correct).length / scored.length;
   const attemptId = crypto.randomUUID();
   await db.batch([
-    db.insert(quizAttempts).values({ id: attemptId, userId, lessonId, mode: "practice", submittedAt: new Date(), score }),
+    db.insert(quizAttempts).values({ id: attemptId, userId, ...on, mode: "practice", submittedAt: new Date(), score }),
     db.insert(quizAnswers).values(scored.map((a) => ({ attemptId, questionId: a.questionId, answer: a.answer, correct: a.correct }))),
   ]);
   return { score };
@@ -244,16 +281,31 @@ export type { TopicMasteryView };
 /* Mastery per topic over everything the student has submitted for this
    lesson (practice and graded), via lib/study/mastery.ts. */
 export async function lessonMastery(userId: string, lessonId: string): Promise<TopicMasteryView[]> {
+  return masteryOf(
+    and(eq(quizQuestions.lessonId, lessonId), eq(quizQuestions.status, "published")),
+    and(eq(quizAttempts.userId, userId), eq(quizAttempts.lessonId, lessonId), sql`${quizAttempts.submittedAt} is not null`),
+  );
+}
+
+/* The same over a private note's practice (feature 19), for its owner. */
+export async function noteMastery(ownerId: string, noteId: string): Promise<TopicMasteryView[]> {
+  return masteryOf(
+    practiceBank({ noteId, ownerId }),
+    and(eq(quizAttempts.userId, ownerId), eq(quizAttempts.noteId, noteId), sql`${quizAttempts.submittedAt} is not null`),
+  );
+}
+
+async function masteryOf(questionsWhere: SQL | undefined, attemptsWhere: SQL | undefined): Promise<TopicMasteryView[]> {
   const [questions, answers] = await db.batch([
     db
       .select({ id: quizQuestions.id, topic: quizQuestions.topic, startSec: quizQuestions.startSec, difficulty: quizQuestions.difficulty })
       .from(quizQuestions)
-      .where(and(eq(quizQuestions.lessonId, lessonId), eq(quizQuestions.status, "published"))),
+      .where(questionsWhere),
     db
       .select({ questionId: quizAnswers.questionId, correct: quizAnswers.correct, at: quizAttempts.submittedAt })
       .from(quizAnswers)
       .innerJoin(quizAttempts, eq(quizAttempts.id, quizAnswers.attemptId))
-      .where(and(eq(quizAttempts.userId, userId), eq(quizAttempts.lessonId, lessonId), sql`${quizAttempts.submittedAt} is not null`)),
+      .where(attemptsWhere),
   ]);
   const named = questions.map((q) => ({ ...q, topic: q.topic.trim() || "General" }));
   const topicOf = new Map(named.map((q) => [q.id, q.topic]));
@@ -375,4 +427,10 @@ export async function quizTabData(userId: string, lessonId: string, preview: boo
     preview ? Promise.resolve([]) : lessonMastery(userId, lessonId),
   ]);
   return { levelCounts, graded, mastery };
+}
+
+/* A private note's Quiz tab (feature 19): practice and mastery, no graded quizzes. */
+export async function noteQuizTabData(ownerId: string, noteId: string): Promise<QuizTabData> {
+  const [levelCounts, mastery] = await Promise.all([levelCountsIn({ noteId, ownerId }), noteMastery(ownerId, noteId)]);
+  return { levelCounts, graded: [], mastery };
 }

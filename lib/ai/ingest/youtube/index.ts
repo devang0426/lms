@@ -122,3 +122,37 @@ export async function ingestYoutube(url: string): Promise<IngestResult> {
       "Upload the video or audio file instead.",
   );
 }
+
+/* ---- Feature 18: yt-dlp in a task -------------------------------------------
+   YouTube often blocks cloud servers ("Sign in to confirm you're not a
+   bot", 403, 429). Whatever went wrong, the instructor gets a message
+   that says what to do, never yt-dlp's output. */
+
+export const YOUTUBE_BLOCKED = "YouTube blocked this server — upload the video file instead.";
+
+const BLOCK_SIGNS = [
+  /not a bot/i,
+  /sign in to confirm/i,
+  /HTTP Error 429/i,
+  /HTTP Error 403/i,
+  /too many requests/i,
+  /blocked/i,
+  /captcha/i,
+  /po[ _-]?token/i,
+];
+
+export function youtubeFailureMessage(err: unknown): string {
+  const text = err instanceof Error ? err.message : String(err);
+  if (BLOCK_SIGNS.some((re) => re.test(text))) return YOUTUBE_BLOCKED;
+  if (/unavailable|private video|removed|members-only|age-restricted|confirm your age/i.test(text)) {
+    return "YouTube won't share this video (it's private, removed or age-restricted) — upload the video file instead.";
+  }
+  return `${YOUTUBE_BLOCKED.replace(" — ", " (or couldn't read it) — ")}`;
+}
+
+/* The one form of the link passed to yt-dlp: rebuilt from the video id,
+   so nothing else from the typed URL reaches its command line. */
+export function canonicalYoutubeUrl(url: string): string | null {
+  const id = youtubeId(url);
+  return id ? `https://www.youtube.com/watch?v=${id}` : null;
+}

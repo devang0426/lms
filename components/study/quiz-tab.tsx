@@ -7,6 +7,7 @@ import {
   startGraded,
   submitGraded,
 } from "@/app/(student)/(focus)/courses/[courseId]/lessons/[lessonId]/quiz-actions";
+import { loadNotePractice, saveNotePractice } from "@/app/(student)/(sidebar)/space/[noteId]/actions";
 import { Badge, Button, ChipGroup, Eyebrow } from "@/components/ui";
 import { isCorrect, type GradedQuizSummary, type PracticeQuestion, type QuestionView, type QuizLevel, type TopicMasteryView } from "@/lib/study/quiz";
 import { MasteryBars } from "./mastery-bars";
@@ -14,7 +15,11 @@ import { QuizRunner, type Answers, type FinishResult } from "./quiz-runner";
 
 /* The lesson player's Quiz tab (feature 16): practice at three levels,
    the lesson's graded quizzes, and mastery by topic. Questions load only
-   when a quiz starts; a graded quiz's questions arrive without answers. */
+   when a quiz starts; a graded quiz's questions arrive without answers.
+   A private note (feature 19) gets the same tab with practice and mastery
+   only, saved through its own actions. */
+
+export type QuizTarget = { courseId: string; lessonId: string } | { noteId: string };
 
 const LEVELS: { value: QuizLevel; label: string }[] = [
   { value: "basic", label: "Basic" },
@@ -33,20 +38,29 @@ const toList = (answers: Answers) =>
     .map(([questionId, answer]) => ({ questionId, answer }));
 
 export function QuizTab({
-  courseId,
-  lessonId,
+  target,
   levelCounts,
   graded: initialGraded,
   mastery: initialMastery,
   preview,
 }: {
-  courseId: string;
-  lessonId: string;
+  target: QuizTarget;
   levelCounts: Record<QuizLevel, number>;
   graded: GradedQuizSummary[];
   mastery: TopicMasteryView[];
   preview: boolean;
 }) {
+  const lesson = "lessonId" in target ? target : null;
+  const practice =
+    "noteId" in target
+      ? {
+          load: (level: QuizLevel) => loadNotePractice({ noteId: target.noteId, level }),
+          save: (answers: ReturnType<typeof toList>) => saveNotePractice({ noteId: target.noteId, answers }),
+        }
+      : {
+          load: (level: QuizLevel) => loadPractice({ lessonId: target.lessonId, level }),
+          save: (answers: ReturnType<typeof toList>) => savePractice({ lessonId: target.lessonId, answers }),
+        };
   const firstLevel = LEVELS.find((l) => levelCounts[l.value] > 0)?.value ?? "basic";
   const [level, setLevel] = useState<QuizLevel>(firstLevel);
   const [view, setView] = useState<View>({ kind: "home" });
@@ -65,12 +79,12 @@ export function QuizTab({
         mode="practice"
         title={`${LEVELS.find((l) => l.value === view.level)!.label} practice`}
         questions={view.questions}
-        courseId={courseId}
-        lessonId={lessonId}
+        courseId={lesson?.courseId}
+        lessonId={lesson?.lessonId}
         onClose={home}
         onFinish={async (answers): Promise<FinishResult> => {
           const list = toList(answers);
-          const res = await savePractice({ lessonId, answers: list });
+          const res = await practice.save(list);
           if (!res.ok) return { ok: false, message: res.error.message };
           if (res.data.mastery.length) setMastery(res.data.mastery);
           // A staff preview isn't saved, so it has no server score: count here.
@@ -82,17 +96,17 @@ export function QuizTab({
     );
   }
 
-  if (view.kind === "graded") {
+  if (view.kind === "graded" && lesson) {
     return (
       <QuizRunner
         mode="graded"
         title={view.quiz.title}
         questions={view.questions}
-        courseId={courseId}
-        lessonId={lessonId}
+        courseId={lesson.courseId}
+        lessonId={lesson.lessonId}
         onClose={home}
         onFinish={async (answers): Promise<FinishResult> => {
-          const res = await submitGraded({ lessonId, attemptId: view.attemptId, answers: toList(answers) });
+          const res = await submitGraded({ lessonId: lesson.lessonId, attemptId: view.attemptId, answers: toList(answers) });
           if (!res.ok) return { ok: false, message: res.error.message };
           setMastery(res.data.mastery);
           setGraded((list) =>
@@ -116,7 +130,7 @@ export function QuizTab({
         </p>
       )}
 
-      {graded.length > 0 && (
+      {lesson && graded.length > 0 && (
         <section aria-label="Graded quizzes" className="flex flex-col gap-3">
           <h3 className="m-0 text-h3 font-semibold">Graded</h3>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -152,7 +166,7 @@ export function QuizTab({
                         onClick={async () => {
                           setBusy(g.id);
                           setError(null);
-                          const res = await startGraded({ lessonId, quizId: g.id });
+                          const res = await startGraded({ lessonId: lesson.lessonId, quizId: g.id });
                           setBusy(null);
                           if (!res.ok) return setError(res.error.message);
                           setGraded((list) =>
@@ -181,7 +195,8 @@ export function QuizTab({
           <div className="flex flex-col gap-1">
             <h3 className="m-0 text-h3 font-semibold">Practice</h3>
             <p className="m-0 text-small text-ink-soft">
-              Instant feedback after each question. Practice doesn&rsquo;t count toward your grade.
+              Instant feedback after each question.
+              {lesson ? " Practice doesn’t count toward your grade." : " Your mastery of each topic builds up below."}
               {preview && " Preview: nothing is saved."}
             </p>
           </div>
@@ -203,7 +218,7 @@ export function QuizTab({
               onClick={async () => {
                 setBusy("practice");
                 setError(null);
-                const res = await loadPractice({ lessonId, level });
+                const res = await practice.load(level);
                 setBusy(null);
                 if (!res.ok) return setError(res.error.message);
                 if (res.data.length === 0) return setError("No practice questions at this level yet.");
@@ -216,9 +231,9 @@ export function QuizTab({
         </section>
       )}
 
-      {practiceTotal === 0 && graded.length === 0 && <Eyebrow>No quiz questions for this lesson yet.</Eyebrow>}
+      {practiceTotal === 0 && graded.length === 0 && <Eyebrow>No quiz questions for this {lesson ? "lesson" : "note"} yet.</Eyebrow>}
 
-      {!preview && <MasteryBars topics={mastery} courseId={courseId} lessonId={lessonId} />}
+      {!preview && <MasteryBars topics={mastery} courseId={lesson?.courseId} lessonId={lesson?.lessonId} />}
     </div>
   );
 }

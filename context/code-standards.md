@@ -60,6 +60,13 @@ this repo.
   Never cache anything user-scoped without the user in the key.
 - Use `after()` for small fire-and-forget work such as logging. Anything that
   can take more than about a second goes to the job queue.
+- Don't end a route that needs the session in a file extension
+  (`/gradebook/export`, not `/gradebook.csv`): `proxy.ts`'s matcher skips
+  paths that look like static files, so Clerk wouldn't run and `auth()`
+  fails. Name the download with `Content-Disposition` instead.
+- A server component that needs "now" (due dates) calls `requestTime()`
+  from `lib/utils/clock.ts`, one value per request. `Date.now()` in a
+  component body fails the `react-hooks/purity` lint rule.
 - Mark server-only modules with `import "server-only"`. This applies to
   everything in `lib/ai`, `lib/db`, `lib/auth` and `lib/storage`.
 - Load fonts (Instrument Serif, Geist, Geist Mono) with `next/font/google` in
@@ -95,6 +102,30 @@ this repo.
   `fail()` from `lib/utils/action-result.ts`.
 - Write the `audit_log` row (`auditInsert()` from `lib/db/audit.ts`) in the
   same `db.batch` as the change it records.
+- A student's private data (feature 19, `lib/db/space.ts`): filter on
+  `ownerId = current user` in every query, with no staff or admin
+  override, and 404 on a mismatch. Its audit rows carry ids only (no
+  title, file name or Blob URL): admins read the audit log.
+- Text people write for other people (feature 21: announcements,
+  discussion threads and replies) renders with `renderPostMarkdown`
+  (`lib/markdown.ts`), never `renderMarkdown`. Raw HTML stays text and
+  images become links, so a post can't restyle or overlay the page for its
+  readers.
+- A notification is written in the same `db.batch` as the change it
+  announces (`notifyStatement()` from `lib/db/notifications.ts`). Its
+  `url` is always an in-app path, and the bell follows only those.
+- Call Clerk's Backend API through `clerkBackend()` (`lib/auth/clerk.ts`)
+  or the helpers in `lib/admin/clerk.ts`, never from components. Change
+  the role in Clerk first, then mirror it into Neon with its audit row.
+  Library code must not import `lib/auth/index.ts` just for
+  `syncUserFromClerk`; import `lib/auth/sync.ts`. The index pulls in
+  Next.js page helpers, which break in scripts.
+- `db.batch` needs a plain statement first. Put a fixed statement (often
+  the audit insert) before any `...spread` of optional ones, or the tuple
+  type fails.
+- Keyset pagination over a timestamp uses the last row's id, compared in
+  SQL as `(created_at, id) < (select …)`. JavaScript dates drop Postgres's
+  microseconds, and rows written in one batch share a timestamp.
 - Pages use `requireCourseStaff` / `requireEnrollment` (404 on mismatch).
   Server actions call `getCourseAccess()` and return an error result.
 - In raw `sql` subqueries, reference the outer table literally
@@ -146,7 +177,9 @@ this repo.
 - Trigger tasks from server actions or webhooks with an `idempotencyKey`,
   e.g. `lesson:${id}:process`.
 - Run AI-heavy tasks in named queues with concurrency limits. Use a
-  per-user `concurrencyKey` for student uploads.
+  per-user `concurrencyKey` for student uploads: `startJob({ concurrencyKey })`
+  for the run, and the same key on each `triggerAndWait` it makes, so the
+  child tasks queue per student too.
 - Report progress with `reportProgress()` from `trigger/lib/job-progress.ts`
   (run metadata plus the jobs row) and spread `jobHooks` into the task.
   Stage lists go in `lib/jobs/stages.ts`. The UI uses `<JobProgress>` with
@@ -204,7 +237,20 @@ this repo.
   `complete()`.
 - Use in-memory fakes for Engine and db in unit tests. Never call real
   providers in CI.
-- Use Playwright for the success-criteria flows in `project-overview.md`.
+- Use Playwright for the success-criteria flows in `project-overview.md`
+  (`e2e/`, see its README). Select by role and accessible name, as a
+  screen reader would. A test that changes demo content must restore it
+  in a `finally`.
+- After a UI change, run `npm run e2e -- --project=a11y`: axe (WCAG 2.2
+  AA) fails on serious or critical issues. Keyboard behaviour follows the
+  ARIA patterns (radio groups: one tab stop, arrows move).
+- After `npm run build`, `npm run check:secrets` must pass: no server-only
+  value or key shape in `.next/static`.
+- A new external host the browser loads from or connects to goes into the
+  CSP in `next.config.ts`.
+- Maths renders through `renderMath` (KaTeX, HTML plus MathML), and the
+  sanitizer keeps its `semantics` and `annotation`, so screen readers get
+  the formula once.
 
 ## File Organization
 
@@ -216,5 +262,7 @@ this repo.
 - `lib/db/`: schema, migrations, scoped data-access functions.
 - `lib/auth/`: session and permission helpers.
 - `lib/study/`, `lib/markdown.ts`: pure shared logic.
+- `lib/net/`: the SSRF guard. Server code fetches a user-supplied URL
+  only through `safeFetchHtml` (`lib/net/safe-fetch.ts`).
 - `trigger/`: Trigger.dev tasks. `trigger.config.ts` sits at the root.
 - `context/`: these spec files.

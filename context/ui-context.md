@@ -239,11 +239,112 @@ Shadows are always tinted warm brown (`rgba(60,40,20,…)`), never grey or black
     `globals.css`, because rendered Markdown can't carry utilities.
   - Answers render with `.study-notes`; the student's question is an Oat
     bubble on the right.
-  - The refusal is an Oat panel with the fixed copy and a disabled quiet
-    "Ask your instructor" button until feature 21.
+  - The refusal is an Oat panel with the fixed copy and a quiet "Ask your
+    instructor" button (feature 21: it opens the new-question dialog).
   - Scope toggle "This lesson / Whole course" is a `ChipGroup`. In the
     player "Ask" is secondary (Next lesson is the Terracotta action); on
     `/courses/[courseId]/assistant` it is primary.
+
+- Feature 19 (`components/space/`, the private space):
+  - `/space`: "New note" is the page's Terracotta action. Notes are flat
+    Paper cards like the course card, with no cover: mono eyebrow with a
+    kind icon ("PDF · 3 pages"), the 24px serif title, a status badge
+    (Ready sage, Being made butter, Failed clay, Upload unfinished neutral)
+    and a 13px muted summary ("27 cards · 24 questions") and date.
+  - The "New note" dialog: a `ChipGroup` File / Link / YouTube, then the
+    lesson editor's Oat drop zone or a URL field with a Terracotta "Make
+    note".
+  - `/space/[noteId]`: a back link, the page header with quiet "Original",
+    a quiet "Export" menu (Markdown, Word, Print) and an icon Delete button
+    with a confirm dialog; then `JobProgress` while it's made, and the tabs
+    Notes, Flashcards, Quiz, Chat, Podcast, using the player's components.
+    Every tab action is secondary: there's no Terracotta action on the page.
+  - Chat: "Include my courses" is a `Chip` toggle (`aria-pressed`) with a
+    muted line saying what's searched. The refusal is the Oat panel without
+    "Ask your instructor".
+
+- Feature 20 (`components/coursework/`):
+  - An assignment lesson shows its panel where the video would be: a
+    Paper card with the mono eyebrow "Assignment · Homework · 10 points",
+    the due line (Butter badge "Due in 30 hours" within three days;
+    neutral "Closed" or "Past due · late work accepted" after), and the
+    instructions rendered with `.study-notes`.
+  - "Hand in" is secondary in the player (Next lesson keeps Terracotta).
+    Files attach with a quiet "Attach files" button, one row per file.
+  - A returned grade is a 48px serif "8.5 / 10" with feedback in a Sage
+    tint panel. "Late" is a Butter badge; "Handed in" is neutral.
+  - Grade view: submission left, a sticky grade card right; "Save and
+    next" is the Terracotta action, "Save draft" quiet.
+  - The gradebook is a real `<table>` in a card that scrolls sideways, with
+    a sticky Student column, the table-head style (Oat, mono 11px) and a
+    serif total. Due dates show in the reader's time zone (`LocalDate`).
+  - Nav: "Grades" (students) and "Grading" (instructors).
+
+- Feature 21 (`components/calendar/`, `discussions/`, `announcements/`,
+  `notifications/`):
+  - **Notification bell:** the Icon button (40px, Paper, Line border),
+    with the unread count in a Butter pill at its top right. It sits in the
+    sidebar's logo row on desktop, and in the top bar on phones and on the
+    top-nav pages. It opens a 360px menu:
+    - unread rows have a Terracotta dot and a 500 weight;
+    - the time ("5 min ago") is 12px muted;
+    - "Mark all as read" is at the bottom.
+  - **Calendar:** mono `Month / Agenda` chips, then icon-button arrows
+    around a quiet "Today".
+    - The month grid is a Paper card with an Oat weekday header. Today's
+      number is an Ink pill. Days outside the month are `bg-oat/40`.
+    - Event pills: deadlines Butter tint, live sessions Sage tint, others
+      Oat. Done ones are struck through. On phones each event is a dot,
+      with the agenda below.
+    - Agenda rows and "Coming up" rows are a date tile (Butter = a
+      deadline within three days), the title, and a 13px line
+      "MATH 201 · Assignment due · Tue, 23:59". A sage "Handed in" badge
+      shows when the student has handed the work in.
+  - **Discussions:**
+    - List rows like the grading queue. Status badges: Answered = sage;
+      Open = neutral for students, "Waiting" Butter for staff.
+    - A thread is a serif title, then each post in a Paper card (the author
+      and a Clay "Instructor" badge for staff).
+    - The answer is a Sage-tint card with "✓ Answer".
+    - Staff get a success-pill "Mark as answer" on each reply. The staff
+      reply form's Reply button is the page's Terracotta action; for
+      students it's secondary.
+  - "Ask a question" is Terracotta on `/discussions` and secondary in the
+    player. The dialog's "Post question" is its primary action.
+  - "Post announcement" is secondary (as in the Buttons table), next to
+    the dashboard's Terracotta "New course".
+
+- Feature 22 (`components/admin/`, `components/analytics/`):
+  - **Instructor dashboard** (wireframe 06): four `StatCard`s. "Waiting
+    for grading" uses the Butter attention variant when anything is
+    waiting; the grading and questions cards link to their pages.
+    - Below is the `1.75fr 1fr` grid: the courses `DataTable` (mono code
+      eyebrow and title, status badge, learners with "N active this week",
+      a 6px Sage completion bar with a mono %), and on the right "Needs
+      grading" and "Unanswered questions" cards (rows like the grading
+      queue, a link row at the bottom).
+  - **Heat-strip:** 60 slices, 40px tall, `rounded-xl`, on Oat. Each slice
+    is Sage at an opacity from 0.18 to 1 by its share of viewers (empty
+    slices show the Oat). Chapter starts are 1px Ink-soft ticks underneath,
+    with mono 11px times at 0, the middle and the end, and a 13px muted
+    sentence below.
+  - **Topics table:** a Sage bar sized to the count.
+  - **Admin tables** use `DataTable` or a plain `<table>` in the same style
+    (Oat head, mono 11px). Roles are a compact native `Select` (36px,
+    10px radius) that opens a confirm dialog.
+    - Roster results: Enroll and Teach = sage, Invite = Clay "new", No
+      change = neutral, Error = Butter badge with its reason in Terracotta.
+  - Each admin page's one Terracotta action: Invite (Users), New term
+    (Terms), and Import (Roster; "Check file" is quiet).
+
+- Feature 23 (accessibility pass):
+  - The player frame is a tab stop with the global focus ring. Its keys
+    (Space/K, the arrows, J/L, C, F) are described to screen readers.
+  - Captions start on; CC turns them off.
+  - Quiz answers are one tab stop, and the arrows move and choose.
+  - Muted text is `text-ink-soft` at full strength, never a lighter
+    opacity (it failed contrast in the calendar). Mark "less important"
+    with the background instead (the Oat out-of-month cells).
 
 No component library is installed yet. The stack is Next.js 16, React 19 and
 Tailwind CSS v4. The tokens should be defined in `app/globals.css` with

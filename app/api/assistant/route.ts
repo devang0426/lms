@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { answer } from "@/lib/ai/assistant";
-import { EngineError } from "@/lib/ai/engine";
+import { answer, answerStream, QUESTION_LIMIT, QUESTION_LIMIT_MESSAGE } from "@/lib/ai/assistant";
 import { getCurrentUser } from "@/lib/auth";
-import type { AssistantEvent } from "@/lib/chat/types";
 import { addUserTurn, countRecentQuestions, ensureThread, listTurns } from "@/lib/db/chat";
 import { getCourseForUser } from "@/lib/db/courses";
 
@@ -12,15 +10,8 @@ import { getCourseForUser } from "@/lib/db/courses";
    user, checked in SQL by getCourseForUser: enrolled students see only
    published lessons, staff see all. Anything else is a 404, like the
    pages. Then the rate limit, the question is saved, and the answer
-   streams back as NDJSON:
-     {"type":"thread","threadId"}   first
-     {"type":"delta","text"}        raw answer text as it arrives
-     {"type":"reset"}               drop the text so far (a retry follows)
-     {"type":"done","turn"}         the checked answer, which replaces the
-                                    streamed text, with its citations
-     {"type":"error","message"}     instead of done, if it failed */
-
-const RATE_LIMIT = { questions: 20, minutes: 5 };
+   streams back as NDJSON (see answerStream in lib/ai/assistant.ts):
+   thread, deltas, reset, then done or error. */
 
 const body = z.object({
   courseId: z.uuid(),
@@ -57,49 +48,24 @@ export async function POST(request: Request): Promise<Response> {
 
   const scope = { userId: user.id, courseId, lessonId: lessonId ?? null };
   const [recent, threadId] = await Promise.all([
-    countRecentQuestions(user.id, RATE_LIMIT.minutes),
+    countRecentQuestions(user.id, QUESTION_LIMIT.minutes),
     ensureThread(scope, parsed.data.threadId, question),
   ]);
-  if (recent >= RATE_LIMIT.questions) {
-    return json(429, `That's ${RATE_LIMIT.questions} questions in ${RATE_LIMIT.minutes} minutes. Take a short break and ask again.`);
-  }
+  if (recent >= QUESTION_LIMIT.questions) return json(429, QUESTION_LIMIT_MESSAGE);
   const history = await listTurns(threadId, user.id);
   await addUserTurn(threadId, question);
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (event: AssistantEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
-      send({ type: "thread", threadId });
-      try {
-        const turn = await answer({
-          user,
-          course: { id: course.course.id, title: course.course.title, lessonIds },
-          scope: lessonId ? { lessonId } : { courseId },
-          threadId,
-          question,
-          history,
-          mode,
-          onDelta: (text) => send({ type: "delta", text }),
-          onReset: () => send({ type: "reset" }),
-        });
-        send({ type: "done", turn });
-      } catch (err) {
-        console.error("[assistant] answer failed", err);
-        send({ type: "error", message: friendly(err) });
-      } finally {
-        controller.close();
-      }
-    },
-  });
-  return new Response(stream, {
-    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" },
-  });
-}
-
-function friendly(err: unknown): string {
-  if (err instanceof EngineError && (err.kind === "rate_limit" || err.kind === "quota")) {
-    return "The assistant is busy right now. Try again in a minute.";
-  }
-  return "The assistant couldn't answer just now. Try again in a moment.";
+  return answerStream(threadId, (on) =>
+    answer({
+      user,
+      subject: { kind: "course", id: course.course.id, title: course.course.title, lessonIds },
+      scope: lessonId ? { lessonId } : { courseId },
+      threadId,
+      question,
+      history,
+      mode,
+      onDelta: on.delta,
+      onReset: on.reset,
+    }),
+  );
 }

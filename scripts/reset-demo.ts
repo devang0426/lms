@@ -6,14 +6,33 @@
 
    Later features register their student-activity cleanup in RESET_STEPS:
    watch progress & notes (11), card reviews (15), quiz attempts (16),
-   chats (14), private space (19), submissions & grades (20),
+   chats (14), podcasts the student asked for (17), private space (19), submissions & grades (20),
    notifications & discussions (21). */
 
 import { createClerkClient } from "@clerk/backend";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { cardReviews, chatThreads, lessonNotes, quizAttempts, users, watchProgress, type User } from "@/lib/db/schema";
+import {
+  cardReviews,
+  chatThreads,
+  courses,
+  discussionReplies,
+  discussions,
+  documents,
+  lessonNotes,
+  notes,
+  notifications,
+  podcasts,
+  quizAttempts,
+  submissions,
+  users,
+  watchProgress,
+  type User,
+} from "@/lib/db/schema";
+import { deleteBlobs } from "@/lib/storage/blob";
 import { DEMO_ACCOUNTS, ensureDemoClerkUser, isDemoMode } from "@/lib/demo/accounts";
+import { DEMO_COURSE_CODE, ensureDemoSubmission } from "./lib/demo-assignment";
+import { ensureDemoQuestion } from "./lib/demo-communication";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
@@ -43,6 +62,79 @@ const RESET_STEPS: ResetStep[] = [
     // Turns go with their thread (cascade).
     label: "Assistant chats",
     run: async (s) => (await db.delete(chatThreads).where(eq(chatThreads.userId, s.id)).returning()).length,
+  },
+  {
+    // Podcasts are shared, but one the demo student generated goes, so the
+    // demo's "Generate podcast" step starts from scratch. Its MP3 goes too.
+    label: "Podcasts generated",
+    run: async (s) => {
+      const gone = await db.delete(podcasts).where(eq(podcasts.requestedBy, s.id)).returning({ audioUrl: podcasts.audioUrl });
+      await deleteBlobs(gone.flatMap((p) => (p.audioUrl ? [p.audioUrl] : [])));
+      return gone.length;
+    },
+  },
+  {
+    // The private space (feature 19): the student's notes go with everything
+    // made from them (cascade: their source documents, cards, questions,
+    // chunks, chats and podcasts), and the uploads and MP3s leave Blob, so
+    // demo step 8 starts from an empty space.
+    label: "Private space",
+    run: async (s) => {
+      const [files, casts] = await db.batch([
+        db.select({ url: documents.blobUrl }).from(documents).where(eq(documents.ownerId, s.id)),
+        db
+          .select({ url: podcasts.audioUrl })
+          .from(podcasts)
+          .innerJoin(notes, eq(notes.id, podcasts.noteId))
+          .where(eq(notes.ownerId, s.id)),
+      ]);
+      const gone = await db.delete(notes).where(eq(notes.ownerId, s.id)).returning({ id: notes.id });
+      await db.delete(documents).where(eq(documents.ownerId, s.id));
+      await deleteBlobs([...files, ...casts].flatMap((f) => (f.url ? [f.url] : [])));
+      return gone.length;
+    },
+  },
+  {
+    // Grades go with their submission (cascade), and handed-in files are
+    // deleted. Then the seeded, ungraded submission is put back, so demo
+    // step 9 always has work waiting in the grading queue.
+    label: "Submissions + grades",
+    run: async (s) => {
+      const gone = await db.delete(submissions).where(eq(submissions.userId, s.id)).returning({ files: submissions.files });
+      await deleteBlobs(gone.flatMap((g) => g.files.map((f) => f.url)));
+      await ensureDemoSubmission(s.id);
+      return gone.length;
+    },
+  },
+  {
+    // Feature 21: the student's threads go (replies with them, the
+    // instructor's included), and their replies elsewhere. Then the seeded
+    // open question is put back for the dashboard's "Unanswered questions".
+    label: "Discussions",
+    run: async (s) => {
+      const gone = await db.delete(discussions).where(eq(discussions.authorId, s.id)).returning({ id: discussions.id });
+      await db.delete(discussionReplies).where(eq(discussionReplies.authorId, s.id));
+      const [course] = await db.select({ id: courses.id }).from(courses).where(eq(courses.code, DEMO_COURSE_CODE)).limit(1);
+      if (course) await ensureDemoQuestion(course.id, s.id);
+      return gone.length;
+    },
+  },
+  {
+    // Both demo accounts' bells start empty. Announcements are course
+    // content and stay.
+    label: "Notifications",
+    run: async () => {
+      const demo = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(inArray(users.email, DEMO_ACCOUNTS.map((a) => a.email)));
+      if (demo.length === 0) return 0;
+      const gone = await db
+        .delete(notifications)
+        .where(inArray(notifications.userId, demo.map((u) => u.id)))
+        .returning({ id: notifications.id });
+      return gone.length;
+    },
   },
 ];
 

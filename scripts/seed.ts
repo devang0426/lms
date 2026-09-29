@@ -3,7 +3,8 @@
    react-server condition so `server-only` modules can be imported here.
 
    Later features extend this file at the marked sections:
-   seedCourse() (07), seedLecture() (12), seedAssignment() (20). */
+   seedCourse() (07), seedLecture() (12), seedAssignment() (20),
+   seedCommunication() (21). */
 
 import { createClerkClient } from "@clerk/backend";
 import { and, eq } from "drizzle-orm";
@@ -34,6 +35,8 @@ import {
   type PublishStatus,
 } from "@/lib/db/schema";
 import { DEMO_ACCOUNTS, ensureDemoClerkUser } from "@/lib/demo/accounts";
+import { DEMO_COURSE_CODE, ensureDemoAssignment, ensureDemoSubmission } from "./lib/demo-assignment";
+import { ensureDemoAnnouncement, ensureDemoQuestion } from "./lib/demo-communication";
 import { LECTURE_FIXTURE_PATH, lectureFixture } from "./lib/lecture-fixture";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
@@ -77,7 +80,7 @@ async function seedTerm(): Promise<string> {
    curriculum is only created when the course has no modules, so edits made
    in the course builder survive a re-seed. */
 const DEMO_COURSE = {
-  code: "MATH 201",
+  code: DEMO_COURSE_CODE,
   title: "Linear Algebra",
   subject: "Mathematics",
   level: "Intermediate",
@@ -298,7 +301,28 @@ async function seedLectureIndex(lessonId: string, reloaded: boolean) {
   }
 }
 
-// --- seedAssignment()  → feature 20
+/* The demo assignment (feature 20): "Problem set 1" in the demo course,
+   published, with the Demo Student's work handed in and waiting in the
+   grading queue (demo step 9). A re-run keeps edits and any grade. */
+async function seedAssignment(courseId: string) {
+  const [adminId, studentId] = await Promise.all([demoUserId("admin"), demoUserId("student")]);
+  const { assignmentId, created } = await ensureDemoAssignment(courseId, adminId);
+  const submission = await ensureDemoSubmission(studentId, assignmentId);
+  console.log(
+    `  ✓ Assignment           Problem set 1 ${created ? "(created)" : "(kept, published)"}; ` +
+      `Aanya's submission ${submission === "created" ? "handed in, ready to grade" : "kept"}`,
+  );
+}
+
+/* Communication (feature 21): a welcome announcement and one open student
+   question for the dashboard's "Unanswered questions". The assignment's
+   due date is already on the calendar (seedAssignment writes its event). */
+async function seedCommunication(courseId: string) {
+  const [adminId, studentId] = await Promise.all([demoUserId("admin"), demoUserId("student")]);
+  const announcement = await ensureDemoAnnouncement(courseId, adminId);
+  const question = await ensureDemoQuestion(courseId, studentId);
+  console.log(`  ✓ Communication        welcome announcement ${announcement}; Aanya's open question ${question}`);
+}
 
 async function main() {
   console.log("Seeding Studyhall demo data…");
@@ -306,6 +330,8 @@ async function main() {
   const termId = await seedTerm();
   const courseId = await seedCourse(termId);
   await seedLecture(courseId);
+  await seedAssignment(courseId);
+  await seedCommunication(courseId);
   console.log("Done. Demo password = DEMO_ACCOUNT_PASSWORD in .env.local");
 }
 

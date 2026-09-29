@@ -1,49 +1,25 @@
 import "server-only";
 
+import { Readability } from "@mozilla/readability";
+import { parseHTML } from "linkedom";
+import { safeFetchHtml } from "@/lib/net/safe-fetch";
 import type { IngestResult } from "./index";
+import { htmlToSections, partsText } from "./sections";
 
-/* Element/tag noise that shouldn't leak into extracted body text. */
-const STRIP_SELECTOR = "script, style, nav, noscript, iframe, svg, header, footer";
-
+/* A web page, fetched on the server (feature 18). The fetch goes through
+   the SSRF guard (lib/net/safe-fetch.ts); Readability then keeps the
+   article and drops navigation, ads and footers, and the article is split
+   into sections at its headings. Nothing from the page is ever rendered as
+   HTML: only its text is kept. */
 export async function ingestUrl(url: string): Promise<IngestResult> {
-  if (typeof DOMParser === "undefined") {
-    throw new Error("Fetching web pages is only supported in the browser.");
+  const page = await safeFetchHtml(url);
+  const { document } = parseHTML(page.body);
+  const article = new Readability(document as unknown as Document, { charThreshold: 200 }).parse();
+  const parts = article?.content ? htmlToSections(article.content) : htmlToSections(page.body);
+  const text = partsText(parts);
+  if (text.length < 200) {
+    throw new Error("That page has almost no readable text (it may need JavaScript or a sign-in). Upload a PDF of it instead.");
   }
-  if (typeof fetch === "undefined") {
-    throw new Error("Network access is unavailable in this environment.");
-  }
-
-  let html: string;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`server responded with ${res.status}`);
-    }
-    html = await res.text();
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`Couldn't fetch "${url}" (${reason}). Check the URL and your connection.`);
-  }
-
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll(STRIP_SELECTOR).forEach((el) => el.remove());
-
-  const title =
-    doc.querySelector("title")?.textContent?.trim() ||
-    doc.querySelector("h1")?.textContent?.trim() ||
-    undefined;
-
-  const text = (doc.body?.textContent ?? "")
-    .replace(/[ \t]+/g, " ")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-
-  if (!text) {
-    throw new Error(`Couldn't find readable text on "${url}".`);
-  }
-
-  return { text, title, meta: { url } };
+  const title = article?.title?.trim() || document.querySelector("title")?.textContent?.trim() || new URL(page.url).hostname;
+  return { text, parts, title: title.slice(0, 160), meta: { url: page.url } };
 }

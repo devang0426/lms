@@ -7,7 +7,7 @@ import { useMemo, type MouseEvent } from "react";
 import { citationChipsHtml, stripMarkers } from "@/lib/chat/citations";
 import type { ChatCitation } from "@/lib/chat/types";
 import { renderMarkdown, stripFence } from "@/lib/markdown";
-import { citationHref, useCitationSeek } from "./citation-chip";
+import { citationHref, isDocumentCitation, useCitationSeek } from "./citation-chip";
 
 /* An assistant answer as Markdown with maths (lib/markdown: KaTeX, then
    DOMPurify). Each [S#] becomes a small time chip (.cite-chip) that seeks
@@ -24,7 +24,8 @@ export function AnswerBody({
 }: {
   content: string;
   citations: ChatCitation[];
-  courseId: string;
+  /* The page's course; left out in the private space (feature 19). */
+  courseId?: string;
   currentLessonId?: string;
   streaming?: boolean;
 }) {
@@ -42,7 +43,8 @@ export function AnswerBody({
     const seek = seekFor(c);
     if (seek) return seek();
     const href = citationHref(courseId, c);
-    if (href) router.push(href);
+    if (href && isDocumentCitation(c)) window.open(href, "_blank", "noopener");
+    else if (href) router.push(href);
   };
 
   // The chips inside are real <button>s, so the keyboard reaches them.

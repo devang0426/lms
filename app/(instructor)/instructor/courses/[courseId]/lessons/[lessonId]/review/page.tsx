@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Button, Card, EmptyState, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { requireCourseStaff } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
-import { contentCounts, getLessonContent, loadLessonSource } from "@/lib/db/lesson-content";
+import { contentCounts, getLessonContent, loadDraftSource } from "@/lib/db/lesson-content";
 import type { Job } from "@/lib/db/schema";
 import { getJobAccessToken, latestJobFor } from "@/lib/jobs";
 import { JOB_STAGES, TERMINAL_JOB_STATES } from "@/lib/jobs/stages";
@@ -31,7 +31,7 @@ export default async function LessonReviewPage({
   const { lesson, module } = found;
 
   const [source, content, counts, jobs] = await Promise.all([
-    loadLessonSource(lessonId),
+    loadDraftSource(lessonId),
     getLessonContent(lessonId, { publishedOnly: false }),
     contentCounts(lessonId),
     Promise.all(
@@ -53,7 +53,7 @@ export default async function LessonReviewPage({
     <>
       <Link href={editorHref} className="flex items-center gap-2 text-small text-ink-soft no-underline hover:text-ink">
         <Icon icon={ArrowLeft} size={16} />
-        {lesson.title} · Video
+        {lesson.title} · {lesson.kind === "reading" ? "Reading material" : "Video"}
       </Link>
       <PageHeader
         eyebrow={`${module.title} · Review AI drafts`}
@@ -78,10 +78,14 @@ export default async function LessonReviewPage({
         <Card padded={false} className="border-dashed">
           <EmptyState
             title="Nothing to review yet"
-            description="Once the lecture video is uploaded and transcribed, the AI drafts chapters, notes, flashcards and a quiz for you to check here."
+            description={
+              lesson.kind === "reading"
+                ? "Once a document is added and read, the AI drafts notes, flashcards and a quiz from it for you to check here."
+                : "Once the lecture video is uploaded and transcribed, the AI drafts chapters, notes, flashcards and a quiz for you to check here."
+            }
             action={
               <Button asChild variant="secondary" size="md">
-                <Link href={editorHref}>Go to the video</Link>
+                <Link href={editorHref}>{lesson.kind === "reading" ? "Go to the documents" : "Go to the video"}</Link>
               </Button>
             }
           />
@@ -90,6 +94,8 @@ export default async function LessonReviewPage({
     );
   }
 
+  // Drafted from documents (a reading lesson, feature 18): no chapters.
+  const fromDocuments = source.mode === "document";
   const noteItems = (content.note?.blocks ?? []).map((b) => ({
     markdown: blocksToMarkdown([b]),
     startSec: b.startSec ?? null,
@@ -141,14 +147,18 @@ export default async function LessonReviewPage({
         </p>
       )}
 
-      <Tabs defaultValue="chapters" className="flex flex-col">
+      <Tabs defaultValue={fromDocuments ? "notes" : "chapters"} className="flex flex-col">
         <TabsList aria-label="Lesson content">
-          <TabsTrigger value="chapters" count={content.chapters.length}>Chapters</TabsTrigger>
+          {!fromDocuments && (
+            <TabsTrigger value="chapters" count={content.chapters.length}>
+              Chapters
+            </TabsTrigger>
+          )}
           <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="cards" count={content.cards.length}>Flashcards</TabsTrigger>
           <TabsTrigger value="quiz" count={content.questions.length}>Quiz</TabsTrigger>
         </TabsList>
-        {tab(
+        {!fromDocuments && tab(
           "chapters",
           content.chapters.length,
           <ChaptersEditor

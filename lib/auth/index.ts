@@ -1,65 +1,22 @@
 import "server-only";
 
-import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/lib/db/client";
 import { getCourseAccess } from "@/lib/db/courses";
-import { ROLES, users, type Role, type User } from "@/lib/db/schema";
+import { users, type Role, type User } from "@/lib/db/schema";
+import { isRole, syncUserFromClerk } from "./sync";
 
 /* Authorization lives here and in lib/db — never only in proxy.ts or the UI.
    Clerk owns identity and the role (publicMetadata.role); the Neon `users`
-   row is the copy the data layer joins against. */
+   row is the copy the data layer joins against. The Clerk → Neon sync is
+   in ./sync (re-exported here). */
+
+export { syncUserFromClerk };
 
 const RESYNC_AFTER_MS = 10 * 60 * 1000;
-
-function isRole(value: unknown): value is Role {
-  return typeof value === "string" && (ROLES as readonly string[]).includes(value);
-}
-
-type ClerkUserLike = {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  username: string | null;
-  imageUrl: string;
-  primaryEmailAddressId: string | null;
-  emailAddresses: { id: string; emailAddress: string }[];
-  publicMetadata: Record<string, unknown>;
-};
-
-/* Upsert the Neon mirror of a Clerk user. Used by the webhook and by the
-   lazy sync below (the webhook can't reach localhost in dev). A user with no
-   role in Clerk gets "student", written back to Clerk so claims agree. */
-export async function syncUserFromClerk(u: ClerkUserLike): Promise<User> {
-  const email =
-    u.emailAddresses.find((e) => e.id === u.primaryEmailAddressId)?.emailAddress ??
-    u.emailAddresses[0]?.emailAddress ??
-    "";
-  const name =
-    [u.firstName, u.lastName].filter(Boolean).join(" ").trim() ||
-    u.username ||
-    email.split("@")[0] ||
-    "User";
-  const clerkRole = u.publicMetadata?.role;
-  const role: Role = isRole(clerkRole) ? clerkRole : "student";
-
-  if (!isRole(clerkRole)) {
-    const client = await clerkClient();
-    await client.users.updateUserMetadata(u.id, { publicMetadata: { role } });
-  }
-
-  const [row] = await db
-    .insert(users)
-    .values({ clerkId: u.id, email, name, imageUrl: u.imageUrl, role })
-    .onConflictDoUpdate({
-      target: users.clerkId,
-      set: { email, name, imageUrl: u.imageUrl, role, deletedAt: null, updatedAt: new Date() },
-    })
-    .returning();
-  return row;
-}
 
 /* The signed-in user's Neon row, or null when signed out. Memoized per
    request. Role changes made in Clerk are picked up from the session claims

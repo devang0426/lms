@@ -1,6 +1,7 @@
 import { BarChart3, BookOpen, Check, Clock, FileText, ListChecks, ClipboardList, Play, Sparkles, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AnnouncementList } from "@/components/announcements/announcement-list";
 import { StatusBadge } from "@/components/course-builder/status-badge";
 import {
   Accordion,
@@ -20,6 +21,7 @@ import {
   type StepState,
 } from "@/components/ui";
 import { requireAreaRole } from "@/lib/auth";
+import { courseAnnouncements } from "@/lib/db/announcements";
 import { getCatalogCourse, listCourseInstructors } from "@/lib/db/catalog";
 import { getCourseForUser, type ModuleWithLessons } from "@/lib/db/courses";
 import { completedLessonIds } from "@/lib/db/progress";
@@ -38,8 +40,9 @@ const kindIcons: Record<LessonKind, LucideIcon> = {
   assignment: ClipboardList,
 };
 
-export default async function CourseDetailPage({ params }: PageProps<"/courses/[courseId]">) {
+export default async function CourseDetailPage({ params, searchParams }: PageProps<"/courses/[courseId]">) {
   const { courseId } = await params;
+  const { tab } = await searchParams;
   const user = await requireAreaRole("student", "admin");
 
   const full = await getCourseForUser(courseId, user);
@@ -53,7 +56,11 @@ export default async function CourseDetailPage({ params }: PageProps<"/courses/[
   const durationSec = full
     ? lessonsInOrder.reduce((sum, l) => sum + (l.durationSec ?? 0), 0)
     : preview!.durationSec;
-  const instructors = await listCourseInstructors(course.id);
+  // Announcements (feature 21) are for people in the course, like the curriculum.
+  const [instructors, announcements] = await Promise.all([
+    listCourseInstructors(course.id),
+    full ? courseAnnouncements(course.id) : Promise.resolve([]),
+  ]);
   const lead = instructors.find((i) => i.role === "instructor") ?? instructors[0];
 
   // The first unfinished lesson is "current"; staff have no progress.
@@ -123,9 +130,19 @@ export default async function CourseDetailPage({ params }: PageProps<"/courses/[
         </div>
       </section>
 
-      <Tabs defaultValue="curriculum" className="flex flex-col">
+      <Tabs
+        // Keyed so following ?tab= from the bell switches tabs on this page too.
+        key={typeof tab === "string" ? tab : ""}
+        defaultValue={full && tab === "announcements" ? "announcements" : "curriculum"}
+        className="flex flex-col"
+      >
         <TabsList>
           <TabsTrigger value="curriculum">Curriculum</TabsTrigger>
+          {full && (
+            <TabsTrigger value="announcements" count={announcements.length || undefined}>
+              Announcements
+            </TabsTrigger>
+          )}
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="instructor">{instructors.length > 1 ? "Instructors" : "Instructor"}</TabsTrigger>
         </TabsList>
@@ -159,6 +176,20 @@ export default async function CourseDetailPage({ params }: PageProps<"/courses/[
             <Outcomes outcomes={course.outcomes} />
           </div>
         </TabsContent>
+
+        {full && (
+          <TabsContent value="announcements">
+            <div className="max-w-[820px]">
+              {announcements.length === 0 ? (
+                <Card padded={false} className="border-dashed">
+                  <EmptyState title="No announcements yet" description="When your instructor posts one, it appears here and you get a notification." />
+                </Card>
+              ) : (
+                <AnnouncementList items={announcements} />
+              )}
+            </div>
+          </TabsContent>
+        )}
 
         <TabsContent value="overview">
           <div className="grid max-w-[900px] gap-6 md:grid-cols-[1.6fr_1fr]">

@@ -1,30 +1,28 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { EngineError, OPENROUTER_DEFAULT_CHAINS } from "@/lib/ai/engine";
-import { supportsTask, unsupportedMessage } from "@/lib/ai/engine/router";
-import { getEngine } from "@/lib/ai/engine/server";
-import { withUsage } from "@/lib/ai/usage";
-import { deleteLessonChunks, replaceLessonChunks } from "@/lib/db/chunks";
+import { deleteLessonChunks, replaceLessonChunks, type NewLessonChunk } from "@/lib/db/chunks";
+import { readyLessonDocuments } from "@/lib/db/documents";
 import { db } from "@/lib/db/client";
 import { courseIdForLesson } from "@/lib/db/courses";
 import { listChapters, loadLessonSource } from "@/lib/db/lesson-content";
-import { EMBEDDING_DIMENSIONS, lessons } from "@/lib/db/schema";
+import { lessons } from "@/lib/db/schema";
+import { chunkDocument } from "./chunk-document";
 import { chunkTranscript } from "./chunk-transcript";
+import { EMBEDDING_MODEL, embedPassages } from "./embed";
 
-/* Index one lesson for the assistant (feature 13): cut the live video's
-   transcript into chunks along its chapters, embed them, and replace the
-   lesson's old chunks. Run by the index-lesson task on Publish, and by the
+/* Index one lesson for the assistant (features 13 and 18): the live
+   video's transcript, cut along its chapters, plus every ready document
+   attached to the lesson, cut by page, section or time. Everything is
+   embedded, then replaces the lesson's old chunks in one batch. Run by the
+   index-lesson task on Publish and after a document is added, and by the
    seed for the demo lecture. A lesson that isn't published (any more) has
    its chunks removed instead. */
 
-/* One model for every vector: vectors from different models can't be
-   compared. Stored on each row. */
-export const EMBEDDING_MODEL = OPENROUTER_DEFAULT_CHAINS.embeddings[0];
-const EMBED_BATCH = 64;
+export { EMBEDDING_MODEL };
 
 export type IndexResult =
-  | { status: "indexed"; chunks: number; fromSec: number; toSec: number }
+  | { status: "indexed"; chunks: number; transcriptChunks: number; documentChunks: number; fromSec: number | null; toSec: number | null }
   | { status: "not_published" | "no_transcript"; chunks: 0 };
 
 export async function indexLessonChunks(
@@ -38,32 +36,47 @@ export async function indexLessonChunks(
     return { status: "not_published", chunks: 0 };
   }
 
-  const src = await loadLessonSource(lessonId);
-  const chunks = src ? chunkTranscript(src.segments, await listChapters(lessonId)) : [];
-  if (!src || chunks.length === 0) {
+  const [src, docs] = await Promise.all([loadLessonSource(lessonId), readyLessonDocuments(lessonId)]);
+  const transcript: Omit<NewLessonChunk, "embedding">[] = src
+    ? chunkTranscript(src.segments, await listChapters(lessonId)).map((c) => ({
+        kind: "video" as const,
+        text: c.text,
+        startSec: c.startSec,
+        endSec: c.endSec,
+      }))
+    : [];
+  const fromDocs: Omit<NewLessonChunk, "embedding">[] = docs.flatMap((d) =>
+    chunkDocument(d.title, d.parts).map((c) => ({ kind: "doc" as const, documentId: d.id, ...c })),
+  );
+  const chunks = [...transcript, ...fromDocs];
+  if (chunks.length === 0) {
     await deleteLessonChunks(lessonId);
     return { status: "no_transcript", chunks: 0 };
   }
 
-  const engine = getEngine();
-  if (!supportsTask(engine, "embeddings")) throw new EngineError(unsupportedMessage("embeddings"), "unsupported");
-  const embeddings: number[][] = [];
-  await withUsage("lesson-index", src.createdBy, async () => {
-    for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
-      await opts.report?.(i / chunks.length, `Indexing for the assistant: ${i} of ${chunks.length} passages…`);
-      embeddings.push(...(await engine.embed(chunks.slice(i, i + EMBED_BATCH).map((c) => c.text))));
-    }
-  });
-  if (embeddings.length !== chunks.length || embeddings.some((e) => e.length !== EMBEDDING_DIMENSIONS)) {
-    throw new EngineError("The search model returned an unexpected answer, so the lesson wasn't indexed. Try publishing again.");
-  }
+  const embeddings = await embedPassages(
+    chunks.map((c) => c.text),
+    {
+      feature: "lesson-index",
+      userId: src?.createdBy ?? null,
+      failMessage: "The search model returned an unexpected answer, so the lesson wasn't indexed. Try publishing again.",
+      report: opts.report,
+    },
+  );
 
   const written = await replaceLessonChunks({
     lessonId,
     courseId,
     model: EMBEDDING_MODEL,
-    chunks: chunks.map((c, i) => ({ text: c.text, startSec: c.startSec, endSec: c.endSec, embedding: embeddings[i] })),
+    chunks: chunks.map((c, i) => ({ ...c, embedding: embeddings[i] })),
   });
   if (!written) return { status: "not_published", chunks: 0 };
-  return { status: "indexed", chunks: chunks.length, fromSec: chunks[0].startSec, toSec: chunks.at(-1)!.endSec };
+  return {
+    status: "indexed",
+    chunks: chunks.length,
+    transcriptChunks: transcript.length,
+    documentChunks: fromDocs.length,
+    fromSec: transcript[0]?.startSec ?? null,
+    toSec: transcript.at(-1)?.endSec ?? null,
+  };
 }

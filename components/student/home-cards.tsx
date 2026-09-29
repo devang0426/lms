@@ -14,6 +14,9 @@ import {
   Icon,
   ProgressBar,
 } from "@/components/ui";
+import { EventDateTile } from "@/components/calendar/event-date-tile";
+import { EventRow } from "@/components/calendar/event-row";
+import { EVENT_KIND_LABELS, type CalendarEvent } from "@/lib/calendar";
 import { cn } from "@/lib/utils/cn";
 import { formatLessonLength } from "@/lib/utils/format";
 import {
@@ -101,17 +104,51 @@ export function ContinueCard({ course: c }: { course: StudentCourseView | null }
   );
 }
 
-/* "Coming up" (wireframe 02). Deadlines and events arrive with feature 21. */
-export function ComingUpCard() {
+/* "Coming up" (wireframe 02, feature 21): the next three events across the
+   student's courses, as date tiles (Butter = due within three days). */
+export function ComingUpCard({ events, now }: { events: CalendarEvent[]; now: number }) {
   return (
-    <Card className="w-full gap-3.5 rounded-3xl">
+    <Card className="w-full gap-2 rounded-3xl">
       <CardHeader title="Coming up" action={<Link href="/calendar" className="text-small">Calendar</Link>} />
-      <div className="flex grow flex-col justify-center gap-1 py-4 text-center">
-        <span className="font-serif text-[22px] leading-[1.2]">A clear week</span>
-        <span className="text-meta text-ink-soft">Deadlines and live sessions will show up here.</span>
-      </div>
+      {events.length === 0 ? (
+        <div className="flex grow flex-col justify-center gap-1 py-4 text-center">
+          <span className="font-serif text-[22px] leading-[1.2]">A clear week</span>
+          <span className="text-meta text-ink-soft">Deadlines and live sessions will show up here.</span>
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          {events.map((e) => (
+            <EventRow key={e.id} event={e} now={now} />
+          ))}
+        </div>
+      )}
     </Card>
   );
+}
+
+/* Mobile home (wireframe 07): the Butter notice for the next deadline. */
+export function DueNotice({ event: e }: { event: CalendarEvent | undefined }) {
+  if (!e) return null;
+  const body = (
+    <>
+      <EventDateTile at={e.at} tone="paper" size="sm" />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="font-mono text-[11px] tracking-[0.1em] text-butter-ink uppercase">
+          {e.courseCode} · {EVENT_KIND_LABELS[e.kind]}
+        </span>
+        <span className="truncate text-[15px] font-medium text-ink">{e.title}</span>
+      </span>
+    </>
+  );
+  const cls = "flex items-center gap-3.5 rounded-2xl bg-butter-tint p-3.5 no-underline";
+  if (e.href && !e.external) {
+    return (
+      <Link href={e.href} className={cls}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={cls}>{body}</div>;
 }
 
 /* In progress / Completed chips, driven by ?show= so the back button works. */

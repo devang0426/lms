@@ -29,6 +29,8 @@ export async function ingestPdf(file: File | Blob): Promise<IngestResult> {
     return {
       text: joined,
       pages,
+      // One part per page that has text, numbered from 1, for "p. 7" citations.
+      parts: pages.flatMap((t, i) => (t ? [{ page: i + 1, text: t }] : [])),
       title: name ? titleFromFilename(name) : undefined,
       meta: { filename: name, pages: totalPages },
     };

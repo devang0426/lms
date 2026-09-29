@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { UserMenu, type MenuUser } from "@/components/auth/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Icon, Logo } from "@/components/ui";
 
 /* Top-nav shell for full-width pages (course detail): 72px header with the
@@ -38,6 +39,7 @@ export function TopNavShell({
           >
             My learning
           </Link>
+          <NotificationBell />
           <UserMenu user={user} demoMode={demoMode} variant="avatar" />
         </span>
       </header>

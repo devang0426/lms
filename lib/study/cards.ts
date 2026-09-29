@@ -9,10 +9,11 @@ export const RATINGS: readonly Rating[] = ["again", "hard", "good", "easy"];
 
 export interface StudyCard {
   id: string;
-  courseId: string;
-  courseCode: string;
-  lessonId: string;
-  lessonTitle: string;
+  /* The card's course and lesson; null for a private note's card (feature 19). */
+  courseId: string | null;
+  courseCode: string | null;
+  lessonId: string | null;
+  lessonTitle: string | null;
   front: string;
   back: string;
   topic: string;

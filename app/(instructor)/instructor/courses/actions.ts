@@ -20,6 +20,8 @@ import {
 } from "@/lib/db/schema";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
 import { deleteLessonChunks } from "@/lib/db/chunks";
+import { hasReadyDocuments } from "@/lib/db/documents";
+import { lessonsHaveStudentWork, moduleHasStudentWork } from "@/lib/db/assignments";
 import { lessonHasReadyVideo, startLessonIndexing } from "@/lib/video/lessons";
 
 /* Course builder mutations. Each one: parse with zod → check course staff
@@ -47,6 +49,11 @@ function isFailure(v: Staffed | ActionResult<never>): v is ActionResult<never> {
 function invalid(error: z.ZodError): ActionResult<never> {
   return fail("invalid", error.issues[0]?.message ?? "Check the form and try again.");
 }
+
+/* Submissions and grades are kept for audit (feature 20), so a lesson or
+   module with student work can't be deleted — the database refuses too. */
+const STUDENT_WORK_MESSAGE =
+  "Students have handed in work here (an assignment or a graded quiz), so it can't be deleted. Unpublish it instead.";
 
 function refresh(courseId: string) {
   revalidatePath("/instructor/courses");
@@ -194,6 +201,7 @@ export async function deleteModule(input: { id: string }): Promise<ActionResult>
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asCourseStaff(await courseIdForModule(parsed.data.id));
   if (isFailure(staff)) return staff;
+  if (await moduleHasStudentWork(parsed.data.id)) return fail("conflict", STUDENT_WORK_MESSAGE);
 
   // Lessons go with it (FK cascade). Once lessons own Blob files (feature 10),
   // delete those first.
@@ -289,8 +297,10 @@ export async function setLessonPublished(input: z.input<typeof statusSchema>): P
     ...(parsed.data.published ? [] : [deleteLessonChunks(parsed.data.id)]),
     auditInsert({ actorId: staff.user.id, action: `lesson.${set.status}`, entityType: "lesson", entityId: parsed.data.id }),
   ]);
-  // Its transcript goes live with it, so the assistant indexes it now.
-  if (parsed.data.published && hasVideo) await startLessonIndexing(parsed.data.id, staff.user.id);
+  // Its transcript and documents go live with it, so the assistant indexes them now.
+  if (parsed.data.published && (hasVideo || (await hasReadyDocuments(parsed.data.id)))) {
+    await startLessonIndexing(parsed.data.id, staff.user.id);
+  }
   refresh(staff.courseId);
   return ok();
 }
@@ -300,6 +310,7 @@ export async function deleteLesson(input: { id: string }): Promise<ActionResult>
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asCourseStaff(await courseIdForLesson(parsed.data.id));
   if (isFailure(staff)) return staff;
+  if (await lessonsHaveStudentWork([parsed.data.id])) return fail("conflict", STUDENT_WORK_MESSAGE);
 
   const [lesson] = await db.select({ moduleId: lessons.moduleId }).from(lessons).where(eq(lessons.id, parsed.data.id));
   await db.batch([

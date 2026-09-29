@@ -1,13 +1,17 @@
 import { ArrowLeft, Eye } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AssignmentForm } from "@/components/coursework/assignment-form";
 import { StatusBadge } from "@/components/course-builder/status-badge";
+import { DocumentManager, type EditorDocumentView } from "@/components/documents/document-manager";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { PageHeader } from "@/components/shell/page-header";
-import { Button, Card, CardHeader, EmptyState, Eyebrow, Icon } from "@/components/ui";
+import { Button, Card, CardHeader, Eyebrow, Icon } from "@/components/ui";
 import { VideoUploader } from "@/components/video/video-uploader";
 import { requireCourseStaff } from "@/lib/auth";
+import { getAssignment, submissionCounts } from "@/lib/db/assignments";
 import { getLessonForUser } from "@/lib/db/courses";
+import { documentsForEditor, type EditorDocument } from "@/lib/documents";
 import { contentCounts } from "@/lib/db/lesson-content";
 import { gradedQuizzesForStaff } from "@/lib/db/quizzes";
 import { getJobAccessToken } from "@/lib/jobs";
@@ -17,7 +21,9 @@ import { getLessonVideoState } from "@/lib/video/lessons";
 import { retryVideo } from "./actions";
 
 /* Lesson editor (feature 10): upload a lecture, watch it process, preview
-   the result. Feature 16 adds the lesson's graded quizzes. Progress survives closing the tab — the run lives on
+   the result. Feature 18 adds documents on every lesson (a reading
+   lesson's documents are its source). Feature 16 adds the lesson's graded quizzes;
+   feature 20 an assignment lesson's instructions, due date and points. Progress survives closing the tab — the run lives on
    Trigger.dev and its state is read back here on every visit. */
 export default async function LessonEditorPage({ params }: PageProps<"/instructor/courses/[courseId]/lessons/[lessonId]">) {
   const { courseId, lessonId } = await params;
@@ -47,17 +53,86 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
     />
   );
 
-  if (lesson.kind !== "video") {
+  const docs = await documentsForEditor(lessonId);
+  const documentsCard = (
+    <Card className="gap-4">
+      <CardHeader title={lesson.kind === "reading" ? "Reading material" : "Documents and resources"} />
+      <DocumentManager lessonId={lessonId} reading={lesson.kind === "reading"} documents={docs.map(toDocumentView)} />
+    </Card>
+  );
+
+  if (lesson.kind === "assignment") {
+    const assignment = await getAssignment(lessonId);
+    const handedIn = assignment ? await submissionCounts(assignment.id) : null;
     return (
       <>
         {backLink}
         {header}
-        <Card padded={false} className="border-dashed">
-          <EmptyState
-            title="Nothing to upload here yet"
-            description={`Content for ${lesson.kind} lessons arrives with a later feature. For now you can rename, reorder and publish it from the curriculum.`}
+        <Card className="gap-4">
+          <CardHeader title="Assignment" />
+          <AssignmentForm
+            lessonId={lessonId}
+            initial={{
+              instructions: assignment?.instructions ?? "",
+              dueAt: assignment?.dueAt.getTime() ?? null,
+              points: assignment?.points ?? 10,
+              allowLate: assignment?.allowLate ?? false,
+              category: assignment?.category ?? "homework",
+            }}
           />
         </Card>
+        {handedIn && (
+          <Card className="gap-3">
+            <CardHeader
+              title="Submissions"
+              action={
+                <span className="flex flex-wrap gap-2">
+                  <Button asChild variant="secondary" size="sm">
+                    <Link href="/instructor/grading">Grading queue</Link>
+                  </Button>
+                  <Button asChild variant="quiet" size="sm">
+                    <Link href={`/instructor/courses/${courseId}/gradebook`}>Gradebook</Link>
+                  </Button>
+                </span>
+              }
+            />
+            <p className="m-0 text-small text-ink-soft">
+              {handedIn.handedIn === 0
+                ? "Nothing handed in yet."
+                : `${handedIn.handedIn} handed in · ${handedIn.toGrade} to grade · ${handedIn.returned} returned`}
+            </p>
+          </Card>
+        )}
+        {documentsCard}
+      </>
+    );
+  }
+
+  if (lesson.kind !== "video") {
+    const counts = await contentCounts(lessonId);
+    const drafted = counts.notes + counts.cards + counts.questions > 0;
+    return (
+      <>
+        {backLink}
+        {header}
+        {lesson.kind === "reading" && (drafted || docs.some((d) => d.status === "ready")) && (
+          <Card className="gap-3">
+            <CardHeader
+              title="AI drafts"
+              action={
+                <Button asChild variant="secondary" size="sm">
+                  <Link href={`/instructor/courses/${courseId}/lessons/${lessonId}/review`}>Review and publish</Link>
+                </Button>
+              }
+            />
+            <p className="m-0 text-small text-ink-soft">
+              {drafted
+                ? `${counts.notes ? "Notes" : "No notes"} · ${counts.cards} flashcards · ${counts.questions} quiz questions${counts.drafts > 0 ? " · not yet published" : ""}`
+                : "Notes, flashcards and a quiz are drafted from the documents once they've been read."}
+            </p>
+          </Card>
+        )}
+        {documentsCard}
       </>
     );
   }
@@ -182,8 +257,35 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
           </p>
         </Card>
       )}
+
+      {documentsCard}
     </>
   );
+}
+
+function toDocumentView(doc: EditorDocument): EditorDocumentView {
+  return {
+    id: doc.id,
+    kind: doc.kind,
+    title: doc.title,
+    status: doc.status,
+    pageCount: doc.pageCount,
+    durationSec: doc.durationSec,
+    sizeBytes: doc.sizeBytes,
+    hasFile: doc.hasFile,
+    error: doc.error,
+    job: doc.job && {
+      runId: doc.job.job.triggerRunId,
+      token: doc.job.token,
+      initial: {
+        status: doc.job.job.status,
+        stage: doc.job.job.stage,
+        progress: doc.job.job.progress,
+        message: doc.job.job.message,
+        error: doc.job.job.error,
+      },
+    },
+  };
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

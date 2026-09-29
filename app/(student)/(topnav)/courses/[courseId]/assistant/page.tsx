@@ -40,6 +40,7 @@ export default async function CourseAssistantPage({ params }: PageProps<"/course
       </div>
       <AssistantChat
         courseId={courseId}
+        courseCode={course.code}
         courseTitle={course.title}
         initialThread={thread && { id: thread.id, turns: thread.turns.map(toTurnView) }}
         suggestions={suggestions}

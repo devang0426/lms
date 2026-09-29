@@ -27,5 +27,9 @@ export default defineConfig({
     // its no-op build under the react-server condition.
     conditions: ["react-server"],
     extensions: [ffmpeg()],
+    // jsdom (under isomorphic-dompurify, used by lib/markdown) reads its own
+    // CSS file from disk when imported, which breaks once bundled. Kept
+    // external, it's installed in the image with its files intact.
+    external: ["jsdom"],
   },
 });

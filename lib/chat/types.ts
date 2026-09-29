@@ -3,10 +3,17 @@
 
 export interface ChatCitation {
   chunkId: string;
+  /* Feature 19: the cited lesson's course, so a chip in the private space
+     (which has no course of its own) knows where to open it. */
+  courseId?: string | null;
   lessonId: string | null;
   startSec: number | null;
   page: number | null;
-  /* "Lecture 3 · 12:48" */
+  /* Feature 18: the cited document (then startSec is a time in that
+     recording, not in the lesson's video), and a DOCX / web-page section. */
+  documentId?: string | null;
+  section?: string | null;
+  /* "Lecture 3 · 12:48", or "Week 2 slides · p. 7" for a document. */
   label: string;
   /* "Where was this taught?" answers: what was said there. Such a turn has
      empty `content` and one citation per moment. */

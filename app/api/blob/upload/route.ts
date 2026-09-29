@@ -1,8 +1,8 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { authorizeUpload, type TokenPayload } from "@/lib/storage/authorize";
-import { recordUpload, uploadDeps } from "@/lib/storage/blob";
+import { authorizeUpload, UPLOAD_RATE, uploadRateCheck, type TokenPayload } from "@/lib/storage/authorize";
+import { recentUploadCount, recordUpload, uploadDeps } from "@/lib/storage/blob";
 
 /* Vercel Blob client uploads (feature 09). Two kinds of request arrive
    here:
@@ -28,6 +28,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         const viewer = await getCurrentUser();
         const decision = await authorizeUpload({ viewer, pathname, clientPayload }, uploadDeps);
         if (!decision.ok) throw new UploadRefused(decision.reason);
+        // Feature 23: uploads per person per hour. One token per file, multipart included.
+        const rate = uploadRateCheck(viewer!.role, await recentUploadCount(viewer!.id, UPLOAD_RATE.windowMinutes));
+        if (!rate.ok) throw new UploadRefused(rate.reason);
         return {
           allowedContentTypes: decision.allowedContentTypes,
           maximumSizeInBytes: decision.maximumSizeInBytes,

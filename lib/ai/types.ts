@@ -12,6 +12,17 @@ export type SourceKind =
   | "youtube"
   | "url";
 
+/* One citable piece of an ingested document (feature 18): a PDF page, a
+   DOCX or web-page section, or a stretch of a recording. Retrieval chunks
+   are cut inside a part, so every chunk knows its page, section or time. */
+export interface DocPart {
+  text: string;
+  page?: number;
+  section?: string;
+  startSec?: number;
+  endSec?: number;
+}
+
 export type EngineMode = "local" | "cloud";
 export type Provider = "openai" | "anthropic" | "openrouter";
 

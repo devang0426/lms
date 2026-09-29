@@ -4,7 +4,7 @@
    from LLM output, blocks for the editor, markdown back out for export/search. */
 
 import DOMPurify from "isomorphic-dompurify";
-import { marked } from "marked";
+import { Marked, marked } from "marked";
 import katex from "katex";
 import { uuid } from "@/lib/utils/ids";
 import type { Block, BlockType } from "@/lib/ai/types";
@@ -281,14 +281,22 @@ export function renderInline(text: string): string {
 }
 
 /** KaTeX render of a LaTeX string to an HTML string. Pure string generation —
- *  safe to call in any environment (no DOM required by KaTeX itself). */
+ *  safe to call in any environment (no DOM required by KaTeX itself).
+ *  HTML for the eye plus MathML for screen readers (feature 23): the HTML is
+ *  aria-hidden, the MathML visually hidden by KaTeX's CSS. */
 export function renderMath(latex: string, display = true): string {
   return katex.renderToString(latex, {
     throwOnError: false,
     displayMode: display,
-    output: "html",
+    output: "htmlAndMathml",
   });
 }
+
+/* Sanitizer options for rendered Markdown with maths. KaTeX's MathML wraps
+   the formula in <semantics> with its TeX in <annotation>: DOMPurify drops
+   both by default and would leave the TeX as loose text, read aloud twice.
+   Both are plain MathML (annotation-xml, which can carry HTML, stays out). */
+const MATH_SAFE = { ADD_ATTR: ["class", "style"], ADD_TAGS: ["semantics", "annotation"] };
 
 const MATH_BLOCK_RE = /\$\$([\s\S]+?)\$\$/g;
 const MATH_INLINE_RENDER_RE = /\$([^$\n]+?)\$/g;
@@ -322,7 +330,7 @@ export function renderMarkdown(md: string): string {
   src = src.replace(MATH_INLINE_RENDER_RE, (_m, x: string) => keep(renderMath(x.trim(), false)));
   let html = marked.parse(src, { async: false }) as string;
   html = html.replace(/%%NITROMATH(\d+)%%/g, (_m, i: string) => stash[Number(i)] ?? "");
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["class", "style"] });
+  return DOMPurify.sanitize(html, MATH_SAFE);
 }
 
 /** Inline markdown + inline math ($…$ and \(…\)) -> sanitized HTML. Used by the
@@ -335,7 +343,33 @@ export function renderRichInline(text: string): string {
   src = src.replace(MATH_INLINE_RENDER_RE, (_m, x: string) => keep(renderMath(x.trim(), false)));
   let html = marked.parseInline(src, { async: false }) as string;
   html = html.replace(/%%NM(\d+)%%/g, (_m, i: string) => stash[Number(i)] ?? "");
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["class", "style"] });
+  return DOMPurify.sanitize(html, MATH_SAFE);
+}
+
+/* Posts people write for each other (feature 21: announcements, discussion
+   threads and replies). Markdown and $-math only: raw HTML is shown as
+   text, never parsed, so no one can style or overlay the page for other
+   readers, and images become links (nothing loads from another site). */
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const postMarked = new Marked({
+  renderer: {
+    html: ({ text }) => escapeHtml(text),
+    image: ({ href, text }) => `<a href="${escapeHtml(href)}">${escapeHtml(text || href)}</a>`,
+  },
+});
+
+export function renderPostMarkdown(md: string): string {
+  const stash: string[] = [];
+  const keep = (html: string): string => `%%NMPOST${stash.push(html) - 1}%%`;
+  let src = normalizeMath(md);
+  src = src.replace(MATH_BLOCK_RE, (_m, x: string) => keep(renderMath(x.trim(), true)));
+  src = src.replace(MATH_INLINE_RENDER_RE, (_m, x: string) => keep(renderMath(x.trim(), false)));
+  let html = postMarked.parse(src, { async: false }) as string;
+  html = html.replace(/%%NMPOST(\d+)%%/g, (_m, i: string) => stash[Number(i)] ?? "");
+  // class/style come only from KaTeX here: raw HTML was escaped above.
+  return DOMPurify.sanitize(html, { ...MATH_SAFE, FORBID_TAGS: ["img", "style", "form", "input", "button"] });
 }
 
 /* ---- plain text ------------------------------------------------------------ */

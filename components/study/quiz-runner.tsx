@@ -25,8 +25,9 @@ export type FinishResult = { ok: true; score: number; feedback?: AnswerFeedback[
 
 type Props = {
   title: string;
-  courseId: string;
-  lessonId: string;
+  /* The lesson, for "Review in video"; a private note (feature 19) has none. */
+  courseId?: string;
+  lessonId?: string;
   onFinish: (answers: Answers) => Promise<FinishResult>;
   onClose: () => void;
 } & ({ mode: "practice"; questions: PracticeQuestion[] } | { mode: "graded"; questions: QuestionView[] });
@@ -125,7 +126,25 @@ export function QuizRunner(props: Props) {
             />
           </form>
         ) : (
-          <div role="radiogroup" aria-label="Answers" className="flex flex-col gap-2">
+          <div
+            role="radiogroup"
+            aria-label="Answers"
+            className="flex flex-col gap-2"
+            // WAI-ARIA radio group (feature 23): one tab stop, arrows move and select.
+            onKeyDown={(e) => {
+              const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+              if (!step || isChecked) return;
+              e.preventDefault();
+              const n = q.options.length;
+              const radios = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+              // Move from the focused option (the chosen one, if focus is elsewhere).
+              const focused = radios.indexOf(document.activeElement as HTMLButtonElement);
+              const from = focused >= 0 ? focused : answer === "" ? -1 : Number(answer);
+              const next = (from + step + n) % n;
+              setAnswers((a) => ({ ...a, [q.id]: String(next) }));
+              radios[next]?.focus();
+            }}
+          >
             {q.options.map((opt, i) => {
               const selected = answer === String(i);
               const right = practice && isChecked && i === practice.correctIndex;
@@ -136,6 +155,8 @@ export function QuizRunner(props: Props) {
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  // Roving focus: the chosen option (or the first) is the one tab stop.
+                  tabIndex={selected || (answer === "" && i === 0) ? 0 : -1}
                   disabled={isChecked}
                   onClick={() => setAnswers((a) => ({ ...a, [q.id]: String(i) }))}
                   className={cn(
@@ -224,8 +245,8 @@ function Feedback({
   correctAnswer: string;
   explanation: string;
   startSec: number | null;
-  courseId: string;
-  lessonId: string;
+  courseId?: string;
+  lessonId?: string;
   showAnswer: boolean;
 }) {
   return (
@@ -245,8 +266,9 @@ function Feedback({
   );
 }
 
-function ReviewInVideo({ sec, courseId, lessonId }: { sec: number; courseId: string; lessonId: string }) {
+function ReviewInVideo({ sec, courseId, lessonId }: { sec: number; courseId?: string; lessonId?: string }) {
   const player = useOptionalPlayer();
+  if (!player && !(courseId && lessonId)) return null;
   const cls =
     "inline-flex h-6 cursor-pointer items-center gap-1 self-start rounded-full border-0 bg-paper px-2.5 font-mono text-[12px] text-clay-ink no-underline hover:bg-oat hover:text-clay-ink";
   const body = (
@@ -289,8 +311,8 @@ function Summary({
   score: number;
   feedback: AnswerFeedback[];
   questions: QuestionView[];
-  courseId: string;
-  lessonId: string;
+  courseId?: string;
+  lessonId?: string;
   onClose: () => void;
 }) {
   const byId = new Map(questions.map((q) => [q.id, q]));

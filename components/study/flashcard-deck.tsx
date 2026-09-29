@@ -30,6 +30,7 @@ export function FlashcardDeck({
   currentLessonId,
   primary = false,
   showSource = false,
+  emptyText = "There are no flashcards here yet. They appear once your instructor publishes them.",
 }: {
   cards: StudyCard[];
   /* All live cards in scope, for the empty state. */
@@ -42,6 +43,8 @@ export function FlashcardDeck({
   primary?: boolean;
   /* Show each card's course and lesson (the cross-course /study queue). */
   showSource?: boolean;
+  /* When there are no cards at all (a private note says why its are missing). */
+  emptyText?: string;
 }) {
   const [queue, setQueue] = useState(cards);
   const [flipped, setFlipped] = useState(false);
@@ -101,7 +104,7 @@ export function FlashcardDeck({
         title="Nothing to review right now"
         description={
           total === 0
-            ? "There are no flashcards here yet. They appear once your instructor publishes them."
+            ? emptyText
             : nextDueAt
               ? `You're caught up on all ${total} cards. The next one is due ${dueLabel(nextDueAt)}.`
               : `You're caught up on all ${total} cards.`
@@ -133,7 +136,8 @@ export function FlashcardDeck({
     );
   }
 
-  const videoTime = current.startSec;
+  // A private note's card (feature 19) has no lesson, so no video to review in.
+  const videoTime = current.lessonId ? current.startSec : null;
   const inThisLesson = player && currentLessonId === current.lessonId;
 
   return (

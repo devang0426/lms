@@ -45,3 +45,8 @@ yarn-error.log*
 # Kilo Code agent worktrees
 /.kilo/
 next-env.d.ts
+
+# Playwright (feature 23): results, report and generated test files
+/e2e/.results/
+/e2e/.report/
+/e2e/.cache/

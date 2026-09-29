@@ -2,7 +2,7 @@
 
 import { Captions, Maximize, Minimize, Pause, Play } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Icon, toast } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { formatTime, parseT } from "@/lib/time";
@@ -53,9 +53,11 @@ export function VideoPlayer({
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
-  const [captions, setCaptions] = useState(false);
+  // Captions start on (feature 23, accessibility); CC turns them off.
+  const [captions, setCaptions] = useState(Boolean(captionsUrl));
   const [fullscreen, setFullscreen] = useState(false);
   const [failed, setFailed] = useState(false);
+  const keysHint = useId();
 
   useWatchProgress({
     videoRef,
@@ -147,8 +149,14 @@ export function VideoPlayer({
       onKeyDown={onKeyDown}
       className="group/player flex w-full flex-col overflow-hidden rounded-card bg-media"
       aria-label="Lesson video"
+      aria-describedby={keysHint}
       role="region"
+      // A tab stop (feature 23), so the keys work before reaching a control.
+      tabIndex={0}
     >
+      <span id={keysHint} className="sr-only">
+        Keys: Space or K plays and pauses, the arrows move 5 seconds, J and L move 10, C turns captions on or off, F is full screen.
+      </span>
       <div className="relative min-h-0 flex-1">
         <video
           ref={videoRef}
@@ -168,7 +176,7 @@ export function VideoPlayer({
           onError={() => setFailed(true)}
           className={cn("block aspect-video w-full cursor-pointer bg-media object-contain", fullscreen && "aspect-auto h-full")}
         >
-          {captionsUrl && <track kind="captions" src={captionsUrl} srcLang="en" label="English" />}
+          {captionsUrl && <track kind="captions" src={captionsUrl} srcLang="en" label="English" default />}
         </video>
 
         {failed ? (

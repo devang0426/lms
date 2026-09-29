@@ -1,18 +1,25 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Table2 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CourseDetailsForm, PublishCourseButton } from "@/components/course-builder/course-settings";
 import { CurriculumEditor } from "@/components/course-builder/curriculum-editor";
 import { StatusBadge } from "@/components/course-builder/status-badge";
 import { PageHeader } from "@/components/shell/page-header";
-import { Card, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Button, Card, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { CourseEventsEditor } from "@/components/calendar/course-events-editor";
 import { requireCourseStaff } from "@/lib/auth";
 import { getCourseForUser } from "@/lib/db/courses";
+import { courseEventsForStaff } from "@/lib/db/events";
+import { requestTime } from "@/lib/utils/clock";
 
 export default async function CourseBuilderPage({ params }: PageProps<"/instructor/courses/[courseId]">) {
   const { courseId } = await params;
   const user = await requireCourseStaff(courseId);
-  const data = await getCourseForUser(courseId, user);
+  const [data, upcoming] = await Promise.all([
+    getCourseForUser(courseId, user),
+    // The Calendar tab (feature 21): from the start of today, UTC.
+    courseEventsForStaff(user, courseId, new Date(Math.floor(requestTime() / 86_400_000) * 86_400_000)),
+  ]);
   if (!data) notFound();
   const { course, modules } = data;
 
@@ -35,7 +42,14 @@ export default async function CourseBuilderPage({ params }: PageProps<"/instruct
           </span>
         }
         title={course.title}
-        actions={<PublishCourseButton courseId={course.id} published={course.status === "published"} />}
+        actions={
+          <>
+            <Button asChild variant="quiet" size="sm" leading={<Icon icon={Table2} size={16} />}>
+              <Link href={`/instructor/courses/${course.id}/gradebook`}>Gradebook</Link>
+            </Button>
+            <PublishCourseButton courseId={course.id} published={course.status === "published"} />
+          </>
+        }
       />
 
       <p className="m-0 rounded-2xl bg-butter-tint px-4 py-3 text-small text-butter-ink">
@@ -49,10 +63,16 @@ export default async function CourseBuilderPage({ params }: PageProps<"/instruct
           <TabsTrigger value="curriculum" count={modules.length}>
             Curriculum
           </TabsTrigger>
+          <TabsTrigger value="calendar" count={upcoming.length || undefined}>
+            Calendar
+          </TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
         <TabsContent value="curriculum">
           <CurriculumEditor courseId={course.id} modules={modules} />
+        </TabsContent>
+        <TabsContent value="calendar">
+          <CourseEventsEditor courseId={course.id} events={upcoming} />
         </TabsContent>
         <TabsContent value="details">
           <Card>

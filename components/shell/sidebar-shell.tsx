@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { UserMenu, type MenuUser } from "@/components/auth/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Logo } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { MobileMenu } from "./mobile-menu";
@@ -34,9 +35,12 @@ export function SidebarShell({
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-8 overflow-y-auto bg-oat px-4 pt-7 pb-5 md:flex">
         <div className="flex flex-col items-start gap-3 px-2">
-          <Link href={homeHref} aria-label="Studyhall home" className="text-ink no-underline hover:text-ink">
-            <Logo size="sm" />
-          </Link>
+          <div className="flex w-full items-center justify-between gap-2">
+            <Link href={homeHref} aria-label="Studyhall home" className="text-ink no-underline hover:text-ink">
+              <Logo size="sm" />
+            </Link>
+            <NotificationBell align="start" />
+          </div>
           {badge}
         </div>
         <SidebarNav areas={areas} />
@@ -55,6 +59,7 @@ export function SidebarShell({
             {badge}
           </span>
           <span className="flex items-center gap-2">
+            <NotificationBell />
             {!tabBar && <MobileMenu areas={areas} />}
             <UserMenu user={user} demoMode={demoMode} variant="avatar" />
           </span>

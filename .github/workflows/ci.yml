@@ -1,0 +1,71 @@
+# CI (feature 23): lint, unit tests, build, and the client-bundle secret
+# check on every push and pull request. The end-to-end suite runs on
+# demand (Actions → CI → Run workflow) against a deployment, because it
+# drives the real demo accounts and data.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, DATABASE_URL,
+#   DATABASE_URL_POOLED, BLOB_READ_WRITE_TOKEN, TRIGGER_SECRET_KEY,
+#   OPENROUTER_API_KEY. The build reads the Clerk keys; the others are
+#   there so the secret check looks for their real values.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      e2e_base_url:
+        description: "Run the Playwright demo suite against this URL (leave empty to skip)"
+        required: false
+        default: ""
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      DEMO_MODE: "false"
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL_POOLED: ${{ secrets.DATABASE_URL_POOLED }}
+      BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+      TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run check:secrets
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e_base_url != ''
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      E2E_BASE_URL: ${{ inputs.e2e_base_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Google Chrome is preinstalled on ubuntu-latest (the lecture is H.264).
+      - run: npm run e2e -- --project=demo --project=a11y --project=mobile --project=perf
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/.report

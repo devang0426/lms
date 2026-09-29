@@ -9,11 +9,10 @@ import type {
   ChatTurn,
   Flashcard,
   Note,
-  Podcast,
   QuizQuestion,
   QuizType,
 } from "@/lib/ai/types";
-import { uuid, now } from "@/lib/utils/ids";
+import { uuid } from "@/lib/utils/ids";
 import { markdownToBlocks, plainText, stripFence } from "@/lib/markdown";
 import { newCardState } from "@/lib/study/fsrs";
 import { capTokens, chunkByTokens, estimateTokens } from "./chunk";
@@ -25,8 +24,6 @@ import {
   noteSectionSystem,
   noteSystem,
   noteUser,
-  podcastSchema,
-  podcastSystem,
   quizSchema,
   quizSystem,
   titleSystem,
@@ -221,45 +218,4 @@ export async function chatAnswer(
   );
 }
 
-/* ---- Podcast ------------------------------------------------------------ */
-
-export async function generatePodcastScript(
-  engine: Engine,
-  note: Note,
-  length: "short" | "medium" | "long" = "short",
-): Promise<Podcast> {
-  const content = studyContent(note);
-  const { lines } = await engine.structured<{
-    lines: { speaker: "host" | "guest"; text: string; spoken: string }[];
-  }>({
-    system: podcastSystem(length),
-    messages: [{ role: "user", content }],
-    schema: podcastSchema as unknown as Record<string, unknown>,
-    schemaName: "podcast",
-    tier: "strong",
-  });
-  return { id: uuid(), noteId: note.id, length, script: lines, createdAt: now() };
-}
-
-export const DEFAULT_VOICES = { host: "alloy", guest: "nova" } as const;
-
-/* Synthesize each line with its speaker's voice and concatenate to one clip.
-   Throws EngineError (kind "unsupported"/"model_missing") if the active engine
-   has no TTS — the UI surfaces that cleanly. */
-export async function synthesizePodcastAudio(
-  engine: Engine,
-  podcast: Podcast,
-  voices: { host: string; guest: string } = DEFAULT_VOICES,
-  signal?: AbortSignal,
-): Promise<Blob> {
-  const parts: Blob[] = [];
-  for (const line of podcast.script) {
-    const blob = await engine.tts(line.spoken || line.text, {
-      voice: voices[line.speaker],
-      format: "mp3",
-      signal,
-    });
-    parts.push(blob);
-  }
-  return new Blob(parts, { type: "audio/mpeg" });
-}
+/* Podcast: see ./podcast.ts (feature 17). */

@@ -8,7 +8,9 @@ import { UPLOAD_KINDS, type UploadPayload } from "@/lib/storage/upload-kinds";
 /* Browser → Vercel Blob upload with progress (feature 09). The bytes go
    straight to Blob; /api/blob/upload only issues the token. Afterwards
    confirmUpload() records the file, since Blob's own callback can't reach
-   localhost. Feature 10's video uploader uses this with "lesson-video". */
+   localhost. Feature 10's video uploader uses this with "lesson-video".
+   `start` also resolves with the final state, for callers that upload
+   several files in turn (feature 20's hand-in form). */
 
 export type UploadState =
   | { phase: "idle" }
@@ -19,15 +21,17 @@ export type UploadState =
 export function useBlobUpload() {
   const [state, setState] = useState<UploadState>({ phase: "idle" });
 
-  async function start(file: File, pathname: string, payload: UploadPayload) {
+  async function start(file: File, pathname: string, payload: UploadPayload): Promise<UploadState> {
+    const settle = (next: UploadState) => {
+      setState(next);
+      return next;
+    };
     const rules = UPLOAD_KINDS[payload.kind];
     if (!(rules.contentTypes as readonly string[]).includes(file.type)) {
-      setState({ phase: "error", message: `That file type isn't allowed here (${file.type || "unknown"}).` });
-      return;
+      return settle({ phase: "error", message: `That file type isn't allowed here (${file.type || "unknown"}).` });
     }
     if (file.size > rules.maxBytes) {
-      setState({ phase: "error", message: `That file is over the ${Math.round(rules.maxBytes / 1024 / 1024)} MB limit.` });
-      return;
+      return settle({ phase: "error", message: `That file is over the ${Math.round(rules.maxBytes / 1024 / 1024)} MB limit.` });
     }
 
     setState({ phase: "uploading", percent: 0 });
@@ -42,15 +46,12 @@ export function useBlobUpload() {
         onUploadProgress: ({ percentage }) => setState({ phase: "uploading", percent: Math.round(percentage) }),
       });
       const confirmed = await confirmUpload({ url: blob.url, clientPayload });
-      if (!confirmed.ok) {
-        setState({ phase: "error", message: confirmed.error.message });
-        return;
-      }
-      setState({ phase: "done", url: blob.url, pathname: confirmed.data.pathname, size: confirmed.data.size });
+      if (!confirmed.ok) return settle({ phase: "error", message: confirmed.error.message });
+      return settle({ phase: "done", url: blob.url, pathname: confirmed.data.pathname, size: confirmed.data.size });
     } catch (err) {
       // The route's 403 message ("Only admins can…") comes through here.
       const message = err instanceof Error && err.message ? err.message.replace(/^Vercel Blob: /, "") : "The upload failed.";
-      setState({ phase: "error", message });
+      return settle({ phase: "error", message });
     }
   }
 

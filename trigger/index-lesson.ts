@@ -22,12 +22,12 @@ export const indexLesson = schemaTask({
   run: async ({ lessonId }, { ctx }) => {
     const report = (fraction: number, message: string) =>
       reportProgress(ctx.run.id, { stage: "index", progress: Math.round(fraction * 95), message });
-    await report(0, "Cutting the transcript into passages…");
+    await report(0, "Cutting the transcript and documents into passages…");
     const result = await indexLessonChunks(lessonId, { report });
     const message = {
       indexed: `The assistant can now answer from ${result.chunks} passages.`,
       not_published: "The lesson isn't published, so it was left out of the assistant.",
-      no_transcript: "This lesson has no transcript yet, so there was nothing to index.",
+      no_transcript: "This lesson has no transcript or documents yet, so there was nothing to index.",
     }[result.status];
     await report(1, message);
     return result;

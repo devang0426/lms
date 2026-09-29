@@ -2,13 +2,14 @@
 
 import { Loader2, MapPin, RotateCcw, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Button, ChipGroup, Icon, Textarea } from "@/components/ui";
-import type { AssistantEvent, AssistantMode, ChatCitation, TurnView } from "@/lib/chat/types";
+import type { AssistantMode, ChatCitation, TurnView } from "@/lib/chat/types";
 import { cn } from "@/lib/utils/cn";
 import { AnswerBody } from "./answer-body";
-import { CitationChip, citationHref, useCitationSeek } from "./citation-chip";
+import { CitationChip, citationHref, isDocumentCitation, useCitationSeek } from "./citation-chip";
 import { Refusal } from "./refusal";
+import { streamAnswer } from "./stream";
 
 /* The course assistant (feature 14): ask, read an answer with chips that
    jump to the lecture, or ask "Where was this taught?" for moments only.
@@ -32,6 +33,7 @@ interface Pending {
 
 export function AssistantChat({
   courseId,
+  courseCode,
   courseTitle,
   lessonId,
   lessonTitle,
@@ -40,6 +42,8 @@ export function AssistantChat({
   primary = false,
 }: {
   courseId: string;
+  /* "MATH 201": labels the question "Ask your instructor" posts. */
+  courseCode: string;
   courseTitle: string;
   /* The lesson being watched: enables "This lesson" scope and seeking. */
   lessonId?: string;
@@ -79,51 +83,23 @@ export function AssistantChat({
     let threadId = thread?.id;
     const userTurn: TurnView = { id: `local-${Date.now()}`, role: "user", content: q, citations: [], refused: false };
     try {
-      const res = await fetch("/api/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId,
-          lessonId: askedScope === "lesson" ? lessonId : undefined,
-          threadId,
-          question: q,
-          mode,
-        }),
+      const turn = await streamAnswer(
+        "/api/assistant",
+        { courseId, lessonId: askedScope === "lesson" ? lessonId : undefined, threadId, question: q, mode },
+        {
+          onThread: (id) => {
+            threadId = id;
+            setDraft("");
+          },
+          onDelta: (text) => setPending((p) => (p ? { ...p, text: p.text + text } : p)),
+          onReset: () => setPending((p) => (p ? { ...p, text: "" } : p)),
+        },
+      );
+      const id = threadId!;
+      setThreads((all) => {
+        const same = all[askedScope]?.id === id ? all[askedScope]!.turns : [];
+        return { ...all, [askedScope]: { id, turns: [...same, userTurn, turn] } };
       });
-      if (!res.ok || !res.body) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "The assistant couldn't answer just now. Try again in a moment.");
-      }
-      setDraft("");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finished = false;
-      while (!finished) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as AssistantEvent;
-          if (event.type === "thread") threadId = event.threadId;
-          if (event.type === "delta") setPending((p) => (p ? { ...p, text: p.text + event.text } : p));
-          if (event.type === "reset") setPending((p) => (p ? { ...p, text: "" } : p));
-          if (event.type === "error") throw new Error(event.message);
-          if (event.type === "done") {
-            finished = true;
-            const id = threadId!;
-            setThreads((all) => {
-              const same = all[askedScope]?.id === id ? all[askedScope]!.turns : [];
-              return { ...all, [askedScope]: { id, turns: [...same, userTurn, event.turn] } };
-            });
-          }
-        }
-      }
-      if (!finished) throw new Error("The answer was cut off. Try asking again.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
       // The question was saved on the server; keep it in view.
@@ -199,8 +175,24 @@ export function AssistantChat({
           </div>
         )}
 
-        {turns.map((t) => (
-          <Turn key={t.id} turn={t} courseId={courseId} courseTitle={courseTitle} currentLessonId={lessonId} />
+        {turns.map((t, i) => (
+          <Turn
+            key={t.id}
+            turn={t}
+            courseId={courseId}
+            courseTitle={courseTitle}
+            currentLessonId={lessonId}
+            // A refusal offers "Ask your instructor" with the question it refused.
+            ask={
+              t.refused
+                ? {
+                    course: { id: courseId, code: courseCode, title: courseTitle },
+                    lesson: lessonId && lessonTitle ? { id: lessonId, title: lessonTitle } : undefined,
+                    question: turns[i - 1]?.role === "user" ? turns[i - 1].content : "",
+                  }
+                : undefined
+            }
+          />
         ))}
 
         {pending && (
@@ -280,7 +272,7 @@ export function AssistantChat({
   );
 }
 
-function UserBubble({ text }: { text: string }) {
+export function UserBubble({ text }: { text: string }) {
   return (
     <p className="m-0 max-w-[85%] self-end rounded-2xl bg-oat px-4 py-2.5 text-[15px] leading-[1.55] break-words whitespace-pre-wrap">
       {text}
@@ -293,14 +285,16 @@ function Turn({
   courseId,
   courseTitle,
   currentLessonId,
+  ask,
 }: {
   turn: TurnView;
   courseId: string;
   courseTitle: string;
   currentLessonId?: string;
+  ask?: ComponentProps<typeof Refusal>["ask"];
 }) {
   if (turn.role === "user") return <UserBubble text={turn.content} />;
-  if (turn.refused) return <Refusal courseTitle={courseTitle} />;
+  if (turn.refused && ask) return <Refusal courseTitle={courseTitle} ask={ask} />;
   if (turn.content === "") {
     return <Moments citations={turn.citations} courseId={courseId} currentLessonId={currentLessonId} />;
   }
@@ -343,6 +337,10 @@ function Moments({ citations, courseId, currentLessonId }: { citations: ChatCita
               <button type="button" onClick={seek} className={cn(cls, "cursor-pointer")}>
                 {body}
               </button>
+            ) : href && isDocumentCitation(c) ? (
+              <a href={href} target="_blank" rel="noopener" className={cls}>
+                {body}
+              </a>
             ) : href ? (
               <Link href={href} className={cls}>
                 {body}

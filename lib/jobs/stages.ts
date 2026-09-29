@@ -26,6 +26,26 @@ export const CONTENT_STAGES = [
 /* index-lesson (feature 13): runs when a lesson is published. */
 export const INDEX_STAGES = [{ key: "index", label: "Indexing for the assistant" }] as const satisfies readonly JobStage[];
 
+/* ingest-document (feature 18): read the document, then (reading lessons)
+   draft from it, then index the lesson. The drafting subtasks report the
+   same stage keys as they do under video-process. */
+export const DOCUMENT_STAGES = [
+  { key: "read", label: "Reading the document" },
+  { key: "transcribe", label: "Transcribing (recordings only)" },
+  CONTENT_STAGES[1],
+  CONTENT_STAGES[2],
+  CONTENT_STAGES[3],
+  INDEX_STAGES[0],
+] as const satisfies readonly JobStage[];
+
+/* generate-podcast (feature 17): made only when someone asks for it. */
+export const PODCAST_STAGES = [
+  { key: "script", label: "Writing the conversation" },
+  { key: "voices", label: "Recording the two voices" },
+  { key: "mix", label: "Joining the audio" },
+  { key: "save", label: "Saving the episode" },
+] as const satisfies readonly JobStage[];
+
 /* video-process (features 10 and 12). Subtasks report finer messages under these. */
 export const VIDEO_STAGES = [
   { key: "probe", label: "Checking the file" },
@@ -45,6 +65,8 @@ export const JOB_STAGES = {
   "generate-cards": [CONTENT_STAGES[2]],
   "generate-quiz": [CONTENT_STAGES[3]],
   "index-lesson": INDEX_STAGES,
+  "generate-podcast": PODCAST_STAGES,
+  "ingest-document": DOCUMENT_STAGES,
 } as const satisfies Record<string, readonly JobStage[]>;
 
 export type JobKind = keyof typeof JOB_STAGES;

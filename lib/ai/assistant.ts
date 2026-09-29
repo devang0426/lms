@@ -1,13 +1,14 @@
 import "server-only";
 
-import type { ChatMessage } from "@/lib/ai/engine";
+import { EngineError, type ChatMessage } from "@/lib/ai/engine";
 import { getEngine } from "@/lib/ai/engine/server";
-import { assistantSystem, assistantUser } from "@/lib/ai/prompts";
-import { searchChunks, type SearchResult } from "@/lib/ai/retrieval/search";
+import { assistantSystem, assistantUser, spaceAssistantSystem } from "@/lib/ai/prompts";
+import { searchChunks, type SearchResult, type SearchScope } from "@/lib/ai/retrieval/search";
 import { withUsage } from "@/lib/ai/usage";
 import { addAssistantTurn, segmentsInRanges } from "@/lib/db/chat";
-import type { Viewer } from "@/lib/db/courses";
-import type { AssistantMode, ChatCitation, TurnView } from "@/lib/chat/types";
+import { documentTitles } from "@/lib/db/documents";
+import { getCourseForUser, type Viewer } from "@/lib/db/courses";
+import type { AssistantEvent, AssistantMode, ChatCitation, TurnView } from "@/lib/chat/types";
 import type { ChatTurn } from "@/lib/db/schema";
 import { bestMoment, checkAnswer, citationLabel, claimsFor, NOT_IN_SYLLABUS, releasable, stripMarkers } from "@/lib/chat/citations";
 
@@ -16,7 +17,8 @@ import { bestMoment, checkAnswer, citationLabel, claimsFor, NOT_IN_SYLLABUS, rel
    1. Retrieve the course's chunks the user may see (searchChunks).
    2. Relevance gate: best similarity under ASSISTANT_MIN_SIMILARITY and no
       full-text hit → refuse with NO model call.
-   3. Number the chunks as sources: "[S1] Lecture 3 · 12:48 — …".
+   3. Number the chunks as sources: "[S1] Lecture 3 · 12:48 — …", or
+      "[S2] Week 2 slides · p. 7 — …" for a document (feature 18).
    4. Stream the answer from the fast tier (ai_usage feature "assistant").
    5. Refuse on the refusal token or when no valid [S#] is left; drop the
       rest of the invalid ones (lib/chat/citations.ts). An empty or
@@ -26,7 +28,13 @@ import { bestMoment, checkAnswer, citationLabel, claimsFor, NOT_IN_SYLLABUS, rel
    7. Save the assistant turn (the route saved the question).
 
    "Where was this taught?" mode skips 4–5 and returns the top three
-   chunks as moments. The refusal wording is fixed UI text, not generated. */
+   chunks as moments. The refusal wording is fixed UI text, not generated.
+
+   The private space's chat (feature 19) is the same pipeline with another
+   subject: the student's own uploads, plus their courses when they
+   include them. Its sources are labelled by upload ("My slides · p. 7")
+   or by course and lecture ("MATH 201 · Lecture 3 · 12:48"), its prompt
+   is spaceAssistantSystem, and its cost is logged as "space-chat". */
 
 
 export function toTurnView(t: ChatTurn): TurnView {
@@ -52,12 +60,18 @@ export function passesGate(results: SearchResult[], threshold = minSimilarity())
   return best >= threshold || results.some((r) => r.ftsRank !== null);
 }
 
+/* What the assistant answers from. For a course, `lessonIds` are its
+   lessons in order, as this user sees them ("Lecture n" in chip labels,
+   the same numbering as the player's). */
+export type AssistantSubject =
+  | { kind: "course"; id: string; title: string; lessonIds: string[] }
+  /* The student's private space (feature 19). */
+  | { kind: "space"; withCourses: boolean };
+
 export async function answer(input: {
   user: Viewer;
-  /* `lessonIds`: the course's lessons in order, as this user sees them
-     ("Lecture n" in chip labels, the same numbering as the player's). */
-  course: { id: string; title: string; lessonIds: string[] };
-  scope: { courseId: string } | { lessonId: string };
+  subject: AssistantSubject;
+  scope: SearchScope;
   threadId: string;
   question: string;
   history: ChatTurn[];
@@ -66,7 +80,7 @@ export async function answer(input: {
   /* The streamed draft is being thrown away and retried. */
   onReset?: () => void;
 }): Promise<TurnView> {
-  const { user, course, threadId, question, mode } = input;
+  const { user, subject, threadId, question, mode } = input;
   const save = async (fields: { content: string; citations: ChatCitation[]; refused: boolean; ids: string[] }) =>
     toTurnView(
       await addAssistantTurn({
@@ -86,13 +100,13 @@ export async function answer(input: {
 
   if (!passesGate(results)) return save({ content: "", citations: [], refused: true, ids });
 
-  const ordinals = new Map(course.lessonIds.map((id, i) => [id, i + 1]));
-  const where = (r: SearchResult) => citationLabel(ordinals.get(r.chunk.lessonId ?? "") ?? null, r.chunk.startSec, r.chunk.page);
+  const labels = await labelsFor(subject, results, user);
+  const where = (r: SearchResult) => label(r, r.chunk.startSec, labels);
 
   if (mode === "where") {
     const top = results.slice(0, MOMENTS);
     const placed = await place(top, top.map(() => question));
-    const citations = top.map((r, i) => ({ ...cite(r, placed[i].startSec, ordinals), snippet: placed[i].snippet }));
+    const citations = top.map((r, i) => ({ ...cite(r, placed[i].startSec, labels), snippet: placed[i].snippet }));
     return save({ content: "", citations, refused: false, ids });
   }
 
@@ -108,13 +122,14 @@ export async function answer(input: {
   // saying it's off-syllabus: a model slip (free models sometimes return
   // an empty completion), not a judgement about the question. The client
   // is told to clear what it already showed.
+  const system = subject.kind === "course" ? assistantSystem(subject.title) : spaceAssistantSystem(subject.withCourses);
   let checked = checkAnswer("", 0);
   for (let attempt = 1; attempt <= ANSWER_ATTEMPTS; attempt++) {
     let full = "";
     let released = false;
-    const text = await withUsage("assistant", user.id, () =>
+    const text = await withUsage(subject.kind === "course" ? "assistant" : "space-chat", user.id, () =>
       getEngine().complete(
-        { system: assistantSystem(course.title), messages, tier: "fast", temperature: 0.2, maxTokens: ANSWER_MAX_TOKENS },
+        { system, messages, tier: "fast", temperature: 0.2, maxTokens: ANSWER_MAX_TOKENS },
         (delta) => {
           full += delta;
           if (released) return input.onDelta?.(delta);
@@ -137,30 +152,72 @@ export async function answer(input: {
     cited,
     cited.map((_, n) => `${claimsFor(checked.content, n + 1)} ${question}`),
   );
-  const citations = cited.map((r, n) => cite(r, placed[n].startSec, ordinals));
+  const citations = cited.map((r, n) => cite(r, placed[n].startSec, labels));
   return save({ content: checked.content, citations, refused: false, ids });
 }
 
-function cite(r: SearchResult, startSec: number | null, ordinals: Map<string, number>): ChatCitation {
+interface Labels {
+  ordinals: Map<string, number>;
+  titles: Map<string, string>;
+  /* The private space's chips can come from several courses, so each
+     course's is prefixed with its code: "MATH 201 · Lecture 3 · 12:48". */
+  codes: Map<string, string> | null;
+}
+
+/* Document chunks (feature 18) are labelled with their document's title,
+   lecture chunks by their lesson's number in the course. */
+async function labelsFor(subject: AssistantSubject, results: SearchResult[], user: Viewer): Promise<Labels> {
+  const titles = documentTitles([...new Set(results.flatMap((r) => (r.chunk.documentId ? [r.chunk.documentId] : [])))]);
+  if (subject.kind === "course") {
+    return { ordinals: new Map(subject.lessonIds.map((id, i) => [id, i + 1])), titles: await titles, codes: null };
+  }
+  // Number each cited course's lessons the way its player does, as this user sees them.
+  const courseIds = [...new Set(results.flatMap((r) => (r.chunk.courseId ? [r.chunk.courseId] : [])))];
+  const courses = await Promise.all(courseIds.map((id) => getCourseForUser(id, user)));
+  const ordinals = new Map<string, number>();
+  const codes = new Map<string, string>();
+  for (const found of courses) {
+    if (!found) continue;
+    codes.set(found.course.id, found.course.code);
+    found.modules.flatMap((m) => m.lessons).forEach((l, i) => ordinals.set(l.id, i + 1));
+  }
+  return { ordinals, titles: await titles, codes };
+}
+
+function label(r: SearchResult, startSec: number | null, { ordinals, titles, codes }: Labels): string {
+  const fallback = r.chunk.ownerId ? "Your upload" : "Course document";
+  const doc = r.chunk.documentId ? { title: titles.get(r.chunk.documentId) ?? fallback, section: r.chunk.section } : null;
+  const text = citationLabel(ordinals.get(r.chunk.lessonId ?? "") ?? null, startSec, r.chunk.page, doc);
+  const code = r.chunk.courseId ? codes?.get(r.chunk.courseId) : undefined;
+  return code ? `${code} · ${text}` : text;
+}
+
+function cite(r: SearchResult, startSec: number | null, labels: Labels): ChatCitation {
   return {
     chunkId: r.chunk.id,
+    courseId: r.chunk.courseId,
     lessonId: r.chunk.lessonId,
     startSec,
     page: r.chunk.page,
-    label: citationLabel(ordinals.get(r.chunk.lessonId ?? "") ?? null, startSec, r.chunk.page),
+    documentId: r.chunk.documentId,
+    section: r.chunk.section,
+    label: label(r, startSec, labels),
   };
 }
 
 /* For each chunk: the moment inside it that best matches its claim, and
    what was said there. Falls back to the chunk's start and its text. */
 async function place(chunks: SearchResult[], claims: string[]): Promise<{ startSec: number | null; snippet: string }[]> {
-  const timed = chunks.filter((r) => r.chunk.lessonId && r.chunk.startSec !== null && r.chunk.endSec !== null);
+  // Only video chunks are placed on the lesson's transcript; a recording
+  // document's times are its own (feature 18).
+  const onVideo = (r: SearchResult) => !r.chunk.documentId && r.chunk.lessonId && r.chunk.startSec !== null && r.chunk.endSec !== null;
+  const timed = chunks.filter(onVideo);
   const segments = await segmentsInRanges(
     timed.map((r) => ({ lessonId: r.chunk.lessonId!, fromSec: r.chunk.startSec!, toSec: r.chunk.endSec! })),
   );
   return chunks.map((r, i) => {
     const fallback = { startSec: r.chunk.startSec, snippet: snippet(bodyText(r.chunk.text)) };
-    if (r.chunk.startSec === null || r.chunk.endSec === null) return fallback;
+    if (!onVideo(r)) return fallback;
     const inside = segments.filter(
       (s) => s.lessonId === r.chunk.lessonId && s.startSec >= r.chunk.startSec! && s.startSec <= r.chunk.endSec!,
     );
@@ -193,4 +250,50 @@ function historyMessages(history: ChatTurn[]): ChatMessage[] {
     .filter((t) => t.role === "user" || (!t.refused && t.content.trim() !== ""))
     .slice(-HISTORY_TURNS)
     .map((t) => ({ role: t.role, content: t.role === "assistant" ? stripMarkers(t.content) : t.content }));
+}
+
+/* ---- The routes' shared pieces ------------------------------------------------
+   POST /api/assistant (feature 14) and POST /api/space/chat (feature 19). */
+
+/* Per user, across both: they count the same chat_turns. */
+export const QUESTION_LIMIT = { questions: 20, minutes: 5 };
+export const QUESTION_LIMIT_MESSAGE = `That's ${QUESTION_LIMIT.questions} questions in ${QUESTION_LIMIT.minutes} minutes. Take a short break and ask again.`;
+
+/* The answer as NDJSON, one event per line:
+     {"type":"thread","threadId"}   first
+     {"type":"delta","text"}        raw answer text as it arrives
+     {"type":"reset"}               drop the text so far (a retry follows)
+     {"type":"done","turn"}         the checked answer, which replaces the
+                                    streamed text, with its citations
+     {"type":"error","message"}     instead of done, if it failed */
+export function answerStream(
+  threadId: string,
+  run: (on: { delta: (text: string) => void; reset: () => void }) => Promise<TurnView>,
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: AssistantEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      send({ type: "thread", threadId });
+      try {
+        const turn = await run({ delta: (text) => send({ type: "delta", text }), reset: () => send({ type: "reset" }) });
+        send({ type: "done", turn });
+      } catch (err) {
+        console.error("[assistant] answer failed", err);
+        send({ type: "error", message: friendly(err) });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+function friendly(err: unknown): string {
+  if (err instanceof EngineError && (err.kind === "rate_limit" || err.kind === "quota")) {
+    return "The assistant is busy right now. Try again in a minute.";
+  }
+  return "The assistant couldn't answer just now. Try again in a moment.";
 }

@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
 import { courseIdForLesson, getCourseAccess } from "@/lib/db/courses";
+import { gradedQuizEventStatement } from "@/lib/db/events";
 import { createGradedQuizStatements } from "@/lib/db/quizzes";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
 
@@ -42,6 +43,8 @@ export async function createGradedQuiz(raw: z.input<typeof input>): Promise<Acti
   if (!created) return fail("invalid", "Some of those questions aren't in this lesson any more. Reload and pick again.");
   await db.batch([
     ...created.statements,
+    // Its due date on the calendar (feature 21), after the quiz insert.
+    gradedQuizEventStatement(created.id),
     auditInsert({
       actorId: user.id,
       action: "graded_quiz.create",
@@ -52,5 +55,7 @@ export async function createGradedQuiz(raw: z.input<typeof input>): Promise<Acti
   ]);
   revalidatePath(`/instructor/courses/${courseId}/lessons/${lessonId}`);
   revalidatePath(`/courses/${courseId}/lessons/${lessonId}`);
+  revalidatePath("/calendar");
+  revalidatePath("/");
   return ok({ id: created.id });
 }

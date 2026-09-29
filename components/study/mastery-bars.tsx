@@ -20,8 +20,9 @@ export function MasteryBars({
   lessonId,
 }: {
   topics: TopicMasteryView[];
-  courseId: string;
-  lessonId: string;
+  /* The lesson, for "Review in video"; a private note (feature 19) has none. */
+  courseId?: string;
+  lessonId?: string;
 }) {
   const player = useOptionalPlayer();
   if (topics.length === 0) return null;
@@ -40,6 +41,7 @@ export function MasteryBars({
                 <span className="flex items-center gap-2">
                   {weak &&
                     t.startSec !== null &&
+                    (player || (courseId && lessonId)) &&
                     (player ? (
                       <button
                         type="button"

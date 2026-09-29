@@ -93,15 +93,27 @@ export function citationChipsHtml(content: string, citations: ChatCitation[]): s
     const index = Number(n) - 1;
     const c = citations[index];
     if (!c) return "";
-    const short = c.startSec !== null ? formatTime(c.startSec) : c.page !== null ? `p. ${c.page}` : "source";
+    const short = c.page !== null ? `p. ${c.page}` : c.startSec !== null ? formatTime(c.startSec) : c.section ? shorten(c.section, 24) : "source";
     return `<button type="button" class="cite-chip" data-cite="${index}" aria-label="${escapeHtml(c.label)}">${escapeHtml(short)}</button>`;
   });
 }
 
-/* "Lecture 3 · 12:48", or "Lecture 3 · p. 4" for a page, or "Lecture 3". */
-export function citationLabel(ordinal: number | null, startSec: number | null, page: number | null): string {
-  const where = startSec !== null ? formatTime(startSec) : page !== null ? `p. ${page}` : null;
-  return [ordinal ? `Lecture ${ordinal}` : "Course material", where].filter(Boolean).join(" · ");
+/* "Lecture 3 · 12:48", or "Lecture 3". A document chunk (feature 18) is
+   named after its document: "Week 2 slides · p. 7", "Reading · Eigenvalues",
+   "Office hours · 04:10". */
+export function citationLabel(
+  ordinal: number | null,
+  startSec: number | null,
+  page: number | null,
+  doc?: { title: string; section?: string | null } | null,
+): string {
+  const where = page !== null ? `p. ${page}` : startSec !== null ? formatTime(startSec) : (doc?.section ?? null);
+  const what = doc ? shorten(doc.title, 60) : ordinal ? `Lecture ${ordinal}` : "Course material";
+  return [what, where].filter(Boolean).join(" · ");
+}
+
+function shorten(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
 }
 
 /* ---- Where in the chunk ------------------------------------------------------

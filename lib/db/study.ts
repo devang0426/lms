@@ -4,13 +4,15 @@ import { and, asc, eq, gt, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { asFsrsCard, type StudyCard } from "@/lib/study/cards";
 import { newCardState, reviewCard, type Rating } from "@/lib/study/fsrs";
 import { db } from "./client";
-import { cardReviews, courses, flashcards, lessons, modules, type CardState } from "./schema";
+import { cardReviews, courses, flashcards, lessons, modules, notes, type CardState } from "./schema";
 
 /* Flashcard review (feature 15). Every query decides visibility in SQL: a
    student studies a card only when it is published, its lesson, module
    and course are published, and they are actively enrolled. Their FSRS
    state is their own row in card_reviews; a card with no row is new and
-   due now. Ratings are applied here, on the server, with lib/study/fsrs. */
+   due now. Ratings are applied here, on the server, with lib/study/fsrs.
+   A private note's cards (feature 19) are its owner's alone: they're
+   joined through the note on its owner, and never show up in /study. */
 
 export type { StudyCard };
 
@@ -38,6 +40,16 @@ function visibleTo(userId: string, scope: StudyScope): SQL {
 
 const isDue = or(isNull(cardReviews.userId), lte(cardReviews.due, sql`now()`))!;
 
+const reviewColumns = {
+  due: cardReviews.due,
+  stability: cardReviews.stability,
+  difficulty: cardReviews.difficulty,
+  reps: cardReviews.reps,
+  lapses: cardReviews.lapses,
+  lastReview: cardReviews.lastReview,
+  state: cardReviews.state,
+};
+
 function visibleCards(userId: string) {
   return db
     .select({
@@ -50,15 +62,7 @@ function visibleCards(userId: string) {
       back: flashcards.back,
       topic: flashcards.topic,
       startSec: flashcards.startSec,
-      review: {
-        due: cardReviews.due,
-        stability: cardReviews.stability,
-        difficulty: cardReviews.difficulty,
-        reps: cardReviews.reps,
-        lapses: cardReviews.lapses,
-        lastReview: cardReviews.lastReview,
-        state: cardReviews.state,
-      },
+      review: reviewColumns,
     })
     .from(flashcards)
     .innerJoin(lessons, eq(lessons.id, flashcards.lessonId))
@@ -67,7 +71,29 @@ function visibleCards(userId: string) {
     .leftJoin(cardReviews, review(userId));
 }
 
-type Row = Awaited<ReturnType<ReturnType<typeof visibleCards>["execute"]>>[number];
+/* A private note's cards, only when the note is this user's (feature 19). */
+function ownedCards(userId: string) {
+  return db
+    .select({
+      id: flashcards.id,
+      courseId: sql<string | null>`null`,
+      courseCode: sql<string | null>`null`,
+      lessonId: sql<string | null>`null`,
+      lessonTitle: sql<string | null>`null`,
+      front: flashcards.front,
+      back: flashcards.back,
+      topic: flashcards.topic,
+      startSec: flashcards.startSec,
+      review: reviewColumns,
+    })
+    .from(flashcards)
+    .innerJoin(notes, and(eq(notes.id, flashcards.noteId), eq(notes.ownerId, userId), isNull(flashcards.lessonId)))
+    .leftJoin(cardReviews, review(userId));
+}
+
+type Row =
+  | Awaited<ReturnType<ReturnType<typeof visibleCards>["execute"]>>[number]
+  | Awaited<ReturnType<ReturnType<typeof ownedCards>["execute"]>>[number];
 
 function toStudyCard(row: Row, nowMs: number): StudyCard {
   const { review: r, ...card } = row;
@@ -134,6 +160,28 @@ export async function studyQueue(userId: string, scope: StudyScope, limit: numbe
   return { cards, total: agg?.n ?? 0, nextDueAt: cards.length === 0 ? next : null };
 }
 
+/* studyQueue for a private note's deck (feature 19), its owner's only. */
+export async function noteStudyQueue(userId: string, noteId: string, limit: number): Promise<StudyQueue> {
+  const ofNote = eq(flashcards.noteId, noteId);
+  const counted = db
+    .select({ n: sql<number>`count(*)`.mapWith(Number), next: sql<Date | null>`min(${cardReviews.due})` })
+    .from(flashcards)
+    .innerJoin(notes, and(eq(notes.id, flashcards.noteId), eq(notes.ownerId, userId), isNull(flashcards.lessonId)))
+    .leftJoin(cardReviews, and(review(userId), gt(cardReviews.due, sql`now()`)))
+    .where(ofNote);
+  const [rows, [agg]] = await db.batch([
+    ownedCards(userId)
+      .where(and(ofNote, isDue))
+      .orderBy(ORDER[0], asc(cardReviews.due), asc(flashcards.position))
+      .limit(limit),
+    counted,
+  ]);
+  const now = Date.now();
+  const cards = rows.map((r) => toStudyCard(r, now));
+  const next = agg?.next ? new Date(agg.next).getTime() : null;
+  return { cards, total: agg?.n ?? 0, nextDueAt: cards.length === 0 ? next : null };
+}
+
 /* Due counts per enrolled course (the /study filters and the sidebar notice). */
 export async function dueCountsByCourse(userId: string): Promise<{ courseId: string; code: string; title: string; due: number }[]> {
   return db
@@ -157,11 +205,15 @@ export type ReviewOutcome = { due: number; state: CardState; intervalMs: number 
 
 /* Apply one rating. Returns null when the card isn't live for this student
    (a 404 for the caller), so nobody can write a schedule for a card they
-   can't see. */
+   can't see. A private note's card counts only for its owner. */
 export async function recordReview(userId: string, cardId: string, rating: Rating): Promise<ReviewOutcome | null> {
-  const [row] = await visibleCards(userId)
-    .where(and(eq(flashcards.id, cardId), visibleTo(userId, {})))
-    .limit(1);
+  const [course, own] = await db.batch([
+    visibleCards(userId)
+      .where(and(eq(flashcards.id, cardId), visibleTo(userId, {})))
+      .limit(1),
+    ownedCards(userId).where(eq(flashcards.id, cardId)).limit(1),
+  ]);
+  const row = course[0] ?? own[0];
   if (!row) return null;
 
   const now = Date.now();

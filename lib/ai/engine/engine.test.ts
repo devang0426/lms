@@ -308,28 +308,26 @@ describe("OpenRouter engine", () => {
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
-    expect(modelOf(init)).toBe("google/gemini-2.5-flash");
+    expect(modelOf(init)).toBe(OPENROUTER_DEFAULT_CHAINS.strong[0]);
     expect(engine.capabilities().tts).toBe(true);
   });
 
   it("falls back to the next model on a 5xx or 429, keeping the stream from the one that worked", async () => {
+    // Read from the chain, so the test holds whatever the model order is.
+    const [first, second, third] = OPENROUTER_DEFAULT_CHAINS.fast;
     const fetchMock = mockFetch(async (_url, init) => {
       const model = modelOf(init);
-      if (model === "nvidia/nemotron-3-super-120b-a12b") return jsonResponse({ error: { message: "down" } }, 503);
-      if (model === "meta/muse-glimmer-30b") return jsonResponse({ error: { message: "slow down" } }, 429);
-      return streamResponse(sse("from gemini"));
+      if (model === first) return jsonResponse({ error: { message: "down" } }, 503);
+      if (model === second) return jsonResponse({ error: { message: "slow down" } }, 429);
+      return streamResponse(sse("from the third"));
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const engine = createEngine({ mode: "cloud", provider: "openrouter", apiKey: "sk-or-v1-x" });
     const text = await engine.complete({ messages: [{ role: "user", content: "hi" }], tier: "fast" });
 
-    expect(text).toBe("from gemini");
-    expect(fetchMock.mock.calls.map(([, init]) => modelOf(init))).toEqual([
-      "nvidia/nemotron-3-super-120b-a12b",
-      "meta/muse-glimmer-30b",
-      "google/gemini-2.5-flash",
-    ]);
+    expect(text).toBe("from the third");
+    expect(fetchMock.mock.calls.map(([, init]) => modelOf(init))).toEqual([first, second, third]);
   });
 
   it("structured() moves on when a model returns broken JSON, and accepts fenced JSON", async () => {
@@ -338,7 +336,7 @@ describe("OpenRouter engine", () => {
         choices: [
           {
             message: {
-              content: modelOf(init) === "google/gemini-2.5-flash" ? "not json" : '```json\n{"ok":true}\n```',
+              content: modelOf(init) === OPENROUTER_DEFAULT_CHAINS.strong[0] ? "not json" : '```json\n{"ok":true}\n```',
             },
           },
         ],
@@ -383,7 +381,7 @@ describe("OpenRouter engine", () => {
 
     it("structured() gives up on a model that doesn't answer and tries the next", async () => {
       const fetchMock = mockFetch(async (_url, init) =>
-        modelOf(init) === "nvidia/nemotron-3-super-120b-a12b"
+        modelOf(init) === OPENROUTER_DEFAULT_CHAINS.fast[0]
           ? hang(init)
           : jsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] }),
       );
@@ -400,7 +398,7 @@ describe("OpenRouter engine", () => {
 
     it("complete() gives up on a stream that goes quiet before answering", async () => {
       const fetchMock = mockFetch(async (_url, init) =>
-        modelOf(init) === "nvidia/nemotron-3-super-120b-a12b" ? hang(init) : streamResponse(sse("from muse")),
+        modelOf(init) === OPENROUTER_DEFAULT_CHAINS.fast[0] ? hang(init) : streamResponse(sse("from muse")),
       );
       vi.stubGlobal("fetch", fetchMock);
       expect(await engineWithTimeouts().complete({ messages: [{ role: "user", content: "hi" }], tier: "fast" })).toBe("from muse");

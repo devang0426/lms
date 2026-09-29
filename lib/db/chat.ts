@@ -6,21 +6,27 @@ import { chapters, chatThreads, chatTurns, lessons, transcriptSegments, videos, 
 
 /* Course assistant storage (feature 14). Threads are personal: every read
    and write is scoped to the owner in the query. Callers have already
-   checked that the user may use the course (and lesson). */
+   checked that the user may use the course (and lesson), or that the
+   private note (feature 19) is theirs. */
 
-export interface ThreadScope {
-  userId: string;
-  courseId: string;
-  /* Set for a thread asked from one lesson; null for course-wide. */
-  lessonId: string | null;
-}
+export type ThreadScope =
+  | {
+      userId: string;
+      courseId: string;
+      /* Set for a thread asked from one lesson; null for course-wide. */
+      lessonId: string | null;
+    }
+  /* A private note's chat (feature 19). */
+  | { userId: string; noteId: string };
 
 const scopeWhere = (s: ThreadScope): SQL =>
-  and(
-    eq(chatThreads.userId, s.userId),
-    eq(chatThreads.courseId, s.courseId),
-    s.lessonId ? eq(chatThreads.lessonId, s.lessonId) : isNull(chatThreads.lessonId),
-  )!;
+  "noteId" in s
+    ? and(eq(chatThreads.userId, s.userId), eq(chatThreads.noteId, s.noteId))!
+    : and(
+        eq(chatThreads.userId, s.userId),
+        eq(chatThreads.courseId, s.courseId),
+        s.lessonId ? eq(chatThreads.lessonId, s.lessonId) : isNull(chatThreads.lessonId),
+      )!;
 
 /* The given thread if it's the user's and has this scope, else a new one. */
 export async function ensureThread(scope: ThreadScope, threadId: string | undefined, title: string): Promise<string> {

@@ -44,7 +44,7 @@ export function isUuid(value: unknown): value is string {
    literally: in a single-table select Drizzle renders ${courses.id} as a
    bare "id", which is ambiguous (or binds to the wrong table) inside them.
    Every query using these must select from the unaliased `courses` table. */
-function staffPredicate(viewer: Viewer): SQL {
+export function staffPredicate(viewer: Viewer): SQL {
   if (viewer.role === "admin") return sql`true`;
   return sql`exists (select 1 from course_staff cs where cs.course_id = courses.id and cs.user_id = ${viewer.id})`;
 }

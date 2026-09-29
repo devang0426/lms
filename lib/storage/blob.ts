@@ -1,11 +1,13 @@
 import "server-only";
 
 import { BlobNotFoundError, del, head, put, type HeadBlobResult, type PutBlobResult } from "@vercel/blob";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, gte } from "drizzle-orm";
 import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
+import { canSubmitTo } from "@/lib/db/assignments";
 import { courseIdForLesson, getCourseAccess } from "@/lib/db/courses";
-import { auditLog } from "@/lib/db/schema";
+import { auditLog, documents } from "@/lib/db/schema";
+import { startDocumentIngest, startPrivateDocumentIngest } from "@/lib/documents";
 import { startVideoProcessing } from "@/lib/video/lessons";
 import type { TokenPayload, UploadDeps } from "./authorize";
 import { isDemoLectureUrl } from "./upload-kinds";
@@ -63,18 +65,22 @@ export async function recordUpload(
   token: TokenPayload,
   blob: { url: string; pathname: string; contentType?: string; size?: number },
 ): Promise<void> {
+  // A private upload (feature 19) is logged by its document id, without its
+  // file name or URL: admins read the audit log, and the URL opens the file.
+  const entityId = token.payload.kind === "private-document" ? token.payload.documentId : blob.pathname;
   const [seen] = await db
     .select({ id: auditLog.id })
     .from(auditLog)
-    .where(and(eq(auditLog.action, "blob.upload"), eq(auditLog.entityId, blob.pathname)))
+    .where(and(eq(auditLog.action, "blob.upload"), eq(auditLog.entityId, entityId)))
     .limit(1);
   if (!seen) {
+    const details = { contentType: blob.contentType ?? null, size: blob.size ?? null };
     await auditInsert({
       actorId: token.userId,
       action: "blob.upload",
       entityType: token.kind,
-      entityId: blob.pathname,
-      data: { url: blob.url, contentType: blob.contentType ?? null, size: blob.size ?? null },
+      entityId,
+      data: token.payload.kind === "private-document" ? details : { url: blob.url, ...details },
     });
   }
 
@@ -83,6 +89,17 @@ export async function recordUpload(
     case "lesson-video":
       // Idempotent: only an `uploading` row starts a run.
       await startVideoProcessing({ videoId: p.videoId, lessonId: p.lessonId, userId: token.userId, blob });
+      break;
+    case "lesson-document":
+      // Idempotent: only an `uploading` row starts a run.
+      await startDocumentIngest({ documentId: p.documentId, lessonId: p.lessonId, userId: token.userId, blob });
+      break;
+    case "submission-file":
+      // Nothing to start: the file joins a submission when the student hands in.
+      break;
+    case "private-document":
+      // Idempotent: only the owner's `uploading` row starts a run.
+      await startPrivateDocumentIngest({ documentId: p.documentId, userId: token.userId, blob });
       break;
     case "dev-test":
       break;
@@ -93,10 +110,29 @@ export async function recordUpload(
   }
 }
 
-/* Real lookups for authorizeUpload(): course staff checked in SQL. */
+/* Completed uploads by this person in the last `minutes` (the upload rate
+   limit, feature 23): recordUpload writes one blob.upload audit row each. */
+export async function recentUploadCount(userId: string, minutes: number): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(auditLog)
+    .where(and(eq(auditLog.action, "blob.upload"), eq(auditLog.actorId, userId), gte(auditLog.createdAt, new Date(Date.now() - minutes * 60_000))));
+  return row?.n ?? 0;
+}
+
+/* Real lookups for authorizeUpload(): course staff and enrollment checked in SQL. */
 export const uploadDeps: UploadDeps = {
   isLessonStaff: async (lessonId, viewer) => {
     const courseId = await courseIdForLesson(lessonId);
     return courseId !== null && (await getCourseAccess(courseId, viewer)) === "staff";
+  },
+  canSubmitTo,
+  ownsDocument: async (documentId, viewer) => {
+    const [row] = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(and(eq(documents.id, documentId), eq(documents.ownerId, viewer.id)))
+      .limit(1);
+    return Boolean(row);
   },
 };

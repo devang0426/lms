@@ -13,7 +13,7 @@ import {
   deleteCard,
   deleteChapter,
   deleteQuestion,
-  loadLessonSource,
+  loadDraftSource,
   publishLessonStatements,
   updateCard,
   updateChapter,
@@ -209,8 +209,8 @@ export async function regenerate(input: { lessonId: string; kind: (typeof KINDS)
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
-  if (!(await loadLessonSource(staff.lessonId))) {
-    return fail("invalid", "Upload the video and let it finish processing first.");
+  if (!(await loadDraftSource(staff.lessonId))) {
+    return fail("invalid", "Upload the video and let it finish processing (or, for a reading lesson, add a document) first.");
   }
   const { kind } = parsed.data;
   await startJob({
@@ -230,8 +230,8 @@ export async function publishLesson(input: { lessonId: string }): Promise<Action
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
-  if (!(await loadLessonSource(staff.lessonId))) {
-    return fail("invalid", "This lesson has no processed video yet, so there's nothing to publish.");
+  if (!(await loadDraftSource(staff.lessonId))) {
+    return fail("invalid", "This lesson has no processed video or documents yet, so there's nothing to publish.");
   }
   await db.batch([
     ...publishLessonStatements(staff.lessonId),

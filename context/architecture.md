@@ -176,8 +176,19 @@ missing-module errors (`idb`, `uuid`, `katex`, `marked`, `dompurify`,
   `videoEl.currentTime`.
 - `?t=<seconds>` sets the start time on load.
 
-Documents (PDF, DOCX, URL) run steps 9–12 the same way, with `page` or
-`section` in place of timestamps.
+**Documents (feature 18):**
+
+- A PDF, DOCX, web page, recording or YouTube link on a lesson goes
+  through `ingest-document`:
+  - Extract text into citable parts: pages, heading sections, or timed
+    segments.
+  - On a reading lesson with no video, draft notes, cards and quiz from
+    all its documents (document mode: no chapters, no `startSec`).
+  - Index the lesson.
+- Web pages are fetched only through the SSRF guard
+  (`lib/net/safe-fetch.ts`).
+- On other lessons documents are resources: indexed and cited, not
+  drafted from.
 
 ## Course assistant (explain, cite, jump; refuse off-syllabus)
 
@@ -220,8 +231,18 @@ counts too.
 7. **Log** the question, the retrieved chunk IDs, whether it was refused,
    the citations and the cost. This feeds tuning and "most-asked topics".
 
-A student's **private space** chat follows the same rules. Its "syllabus" is
-their own uploads.
+A student's **private space** chat (feature 19) follows the same rules. Its
+"syllabus" is their own uploads (scope `{ownerId}`): all of them, not only
+the note the chat is opened from. With "Include my courses" on (per
+question), it also searches the courses they're enrolled in or teach
+(scope `{ownerId, withCourses}`), still through the search's access filter,
+so a student gets only published lessons. The uploads and the courses are
+searched separately and the rankings fused (RRF): searched as one pool, a
+course's many lecture passages crowded a student's few pages out of the
+top 8 in testing. Upload chips read "My slides ·
+p. 7" and open the file; course chips read "MATH 201 · Lecture 3 · 12:48"
+and open the lesson at `?t=`. The refusal is fixed copy without "Ask your
+instructor". The cost is logged as `space-chat`.
 
 ## System Boundaries
 
@@ -232,12 +253,16 @@ their own uploads.
   for the lesson player. Each shell layout calls `requireAreaRole()`.
 - `app/(instructor)/`: dashboard, course builder, upload and
   review/publish, grading, gradebook, announcements, analytics.
-- `app/(admin)/`: terms, users and roles, courses and enrollments, audit log.
+- `app/(admin)/`: terms, users and roles, courses and enrollments, roster
+  import, audit log.
 - `app/api/`: the Clerk webhook (user sync), the streaming assistant
-  chat, and `progress` (the lesson player's pagehide beacon).
+  chat, the private space's chat (`space/chat`), `progress` (the
+  lesson player's pagehide beacon) and `notifications` (the bell's feed,
+  with its mark-read actions next to it).
 - `trigger/`: Trigger.dev tasks (`video-process`, `transcribe-lesson`,
   `generate-chapters`, `generate-notes`, `generate-cards`, `generate-quiz`,
-  `index-lesson`, `ingest-document`, `generate-podcast`).
+  `index-lesson`, `ingest-document`, `generate-podcast`, `index-note`),
+  and the daily scheduled `notify-due-soon` (feature 21).
 - `trigger.config.ts`: at the root; declares the ffmpeg build extension.
 - `components/ui/`: design-system primitives.
 - `components/shell/`: app shells, nav config (`nav-config.ts`), page
@@ -254,6 +279,10 @@ their own uploads.
 - `lib/auth/`: Clerk helpers: `currentUser`, `requireRole`,
   `requireAreaRole` (layouts: redirect a mismatched role to its home),
   `homePathFor`, `requireEnrollment`, `requireCourseInstructor`.
+  `sync.ts` holds `syncUserFromClerk` (the Clerk → Neon upsert, which
+  also applies pending invitations; re-exported from `lib/auth`).
+  `clerk.ts` is the plain `@clerk/backend` client: no Next.js imports, so
+  scripts and tasks can use it too.
 - `lib/storage/`: Vercel Blob helpers (`blob.ts`: `putBlob`, `deleteBlobs`,
   `headBlob`, `recordUpload`), pathname and per-kind upload rules
   (`upload-kinds.ts`, pure) and upload authorization (`authorize.ts`,
@@ -308,17 +337,151 @@ their own uploads.
   `quiz-runner.tsx`, `mastery-bars.tsx`) with its actions in
   `…/lessons/[lessonId]/quiz-actions.ts`, and the instructor's create page
   under `…/lessons/[lessonId]/graded-quizzes/new`.
+- Podcast (feature 17): `lib/ai/generation/podcast.ts` (the source
+  text and its hash, the validated script, TTS per line with two Kokoro
+  voices), `lib/study/podcast.ts` (pure: who may start one, when an
+  episode is stale), `lib/db/podcasts.ts` (the stored episode, the atomic
+  claim, the task's reads and writes), `lib/podcast/` (the tab's data and
+  starting a run), the `generate-podcast` task (queue `podcast`; body in
+  `trigger/lib/podcast.ts`, ffmpeg join in `trigger/lib/podcast-audio.ts`),
+  and the player's Podcast tab (`components/study/podcast-tab.tsx`, action
+  in `…/lessons/[lessonId]/podcast-actions.ts`).
+- Documents (feature 18):
+  - `lib/net/` is the SSRF guard: `address.ts` (pure public-IP check) and
+    `safe-fetch.ts` (checks each address at connect time, follows
+    redirects by hand, caps size and time, HTML only).
+  - `lib/ai/ingest/`: `sections.ts` (HTML → heading sections), `url.ts`
+    (guard + Readability), `docx.ts`, `pdf.ts` (per page), and
+    `youtube/` (yt-dlp, friendly failure messages).
+  - `lib/ai/retrieval/chunk-document.ts` (pure).
+  - `lib/ai/generation/document.ts` (document mode).
+  - `lib/db/documents.ts` (rows, and the viewer check).
+  - `lib/documents/`: `index.ts` starts runs and gives the editor its
+    state; `view.ts` (pure) has the labels and the access-checked links.
+  - `trigger/ingest-document.ts`, with its body in
+    `trigger/lib/ingest-document.ts` and the shared Whisper helper in
+    `trigger/lib/transcribe.ts`.
+  - `app/documents/[documentId]/route.ts`.
+  - Components: `components/documents/` (the editor's `DocumentManager`,
+    and the player's `ResourceList`).
+- Private space (feature 19):
+  - Routes: `/space` (the notes and the "New note" dialog) and
+    `/space/[noteId]` (Notes, Flashcards, Quiz, Chat and Podcast tabs), in
+    the `(sidebar)` shell, each with its `actions.ts`; the chat's stream is
+    `app/api/space/chat`.
+  - `lib/db/space.ts`: the owner's notes (every query filtered on
+    `ownerId`, no staff override), create and delete, and the ingest
+    task's reads and writes. `lib/space/`: `index.ts` (server: dashboard
+    cards, the note page's run state, retry, delete with run cancel and
+    Blob clean-up) and `view.ts` (pure: the note's phase, labels).
+  - Tasks: `ingest-document` takes the private path when the document has
+    an owner; `generate-notes`, `-cards` and `-quiz` accept `{ noteId }`
+    (steps in `trigger/lib/note-content.ts`); `index-note` (queue
+    `note-index`, body `lib/ai/retrieval/index-note.ts`). Every run of a
+    student's upload or podcast carries the owner as its Trigger.dev
+    `concurrencyKey`.
+  - The lesson player's study components take a target instead of a
+    lesson: `QuizTab` (`{courseId, lessonId}` or `{noteId}`), `PodcastTab`
+    (`{lessonId}` or `{noteId}`), `FlashcardDeck` (course fields may be
+    null). `components/space/`: the dialog, note card, export menu, delete
+    button and `SpaceChat`.
+- Coursework (feature 20):
+  - `lib/coursework/`: pure `rules.ts` (due soon, the hand-in window and
+    lock, score parsing, what a student sees), `gradebook.ts` (weights,
+    totals, the table, CSV rows) and `csv.ts` (Excel-safe CSV); and
+    `index.ts` (server: `handIn` checks each file ref against Blob).
+  - `lib/db/assignments.ts` (the assignment, the student's own work, the
+    one-statement hand-in, who may open a submission, the delete guard)
+    and `lib/db/grades.ts` (the queue and grade view with the staff check
+    in SQL, grade statements, gradebook reads, a student's own grades).
+  - Routes: the player's assignment panel (`…/lessons/[lessonId]`,
+    action `assignment-actions.ts`), the lesson editor's Assignment card
+    (its own `assignment-actions.ts`), `/instructor/grading` and
+    `/instructor/grading/[submissionId]`,
+    `/instructor/courses/[id]/gradebook` (+ `/export`, the CSV), `/grades`
+    (student), and `app/submissions/[submissionId]/files/[index]` (the
+    access-checked file redirect).
+  - Components in `components/coursework/`.
+- Communication (feature 21):
+  - Pure modules:
+    - `lib/calendar/`: month grid, day grouping in the reader's zone,
+      the date tile's tone and safe event links.
+    - `lib/notifications/view.ts`: the feed shape, titles, "5 min ago".
+    - `lib/discussions/view.ts`: limits, where a thread opens per role,
+      and the draft "Ask your instructor" starts from.
+  - Data layer. Access is in the SQL of each read:
+    - `lib/db/events.ts`: the calendar reads, and the event statements
+      that the assignment and graded-quiz saves batch.
+    - `lib/db/announcements.ts`: the post plus its fan-out of
+      notifications.
+    - `lib/db/discussions.ts`: threads, replies, the answer mark, the
+      reply notification and "Unanswered questions".
+    - `lib/db/notifications.ts`: the feed, mark read, and the due-soon
+      statement.
+  - `renderPostMarkdown` in `lib/markdown.ts` renders what people write
+    for each other with no raw HTML.
+  - Student routes: `/calendar`, `/discussions`, `/discussions/[id]`
+    (actions in `discussions/actions.ts`, shared by every discussion UI),
+    the course page's Announcements tab and the player's Discussion tab.
+  - Staff routes: the Post announcement dialog and "Unanswered questions"
+    on `/instructor` (`announcement-actions.ts`); `/instructor/messages`
+    and `/instructor/messages/[id]`; the course builder's Calendar tab
+    (`courses/[courseId]/event-actions.ts`).
+  - Components in `components/calendar/`, `components/discussions/`,
+    `components/announcements/` and `components/notifications/` (the
+    bell, placed by `SidebarShell` and `TopNavShell`).
+- Dashboards and admin (feature 22):
+  - Pure modules:
+    - `lib/dashboard/stats.ts`: completion per course and overall, and
+      "oldest waiting".
+    - `lib/analytics/`: the heat-strip, the drop-off point, topics by
+      chapter, the refusal rate.
+    - `lib/roster/`: the CSV parser and per-row checks.
+  - Data layer:
+    - `lib/db/dashboard.ts`: the per-course numbers and 7-day activity,
+      with the staff check in SQL.
+    - `lib/db/analytics.ts`: anonymous watch ranges, question facts,
+      chapters, AI cost.
+    - `lib/db/users.ts`, `terms.ts`, `invitations.ts`.
+    - Audit reads in `lib/db/audit.ts`.
+  - Server modules:
+    - `lib/roster/import.ts`: plan and apply, against the database and
+      Clerk.
+    - `lib/admin/clerk.ts`: find accounts by email, send and revoke
+      invitations, set a role.
+    - `lib/admin/links.ts`: the invitation's sign-up URL.
+  - Routes: `/instructor` (the dashboard), `/instructor/analytics`, and
+    `/admin/users`, `/admin/roster` and `/admin/terms` (each with its
+    `actions.ts`), plus `/admin/audit`.
+  - Components: `components/admin/` (role select, invite dialog, roster
+    import, term controls) and `components/analytics/heat-strip.tsx`.
 - `lib/db/chunks.ts`: `content_chunks` writes (`replaceLessonChunks`,
-  `deleteLessonChunks`) and the search queries, with the access filter
-  inside the SQL (admin, course staff, or active enrollment with course,
-  module and lesson published; or the chunk's owner).
-- `lib/jobs/`: `startJob`, `getJobForViewer` (reconciles with the run),
+  `deleteLessonChunks`, and `replaceNoteChunks` for a private note) and
+  the search queries, with the access filter inside the SQL (admin, course
+  staff, or active enrollment with course, module and lesson published; or
+  the chunk's owner).
+- `lib/ai/retrieval/embed.ts`: the one embedding model and the batched
+  embed loop shared by lesson and note indexing.
+- `lib/jobs/`: `startJob` (optional `concurrencyKey`), `getJobForViewer`
+  (reconciles with the run; a private note's jobs are its owner's only),
+  `latestJobsFor` (one query for a list), `cancelJob`,
   `getJobAccessToken`; `stages.ts` holds stage lists shared with tasks.
 - `lib/ai/usage.ts`: `withUsage(feature, userId, fn)`; the engine's
   `onUsage` hook feeds it.
 - `app/api/blob/upload/`: the `handleUpload` route for client uploads.
 - `proxy.ts`: `clerkMiddleware()`, which redirects signed-out users away
   from app routes. It is not authorization.
+- Hardening (feature 23):
+  - `next.config.ts` sends the security headers. The CSP is an allowlist:
+    Clerk's Frontend API host (from the publishable key), Blob reads and
+    browser uploads, and Trigger.dev Realtime.
+  - `app/api/blob/upload` checks the hourly upload limit
+    (`uploadRateCheck`, counted by `recentUploadCount`) before issuing a
+    token.
+  - `e2e/`: Playwright (demo steps, axe and keyboard, 390px, LCP).
+  - `.github/workflows/ci.yml`: lint, unit tests, build,
+    `npm run check:secrets` (`scripts/check-client-secrets.mjs`).
+  - `context/demo-runbook.md`: how to set up, rehearse and run the demo.
 
 ## Storage Model
 
@@ -339,7 +502,9 @@ their own uploads.
 - Study material (feature 12; every generated row has `videoId` and
   `promptsVersion`, and a `status` that Publish sets):
   - `notes`: one per lesson (`lessonId` unique), or private with
-    `ownerId` (feature 19); block JSON; a heading may carry `startSec`.
+    `ownerId` (feature 19; exactly one of the two, checked); block JSON; a
+    heading may carry `startSec`. A private note's cards and questions have
+    `noteId` and no `lessonId`, and are saved `published` (no review step).
   - `flashcards` (front, back, topic, startSec), and `card_reviews`
     holding FSRS state per (student, card): due, stability (days),
     difficulty, reps, lapses, lastReview, state. No row = new, due now.
@@ -347,32 +512,107 @@ their own uploads.
     correctIndex, explanation, startSec). A question in a graded quiz is
     in the `graded` bank and never served to practice.
   - `graded_quizzes` (lessonId, title, questionIds, dueAt, maxAttempts,
-    points), `quiz_attempts` (userId, lessonId, mode, gradedQuizId,
-    startedAt, submittedAt, score 0–1) and `quiz_answers` (attemptId,
-    questionId, answer, correct). Answers are scored on the server only.
+    points), `quiz_attempts` (userId, lessonId or noteId — exactly one,
+    checked; a private note's practice records the note — mode,
+    gradedQuizId, startedAt, submittedAt, score 0–1) and `quiz_answers`
+    (attemptId, questionId, answer, correct). Answers are scored on the
+    server only.
   - Students see an item only when it is published and the lesson is
     visible to them.
-- Coursework: `assignments`, `submissions`, `grades`.
+- Documents (feature 18): `documents` (lessonId, or ownerId plus noteId for
+  a private upload — the note it became; exactly one of lessonId and
+  ownerId, checked; kind pdf/docx/url/audio/youtube; title, filename, blobUrl,
+  pathname, url, contentType, sizeBytes, pageCount, durationSec, text,
+  parts jsonb of `{text, page?, section?, startSec?, endSec?}`, status
+  uploading/processing/ready/failed, error, createdBy). Students see a
+  ready document once its lesson is visible to them. Files are opened
+  through `/documents/[id]`, which checks access, then redirects.
+- Podcasts (feature 17): `podcasts` (lessonId or noteId, length, script
+  jsonb of `{speaker, text, spoken}` lines, audioUrl, audioPathname,
+  durationSec, status generating/ready/failed, error, sourceHash,
+  promptsVersion, requestedBy). One row per (lesson, length), shared by the
+  course. `sourceHash` (SHA-256 of the published notes it was made from)
+  and `promptsVersion` belong to the stored audio: while both match, the
+  podcast is never made again. A private note's podcast (feature 19) is one
+  row per (note, length), made from the note, its MP3 in
+  `private/{ownerId}/`; the owner may remake it when stale.
+  - Each row also has a `language`: `en` or `hinglish` (Hindi in
+    Devanagari, English terms in Latin letters). The unique keys include
+    it, so every lesson or note has one episode per language.
+  - Each language is made, cached and permissioned on its own. The
+    Podcast tab switches between them.
+- Coursework (feature 20):
+  - `assignments`: one per assignment lesson (lessonId unique):
+    instructions (Markdown), dueAt, points, allowLate, category
+    (homework/project/quiz/exam). The lesson's title is its title.
+  - `submissions`: one per (assignment, student): text, files jsonb of
+    `{url, pathname, name, contentType, size}`, submittedAt, late, status
+    `submitted` (queued) / `graded` (draft grade, staff only) /
+    `returned` (the student sees it). Replaceable until graded. No
+    cascade from assignments: a lesson with work can't be deleted.
+  - `grades`: submissionId or gradedQuizAttemptId (exactly one), userId,
+    score (≤ maxScore, checked), maxScore, feedback (Markdown), gradedBy,
+    gradedAt. Quiz grades aren't stored: the gradebook reads the best
+    attempt × points.
+  - `grade_categories` (courseId, category, weight): no rows = equal
+    weights.
 - Student activity:
   - `watch_progress`: (userId, lessonId) key, positionSec,
     watchedRanges (jsonb, merged `[start, end]` pairs), completedAt
     (90% watched or "Mark complete"; never cleared).
   - `lesson_notes`: userId, lessonId, atSec, text.
-- Communication: `announcements`, `discussions`, `notifications`.
+- Communication (feature 21). Everything belongs to a course and follows
+  its lessons' visibility: staff see all of it; students see it while
+  actively enrolled in the published course, and anything tied to a
+  lesson only while that lesson and its module are published.
+  - `events`: courseId, lessonId (the lesson a due date or quiz belongs
+    to; cascade), kind `due | quiz | live | custom`, title, at, url (an
+    in-app path, or an http(s) link for a live session), sourceId,
+    createdBy.
+    - `due` and `quiz` events are written in the same batch as saving the
+      assignment or creating the graded quiz. There is one event per
+      source (unique `(kind, sourceId)`), so a new due date moves it.
+    - A due event shows its lesson's current title. Staff add `live` and
+      `custom` events by hand.
+  - `announcements`: courseId, authorId, title, body (Markdown),
+    createdAt.
+  - `discussions`: courseId, lessonId (set null if the lesson goes),
+    authorId, title, body, status `open | answered`.
+  - `discussion_replies`: discussionId, authorId, body, isAnswer (at most
+    one per thread: partial unique index), createdAt. Only staff mark the
+    answer, which sets the thread's status.
+  - `notifications`: userId, kind `grade_returned | announcement |
+    discussion_reply | due_soon`, title, url (always an in-app path),
+    readAt, dedupeKey (unique per user; the due-soon task sets it).
+    Personal: only the recipient reads or updates them.
 - Assistant: `chat_threads` (user, course, lesson or null for
-  course-wide, title) and `chat_turns` (role, content with `[S#]` markers,
-  citations jsonb — `[S1]` is `citations[0]` — `refused`,
-  `retrieved_chunk_ids`). Personal; `demo:reset` clears them.
+  course-wide, title; or a private note's chat with `noteId` and no course
+  — exactly one, checked) and `chat_turns` (role, content with `[S#]`
+  markers, citations jsonb — `[S1]` is `citations[0]`, each with its
+  `courseId` — `refused`, `retrieved_chunk_ids`). Personal; `demo:reset`
+  clears them. Analytics over questions (feature 22) must leave out note
+  threads: they are private.
+- Invitations (feature 22): `invitations`: email (lowercase), name, role,
+  courseId and sectionId (null for an invitation to the university with no
+  course), clerkInvitationId, invitedBy, createdAt, acceptedAt. There is
+  one row per (email, course), with `UNIQUE NULLS NOT DISTINCT`. Clerk
+  sends the email and carries the role; this row remembers the courses.
+  The person's first sync (`syncUserFromClerk` → `applyPendingInvitations`)
+  enrolls them (students) or adds them to `course_staff` (instructors),
+  sets `acceptedAt` and writes `invitation.accept` audit rows.
 - Jobs: `jobs` (Trigger.dev run ID, stage, status).
 - Logging: `ai_usage` and `audit_log`.
 
 **pgvector** holds `content_chunks`: text, embedding (`vector(1536)`,
 HNSW cosine), model, a generated `tsv` (GIN), courseId, lessonId/noteId,
-ownerId (for private uploads), kind (`video`/`doc`/`note`), and either
-`startSec`/`endSec` or `page`. Publish (review screen or the builder's
+ownerId (for private uploads), kind (`video`/`doc`/`note`), documentId and
+section (feature 18), and either `startSec`/`endSec` or `page`. A lesson's
+index holds its transcript and every ready document, rebuilt together. Publish (review screen or the builder's
 lesson toggle) queues `index-lesson`; Unpublish deletes the lesson's
 chunks in the same batch. Course or module status needs no clean-up: the
-search's access filter checks them.
+search's access filter checks them. A private note's chunks (feature 19)
+have ownerId and noteId and no course; `index-note` replaces them in one
+batch, and they go with the note.
 
 **Vercel Blob** holds the files:
 
@@ -410,8 +650,21 @@ The database stores only the key, size, MIME type and checksum.
   Presigned video, poster and caption URLs are issued only after that check,
   and they expire.
 - Only a course's instructors and admins can upload, edit, publish or grade.
+- A `course_staff` row grants staff access to its course whatever the
+  person's role. So changing a role (admin Users page, feature 22) changes
+  access too, in the same batch:
+  - Made a student: their `course_staff` rows are deleted.
+  - Made staff from a student: their active enrollments are dropped (kept
+    for audit).
+  - The role is set in Clerk first, then Neon.
 - A student's private uploads, notes, cards, chats and attempts are visible
-  only to them.
+  only to them (feature 19). Every query filters on `ownerId = current
+  user` with **no staff or admin override**: an admin opening
+  `/space/[noteId]` gets a 404, the file route refuses them, their search
+  can't reach the chunks, and they can't watch the note's jobs. Audit rows
+  about private notes carry ids only (no title, file name or Blob URL),
+  because admins read the audit log. Uploads go to `private/{userId}/` only
+  for a document the uploader owns.
 - Authorization happens in the data layer on every query. Clerk's
   `proxy.ts` and hiding things in the UI are conveniences, not security.
 
@@ -432,9 +685,14 @@ The database stores only the key, size, MIME type and checksum.
 7. **Timestamps are kept end to end.** No step may flatten a timestamped
    transcript without keeping the segment table.
 8. **No transcoding.** Only MP4 H.264/AAC is accepted. ffmpeg only remuxes
-   and extracts.
+   and extracts video. (The one encode is a podcast's joined MP3: a few
+   minutes of speech, made on demand.)
 9. **Every AI call is logged in `ai_usage`.** This is logging only; quotas
    and credits are out of scope.
 10. **All rendered Markdown and HTML is sanitized.** User-supplied URLs go
     through the SSRF guard.
 11. **Styling uses `ui-context.md` tokens only.**
+12. **The browser talks only to hosts in the CSP** (`next.config.ts`). A
+    new external host (a CDN, an API called from the client) is added
+    there, or the feature breaks with a console CSP error. Every
+    Playwright test fails on one.

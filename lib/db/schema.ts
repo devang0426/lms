@@ -4,6 +4,7 @@
 import {
   bigint,
   boolean,
+  check,
   customType,
   date,
   doublePrecision,
@@ -16,12 +17,13 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { Block } from "@/lib/ai/types";
+import type { Block, DocPart, PodcastLine } from "@/lib/ai/types";
 import type { ChatCitation } from "@/lib/chat/types";
 
 const timestamps = {
@@ -402,8 +404,10 @@ export const chapters = pgTable(
 );
 
 /* One lesson note per lesson (lessonId unique). Private notes (feature 19)
-   have ownerId set and no lessonId. `blocks` is the editor model from
-   lib/markdown.ts; a heading block may carry `startSec`. */
+   have ownerId set and no lessonId: only their owner ever reads them, and
+   what's made from them (cards, questions, chunks, podcast, chat, the
+   source document) points back with noteId. `blocks` is the editor model
+   from lib/markdown.ts; a heading block may carry `startSec`. */
 export const notes = pgTable(
   "notes",
   {
@@ -416,7 +420,11 @@ export const notes = pgTable(
     ...generated,
     ...timestamps,
   },
-  (t) => [uniqueIndex("notes_lesson_idx").on(t.lessonId), index("notes_owner_idx").on(t.ownerId)],
+  (t) => [
+    uniqueIndex("notes_lesson_idx").on(t.lessonId),
+    index("notes_owner_idx").on(t.ownerId),
+    check("notes_lesson_or_owner", sql`(${t.lessonId} is null) <> (${t.ownerId} is null)`),
+  ],
 );
 
 export const flashcards = pgTable(
@@ -495,6 +503,10 @@ export const contentChunks = pgTable(
     startSec: numeric("start_sec", { precision: 10, scale: 3, mode: "number" }),
     endSec: numeric("end_sec", { precision: 10, scale: 3, mode: "number" }),
     page: integer("page"),
+    /* Document chunks (feature 18): the source file, and the heading of a
+       DOCX or web-page section. */
+    documentId: uuid("document_id").references(() => documents.id, { onDelete: "cascade" }),
+    section: text("section"),
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
     model: text("model").notNull(),
     tsv: tsvector("tsv")
@@ -508,6 +520,7 @@ export const contentChunks = pgTable(
     index("content_chunks_course_idx").on(t.courseId),
     index("content_chunks_owner_idx").on(t.ownerId),
     index("content_chunks_lesson_idx").on(t.lessonId),
+    index("content_chunks_document_idx").on(t.documentId),
   ],
 );
 
@@ -531,14 +544,18 @@ export const chatThreads = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    courseId: uuid("course_id")
-      .notNull()
-      .references(() => courses.id, { onDelete: "cascade" }),
+    /* A course thread; a private note's chat (feature 19) has noteId instead. */
+    courseId: uuid("course_id").references(() => courses.id, { onDelete: "cascade" }),
     lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id").references(() => notes.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("chat_threads_user_idx").on(t.userId, t.courseId, t.createdAt)],
+  (t) => [
+    index("chat_threads_user_idx").on(t.userId, t.courseId, t.createdAt),
+    index("chat_threads_note_idx").on(t.userId, t.noteId, t.createdAt),
+    check("chat_threads_course_or_note", sql`(${t.courseId} is null) <> (${t.noteId} is null)`),
+  ],
 );
 
 export const chatTurns = pgTable(
@@ -624,9 +641,9 @@ export const quizAttempts = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    lessonId: uuid("lesson_id")
-      .notNull()
-      .references(() => lessons.id, { onDelete: "cascade" }),
+    /* A lesson's quiz; practice on a private note (feature 19) sets noteId instead. */
+    lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id").references(() => notes.id, { onDelete: "cascade" }),
     mode: quizModeEnum("mode").notNull(),
     /* Set for graded attempts: the attempt limit counts per quiz. */
     gradedQuizId: uuid("graded_quiz_id").references(() => gradedQuizzes.id, { onDelete: "cascade" }),
@@ -636,7 +653,9 @@ export const quizAttempts = pgTable(
   },
   (t) => [
     index("quiz_attempts_user_lesson_idx").on(t.userId, t.lessonId),
+    index("quiz_attempts_user_note_idx").on(t.userId, t.noteId),
     index("quiz_attempts_graded_idx").on(t.gradedQuizId, t.userId),
+    check("quiz_attempts_lesson_or_note", sql`(${t.lessonId} is null) <> (${t.noteId} is null)`),
   ],
 );
 
@@ -659,5 +678,388 @@ export const quizAnswers = pgTable(
 export type GradedQuiz = typeof gradedQuizzes.$inferSelect;
 export type QuizAttemptRow = typeof quizAttempts.$inferSelect;
 
+/* ---- Podcasts (feature 17) -------------------------------------------------
+   A two-voice audio conversation, made only when someone asks, then shared
+   by everyone who can see the lesson. One row per (lesson, length,
+   language): English, or Hinglish (Hindi in Devanagari mixed with English
+   terms). Private notes (feature 19) use noteId instead. `sourceHash` and `promptsVersion`
+   describe the audio that is stored and change only when new audio is
+   saved, so a regeneration that fails leaves the old episode playable.
+   `status` is the latest generation's state. */
+
+export const podcastLengthEnum = pgEnum("podcast_length", ["short", "medium", "long"]);
+export type PodcastLength = (typeof podcastLengthEnum.enumValues)[number];
+export const podcastLanguageEnum = pgEnum("podcast_language", ["en", "hinglish"]);
+export type PodcastLanguage = (typeof podcastLanguageEnum.enumValues)[number];
+export const podcastStatusEnum = pgEnum("podcast_status", ["generating", "ready", "failed"]);
+export type PodcastStatus = (typeof podcastStatusEnum.enumValues)[number];
+
+export const podcasts = pgTable(
+  "podcasts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id").references(() => notes.id, { onDelete: "cascade" }),
+    length: podcastLengthEnum("length").notNull(),
+    language: podcastLanguageEnum("language").notNull().default("en"),
+    script: jsonb("script").$type<PodcastLine[]>().notNull().default([]),
+    audioUrl: text("audio_url"),
+    audioPathname: text("audio_pathname"),
+    durationSec: numeric("duration_sec", { precision: 10, scale: 3, mode: "number" }),
+    status: podcastStatusEnum("status").notNull().default("generating"),
+    error: text("error"),
+    sourceHash: text("source_hash"),
+    promptsVersion: integer("prompts_version"),
+    /* Who asked for the latest generation; its AI cost is logged to them. */
+    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("podcasts_lesson_length_language_idx").on(t.lessonId, t.length, t.language),
+    uniqueIndex("podcasts_note_length_language_idx").on(t.noteId, t.length, t.language),
+  ],
+);
+
+export type PodcastRow = typeof podcasts.$inferSelect;
+
 export type ChatThread = typeof chatThreads.$inferSelect;
 export type ChatTurn = typeof chatTurns.$inferSelect;
+
+/* ---- Documents (feature 18) -------------------------------------------------
+   A PDF, DOCX, web page, recording or YouTube video attached to a lesson
+   (or, in feature 19, owned by a student: the source of one private note,
+   `noteId`, and readable only by its owner). The task extracts its text into
+   `parts` (per page, section or time), which retrieval chunks and citations
+   point back to. On a reading lesson the documents are the source of the
+   AI drafts; on other lessons they are resources. Students see a document
+   once it's ready and the lesson is visible to them. */
+
+export const documentKindEnum = pgEnum("document_kind", ["pdf", "docx", "url", "audio", "youtube"]);
+export type DocumentKind = (typeof documentKindEnum.enumValues)[number];
+export const documentStatusEnum = pgEnum("document_status", ["uploading", "processing", "ready", "failed"]);
+export type DocumentStatus = (typeof documentStatusEnum.enumValues)[number];
+
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "cascade" }),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id").references(() => notes.id, { onDelete: "cascade" }),
+    kind: documentKindEnum("kind").notNull(),
+    /* Shown in Resources and in citation chips: "Week 2 slides · p. 7". */
+    title: text("title").notNull(),
+    filename: text("filename"),
+    blobUrl: text("blob_url"),
+    pathname: text("pathname"),
+    /* The source link for url and youtube documents. */
+    url: text("url"),
+    contentType: text("content_type"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    pageCount: integer("page_count"),
+    durationSec: numeric("duration_sec", { precision: 10, scale: 3, mode: "number" }),
+    text: text("text").notNull().default(""),
+    parts: jsonb("parts").$type<DocPart[]>().notNull().default([]),
+    status: documentStatusEnum("status").notNull().default("uploading"),
+    error: text("error"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [
+    index("documents_lesson_idx").on(t.lessonId, t.createdAt),
+    index("documents_owner_idx").on(t.ownerId),
+    index("documents_note_idx").on(t.noteId),
+    check("documents_lesson_or_owner", sql`(${t.lessonId} is null) <> (${t.ownerId} is null)`),
+  ],
+);
+
+export type DocumentRow = typeof documents.$inferSelect;
+
+/* ---- Coursework (feature 20) ------------------------------------------------
+   An assignment lesson has one `assignments` row (its instructions, due
+   date and points). A student hands in once per assignment and may replace
+   the submission until it's graded; `late` is decided by the server clock
+   when it's handed in. Files go straight from the browser to Blob under
+   submissions/{assignmentId}/{userId}/ and are opened only through
+   /submissions/[id]/files/[n], which checks access first.
+
+   Status: `submitted` waits in the grading queue; `graded` has a draft
+   grade the student can't see yet; `returned` means the grade and feedback
+   are the student's to read. Submissions and grades are never deleted by
+   the app (the lesson can't be deleted while it has any), only by
+   demo:reset. A quiz's grade is its best attempt × points, read from
+   quiz_attempts; `gradedQuizAttemptId` is there for a grade row an
+   instructor sets on an attempt (not built yet). */
+
+export const assignmentCategoryEnum = pgEnum("assignment_category", ["homework", "project", "quiz", "exam"]);
+export type AssignmentCategory = (typeof assignmentCategoryEnum.enumValues)[number];
+export const ASSIGNMENT_CATEGORIES = assignmentCategoryEnum.enumValues;
+
+export const submissionStatusEnum = pgEnum("submission_status", ["submitted", "graded", "returned"]);
+export type SubmissionStatus = (typeof submissionStatusEnum.enumValues)[number];
+
+/* A file handed in with a submission. `name` is the student's own file
+   name, shown in the grade view; the pathname is checked on hand-in. */
+export interface SubmissionFile {
+  url: string;
+  pathname: string;
+  name: string;
+  contentType: string;
+  size: number;
+}
+
+export const assignments = pgTable(
+  "assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    /* Markdown, rendered sanitized. */
+    instructions: text("instructions").notNull().default(""),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    points: integer("points").notNull(),
+    allowLate: boolean("allow_late").notNull().default(false),
+    category: assignmentCategoryEnum("category").notNull().default("homework"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("assignments_lesson_idx").on(t.lessonId)],
+);
+
+export const submissions = pgTable(
+  "submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /* No cascade: deleting an assignment that has work fails. */
+    assignmentId: uuid("assignment_id")
+      .notNull()
+      .references(() => assignments.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    text: text("text").notNull().default(""),
+    files: jsonb("files").$type<SubmissionFile[]>().notNull().default([]),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+    late: boolean("late").notNull().default(false),
+    status: submissionStatusEnum("status").notNull().default("submitted"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("submissions_assignment_user_idx").on(t.assignmentId, t.userId),
+    index("submissions_user_idx").on(t.userId),
+    index("submissions_queue_idx").on(t.status, t.submittedAt),
+  ],
+);
+
+export const grades = pgTable(
+  "grades",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    submissionId: uuid("submission_id").references(() => submissions.id, { onDelete: "cascade" }),
+    gradedQuizAttemptId: uuid("graded_quiz_attempt_id").references(() => quizAttempts.id, { onDelete: "cascade" }),
+    /* The student the grade belongs to. */
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    score: numeric("score", { precision: 8, scale: 2, mode: "number" }).notNull(),
+    /* The points it was out of when graded. */
+    maxScore: integer("max_score").notNull(),
+    /* Markdown, rendered sanitized. */
+    feedback: text("feedback").notNull().default(""),
+    gradedBy: uuid("graded_by").references(() => users.id, { onDelete: "set null" }),
+    gradedAt: timestamp("graded_at", { withTimezone: true }).notNull().defaultNow(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("grades_submission_idx").on(t.submissionId),
+    uniqueIndex("grades_quiz_attempt_idx").on(t.gradedQuizAttemptId),
+    index("grades_user_idx").on(t.userId),
+    check("grades_one_source", sql`num_nonnulls(${t.submissionId}, ${t.gradedQuizAttemptId}) = 1`),
+    check("grades_score_range", sql`${t.score} >= 0 and ${t.score} <= ${t.maxScore}`),
+  ],
+);
+
+/* Category weights for a course's gradebook total. The scheme is still an
+   open question, so a course without rows weighs its categories equally. */
+export const gradeCategories = pgTable(
+  "grade_categories",
+  {
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    category: assignmentCategoryEnum("category").notNull(),
+    weight: numeric("weight", { precision: 6, scale: 2, mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.courseId, t.category] }), check("grade_categories_weight", sql`${t.weight} >= 0`)],
+);
+
+export type Assignment = typeof assignments.$inferSelect;
+export type Submission = typeof submissions.$inferSelect;
+export type Grade = typeof grades.$inferSelect;
+
+/* ---- Communication (feature 21) ----------------------------------------------
+   The course's time and social layer. Everything here belongs to a course,
+   and is read through the same rule as its lessons: course staff (admins
+   included) see all of it; a student sees it while actively enrolled in
+   the published course, and, for something tied to a lesson, only while
+   that lesson and its module are published. Checked in the SQL of
+   lib/db/events.ts, announcements.ts and discussions.ts. */
+
+export const eventKindEnum = pgEnum("event_kind", ["due", "live", "quiz", "custom"]);
+export type EventKind = (typeof eventKindEnum.enumValues)[number];
+
+/* A dated entry on the course calendar. `due` and `quiz` are written by
+   saving an assignment or creating a graded quiz (sourceId = the
+   assignment or graded quiz, one event each); `live` (an external meeting
+   link) and `custom` are added by staff. `lessonId` is the lesson a due
+   date or quiz belongs to: its visibility gates the event, and deleting
+   the lesson deletes it. `url` is an in-app path, or an https link. */
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "cascade" }),
+    kind: eventKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    url: text("url"),
+    sourceId: uuid("source_id"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("events_course_at_idx").on(t.courseId, t.at), uniqueIndex("events_source_idx").on(t.kind, t.sourceId)],
+);
+
+/* Posted by course staff; enrolled students read them on the course page
+   and get a notification. `body` is Markdown, rendered without raw HTML. */
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("announcements_course_idx").on(t.courseId, t.createdAt)],
+);
+
+export const discussionStatusEnum = pgEnum("discussion_status", ["open", "answered"]);
+export type DiscussionStatus = (typeof discussionStatusEnum.enumValues)[number];
+
+/* A question thread in a course, optionally about one lesson. The whole
+   class can read and reply; only staff mark a reply as the answer, which
+   makes the thread `answered` (an open thread is an "unanswered
+   question"). Deleting the lesson keeps the thread in the course. */
+export const discussions = pgTable(
+  "discussions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    lessonId: uuid("lesson_id").references(() => lessons.id, { onDelete: "set null" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    status: discussionStatusEnum("status").notNull().default("open"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("discussions_course_idx").on(t.courseId, t.createdAt),
+    index("discussions_lesson_idx").on(t.lessonId),
+    index("discussions_author_idx").on(t.authorId),
+  ],
+);
+
+/* At most one reply per thread is the answer (partial unique index). */
+export const discussionReplies = pgTable(
+  "discussion_replies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    discussionId: uuid("discussion_id")
+      .notNull()
+      .references(() => discussions.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    isAnswer: boolean("is_answer").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("discussion_replies_discussion_idx").on(t.discussionId, t.createdAt),
+    uniqueIndex("discussion_replies_one_answer_idx").on(t.discussionId).where(sql`is_answer`),
+  ],
+);
+
+export const notificationKindEnum = pgEnum("notification_kind", ["grade_returned", "announcement", "discussion_reply", "due_soon"]);
+export type NotificationKind = (typeof notificationKindEnum.enumValues)[number];
+
+/* In-app only (no email, no push). Personal: only the recipient reads
+   them. `url` is always an in-app path. `dedupeKey` marks a notice that
+   must not be sent twice (the daily due-soon run): unique per user. */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: notificationKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    dedupeKey: text("dedupe_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("notifications_user_idx").on(t.userId, t.createdAt),
+    uniqueIndex("notifications_user_dedupe_idx").on(t.userId, t.dedupeKey),
+  ],
+);
+
+export type CalendarEventRow = typeof events.$inferSelect;
+export type Announcement = typeof announcements.$inferSelect;
+export type Discussion = typeof discussions.$inferSelect;
+export type DiscussionReply = typeof discussionReplies.$inferSelect;
+export type NotificationRow = typeof notifications.$inferSelect;
+
+/* ---- Invitations (feature 22) ------------------------------------------------
+   Someone invited from the Users page or a roster import who has no
+   account yet. Clerk sends the invitation (with the role in its public
+   metadata); this row remembers what they were invited to. When they first
+   sign in, syncUserFromClerk turns their pending rows into enrollments
+   (students) or course_staff rows (instructors) and sets acceptedAt. One
+   row per (email, course); courseId is null for an invitation to the
+   university with no course. Emails are stored lowercase. */
+
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    role: roleEnum("role").notNull(),
+    courseId: uuid("course_id").references(() => courses.id, { onDelete: "cascade" }),
+    sectionId: uuid("section_id").references(() => sections.id, { onDelete: "cascade" }),
+    clerkInvitationId: text("clerk_invitation_id"),
+    invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  },
+  (t) => [unique("invitations_email_course_key").on(t.email, t.courseId).nullsNotDistinct(), index("invitations_email_idx").on(t.email)],
+);
+
+export type Invitation = typeof invitations.$inferSelect;
