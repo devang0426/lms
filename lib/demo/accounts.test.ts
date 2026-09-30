@@ -19,4 +19,12 @@ describe("demo passcode", () => {
     vi.stubEnv("DEMO_PASSCODE", "open-sesame-42");
     expect(demoPasscode()).toBe("open-sesame-42");
   });
+
+  it("is off when the demo is public, even with a passcode left set", () => {
+    vi.stubEnv("DEMO_PASSCODE", "open-sesame-42");
+    vi.stubEnv("DEMO_PUBLIC", "true");
+    expect(demoPasscode()).toBeNull();
+    vi.stubEnv("DEMO_PUBLIC", "false");
+    expect(demoPasscode()).toBe("open-sesame-42");
+  });
 });

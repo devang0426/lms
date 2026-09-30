@@ -355,6 +355,12 @@ S1):
     compares it in constant time before minting a sign-in ticket.
   - The demo password isn't shown on the page, since typing it into the
     normal form would get round the passcode.
+- **Open on purpose (2026-09-30, owner's call):** `DEMO_PUBLIC=true`
+  lifts the passcode, on production too, and wins over a `DEMO_PASSCODE`
+  left set. The picker then shows the demo email and password and signs
+  in with one click, so anyone with the link is the demo admin. What
+  bounds it: the rules below, and the daily AI limit per person (staff
+  $3, student $0.25 by default; `lib/ai/budget.ts`).
 - **No lasting access:** while demo mode is on, role changes, invitations
   and roster **Import** are refused ("Turned off in demo mode."). Roster
   **Check file** still works. So a visitor can't promote an account of
@@ -383,3 +389,4 @@ S1):
 | Open sign-up: restricting it is a Clerk dashboard setting, not enforced in code | Owner decision (report.md §11) |
 | The `dev-test` upload kind is admin-only but still accepted in production | Small follow-up |
 | In demo mode anyone can be the admin, and Delete user still works on accounts that aren't the demo ones (the spec protects only those) | Owner decision (progress tracker, open questions) |
+| With `DEMO_PUBLIC=true` the demo has no passcode at all: anyone with the link signs in as the demo admin | Owner decision (2026-09-30): easy sign-in for the demo. `demo:reset` puts the data back |

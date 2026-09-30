@@ -29,8 +29,24 @@ Update this file after every meaningful implementation change.
   `npm run check:secrets` locally before pushing.
   - The GitHub repo was deleted and recreated the same day (same name,
     public) to drop Claude from its contributors; the history was pushed
-    again. Reconnect the Vercel project to the new repo if it was linked
-    to the old one.
+    again.
+- **First Vercel deployment (2026-09-30):**
+  https://lms-two-alpha-92.vercel.app, imported from the new repo, so each
+  push to `main` deploys.
+  - The first build crashed at startup on every page
+    (`MIDDLEWARE_INVOCATION_FAILED`): the variables were `.env.local`'s,
+    with `DEMO_MODE=true` and no passcode, and `NEXT_PUBLIC_APP_URL` was
+    `http://localhost:3000`.
+  - `.env.vercel` (gitignored) is the reference set for the deployment.
+    Local-only variables (`FFMPEG_PATH`, `FFPROBE_PATH`, `DEMO_DB_HOSTS`)
+    are left out.
+  - **Open demo (owner's call):** new `DEMO_PUBLIC=true` lifts the
+    production passcode, so the picker shows the demo email and password
+    with one-click sign-in (`lib/env.ts`, `lib/demo/accounts.ts`;
+    `security-architecture.md` §13).
+  - Still to do: the Clerk webhook for the deployed URL, and the
+    Trigger.dev prod deploy and key. The dev key runs jobs only while the
+    local worker is up.
 - **Production-readiness audit (2026-09-29).** The full report is
   `report.md` at the repo root. Its findings became features 24–33 (see
   Next Up → Phase 7).

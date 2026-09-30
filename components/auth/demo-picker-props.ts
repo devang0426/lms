@@ -6,7 +6,8 @@ import type { DemoAccountCard } from "./demo-account-picker";
 /* What the demo picker shows, or null when DEMO_MODE isn't "true", so the
    demo credentials never reach a page otherwise. Behind a passcode
    (feature 24) the password isn't shown either: with it, anyone could
-   type their way past the passcode in the normal form. Used by the
+   type their way past the passcode in the normal form. With
+   DEMO_PUBLIC=true there's no passcode, so the password shows. Used by the
    sign-in page and the landing page's "Try the demo" (feature 34). */
 export function demoPickerProps(): { accounts: DemoAccountCard[]; needsPasscode: boolean } | null {
   if (!isDemoMode()) return null;

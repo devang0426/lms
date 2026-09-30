@@ -28,6 +28,7 @@ export const ENV_VARS = {
   DEMO_MODE: { required: false, schema: z.enum(["true", "false"], { error: 'must be "true" or "false"' }) },
   DEMO_ACCOUNT_PASSWORD: { required: false, schema: text },
   DEMO_PASSCODE: { required: false, schema: text.min(8, "must be at least 8 characters") },
+  DEMO_PUBLIC: { required: false, schema: z.enum(["true", "false"], { error: 'must be "true" or "false"' }) },
   DEMO_DB_HOSTS: { required: false, schema: text },
   VERCEL_ENV: { required: false, schema: z.enum(["production", "preview", "development"]) },
   // Neon
@@ -81,9 +82,11 @@ export function blobStoreHost(token: string): string | null {
   return id ? `${id.toLowerCase()}.public.blob.vercel-storage.com` : null;
 }
 
-/* Demo mode is on a production deployment only behind a passcode (S1). */
+/* Demo mode is on a production deployment only behind a passcode (S1),
+   unless the owner opens it on purpose with DEMO_PUBLIC=true: then the
+   picker shows the demo password and signs in with one click. */
 export function demoPasscodeRequired(env: Env): boolean {
-  return set(env, "DEMO_MODE") === "true" && set(env, "VERCEL_ENV") === "production";
+  return set(env, "DEMO_MODE") === "true" && set(env, "VERCEL_ENV") === "production" && set(env, "DEMO_PUBLIC") !== "true";
 }
 
 export function checkEnv(env: Env): EnvCheck {

@@ -104,6 +104,13 @@ describe("checkEnv (feature 24)", () => {
       expect(demoPasscodeRequired({ ...base, VERCEL_ENV: "production" })).toBe(false);
     });
 
+    it("needs no passcode in production when the demo is opened on purpose", () => {
+      expect(demoPasscodeRequired({ ...demo, VERCEL_ENV: "production", DEMO_PUBLIC: "true" })).toBe(false);
+      expect(checkEnv({ ...demo, VERCEL_ENV: "production", DEMO_PUBLIC: "true" })).toEqual({ ok: true });
+      expect(demoPasscodeRequired({ ...demo, VERCEL_ENV: "production", DEMO_PUBLIC: "false" })).toBe(true);
+      expect(problems({ ...demo, DEMO_PUBLIC: "yes" })[0]).toMatch(/^DEMO_PUBLIC must be "true" or "false"/);
+    });
+
     it("wants the demo password, and a passcode long enough to resist guessing", () => {
       expect(problems({ ...base, DEMO_MODE: "true" })).toEqual(["DEMO_ACCOUNT_PASSWORD is missing (needed while DEMO_MODE=true)"]);
       expect(problems({ ...demo, DEMO_PASSCODE: "1234" })[0]).toMatch(/^DEMO_PASSCODE must be at least 8 characters/);

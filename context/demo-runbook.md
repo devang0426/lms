@@ -36,6 +36,11 @@ Do this once, and again only if something below changes.
        running or watching the demo.
      - While demo mode is on, role changes, invitations and roster Import
        are turned off.
+     - For easy sign-in instead, set `DEMO_PUBLIC=true` (the owner's
+       choice for the current deployment, 2026-09-30). There's no
+       passcode then: the picker shows the demo email and password and
+       signs in with one click, for anyone with the link. The landing
+       page's "Try the demo" is built with it, so redeploy after changing it.
    - `NEXT_PUBLIC_APP_URL`: the deployment's URL. Invitation links are
      built from it, and so are the landing page's share image, sitemap
      and `robots.txt`.

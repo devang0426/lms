@@ -9,8 +9,9 @@ import type { Role } from "@/lib/db/schema";
    development instances.
 
    Feature 24 (S1): with DEMO_PASSCODE set (required on a production
-   deployment; lib/env.ts refuses to start without it), the picker asks for
-   it and no ticket is minted without it. While demo mode is on, nothing
+   deployment unless DEMO_PUBLIC=true; lib/env.ts refuses to start without
+   it), the picker asks for it and no ticket is minted without it. While
+   demo mode is on, nothing
    can grant lasting access: role changes, invitations and roster import
    are refused with DEMO_MODE_REFUSAL. */
 
@@ -53,8 +54,11 @@ export function isDemoMode(): boolean {
   return process.env.DEMO_MODE === "true";
 }
 
-/* The passcode the picker asks for, or null when none is set (local dev). */
+/* The passcode the picker asks for, or null when none is set (local dev)
+   or the demo is open on purpose (DEMO_PUBLIC=true), which wins over a
+   passcode left set. */
 export function demoPasscode(): string | null {
+  if (process.env.DEMO_PUBLIC === "true") return null;
   return process.env.DEMO_PASSCODE?.trim() || null;
 }
 
