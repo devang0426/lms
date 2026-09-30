@@ -633,8 +633,9 @@ instructor". The cost is logged as `space-chat`.
     (`uploadRateCheck`, counted by `recentUploadCount`) before issuing a
     token.
   - `e2e/`: Playwright (demo steps, axe and keyboard, 390px, LCP).
-  - `.github/workflows/ci.yml`: lint, unit tests, build,
-    `npm run check:secrets` (`scripts/check-client-secrets.mjs`).
+  - `npm run check:secrets` (`scripts/check-client-secrets.mjs`): the
+    client-bundle scan, run locally after a build. There's no CI; Vercel
+    builds each push to `main` (removed 2026-09-30, owner's call).
   - `context/demo-runbook.md`: how to set up, rehearse and run the demo.
 - Security lockdown (feature 24; the whole model is in
   `security-architecture.md`):

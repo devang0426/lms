@@ -106,9 +106,9 @@ Run `npm run demo:reset` before the end-to-end suite: it walks through the
 demo and expects the seeded state. The options (live uploads, podcast
 generation, LCP budget) are in `e2e/README.md`.
 
-CI (`.github/workflows/ci.yml`) runs lint, unit tests, the build and the
-secret check on every push and pull request. It needs the repository
-secrets listed at the top of that file.
+There's no CI. Vercel builds and deploys each push to `main`. Before
+pushing, run `npm run lint`, `npm test`, `npm run build` and
+`npm run check:secrets` locally.
 
 ## Project layout
 
@@ -129,7 +129,8 @@ context/      product, architecture and standards docs, feature specs, progress 
   ownership for private material. `proxy.ts` only redirects signed-out
   visitors.
 - Secrets stay on the server (`lib/ai`, `lib/db`, `lib/auth` and
-  `lib/storage` are server-only), and CI checks the browser bundle.
+  `lib/storage` are server-only), and `npm run check:secrets` checks the
+  browser bundle after a build.
 - Uploads go straight from the browser to Blob with per-kind type and size
   rules, and a per-person hourly limit.
 - Web pages are fetched only through an SSRF guard. Everything people

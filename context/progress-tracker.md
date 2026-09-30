@@ -19,10 +19,18 @@ Update this file after every meaningful implementation change.
   step now has its screens.
 - Feature 23 (hardening and demo polish) is in progress. All the local
   work is done and verified: Playwright, security headers, rate limits,
-  accessibility, mobile, performance, CI config and the runbook. Still to
-  do are the steps on the owner's accounts: the deployment (Vercel, a Neon
+  accessibility, mobile, performance and the runbook. Still to do are
+  the steps on the owner's accounts: the deployment (Vercel, a Neon
   `demo` branch, the Trigger.dev prod deploy, the Blob region), a
-  walk-through on the deployed URL, two rehearsals, and pushing for CI.
+  walk-through on the deployed URL and two rehearsals.
+- **CI removed (2026-09-30, owner's call).** `.github/workflows/ci.yml`
+  is gone: Vercel builds and deploys each push to `main`, and GitHub
+  Actions isn't used. Run lint, unit tests, the build and
+  `npm run check:secrets` locally before pushing.
+  - The GitHub repo was deleted and recreated the same day (same name,
+    public) to drop Claude from its contributors; the history was pushed
+    again. Reconnect the Vercel project to the new repo if it was linked
+    to the old one.
 - **Production-readiness audit (2026-09-29).** The full report is
   `report.md` at the repo root. Its findings became features 24–33 (see
   Next Up → Phase 7).
@@ -2629,8 +2637,8 @@ Update this file after every meaningful implementation change.
     - Upload rate limit: students 30 an hour, staff 120, checked before a
       Blob token.
     - CI (`.github/workflows/ci.yml`): lint, unit tests, build, secret
-      check. The e2e job on demand was removed on 2026-09-30 (owner's
-      call: no e2e in CI); the suite runs locally.
+      check. Removed entirely on 2026-09-30 (owner's call: Vercel builds
+      on push); these checks and the e2e suite run locally.
   - **Accessibility:**
     - Captions on by default.
     - The player is a tab stop with its keys described.
@@ -2670,8 +2678,8 @@ Update this file after every meaningful implementation change.
   - **Still to do** (needs the owner's accounts and go-ahead): the
     deployment per the runbook's one-time setup, a walk-through on the
     deployed URL (Playwright can't sign in behind the demo passcode, and
-    the owner doesn't want e2e in CI), two rehearsals with `demo:reset` in
-    between, and a push so CI runs (with the repository secrets set).
+    the owner doesn't want CI), and two rehearsals with `demo:reset` in
+    between.
 
 - **Running cost at demo usage (2026-09-29, for feature 23):**
   - **OpenRouter (from `ai_usage`):** $0.1436 for all 330 AI calls since
@@ -3151,8 +3159,6 @@ are in `features/`.
     - A Blob store in `iad1`.
     - `npm run trigger:deploy` and the Trigger.dev prod env vars.
     - The Clerk webhook.
-  - **Push** to GitHub, and set the repository secrets listed in
-    `.github/workflows/ci.yml`, so CI runs.
   - **Rehearse twice** with `npm run demo:reset` in between. The
     Playwright suite runs locally only.
 - **Feature 23 decisions to confirm:**

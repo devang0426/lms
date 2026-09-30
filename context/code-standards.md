@@ -410,8 +410,8 @@ Count the round trips a page makes before it can render.
 - An intentionally unused name starts with `_`; ESLint ignores it.
 - Give reasoning models room: never set a tiny `maxTokens` on
   `complete()`.
-- Use in-memory fakes for Engine and db in unit tests. Never call real
-  providers in CI.
+- Use in-memory fakes for Engine and db in unit tests. Unit tests never
+  call real providers.
 - Use Playwright for the success-criteria flows in `project-overview.md`
   (`e2e/`, see its README). Select by role and accessible name, as a
   screen reader would. A test that changes demo content must restore it

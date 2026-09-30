@@ -44,7 +44,7 @@ npm run e2e:report          # open the last HTML report
 
 The tests sign in through the demo picker, so they can't run against a
 server with `DEMO_PASSCODE` set (every production deployment with demo
-mode on, feature 24). They aren't part of CI.
+mode on, feature 24). They run locally only.
 
 They use installed Google Chrome (the lecture is H.264, which Playwright's
 own Chromium can't play). Set `E2E_CHANNEL` to use another browser channel.

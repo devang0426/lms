@@ -330,7 +330,8 @@ may read text written to look like instructions. The defences:
   `lib/storage` import `server-only`. A client component can't import
   them.
 - **Bundle scan:** `npm run check:secrets` scans `.next/static` after a
-  build for the real values and the key shapes. CI runs it.
+  build for the real values and the key shapes. Run it locally after a
+  build; there's no CI.
 - **Errors show a reference, not details** (feature 30): an error page
   shows only Next's digest, and a failed server action says "Something
   went wrong. Try again. (ref ab12cd)". The details go to one JSON log
@@ -368,8 +369,8 @@ S1):
   database URL points at a host in `DEMO_DB_HOSTS`, and it checks before
   touching anything.
 - **Tests:** the Playwright suite signs in through the picker, so it runs
-  only against a server without a passcode (a local build). It isn't
-  part of CI.
+  only against a server without a passcode (a local build). It runs
+  locally only.
 
 ## Known gaps
 

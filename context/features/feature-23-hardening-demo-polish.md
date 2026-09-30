@@ -1,8 +1,9 @@
 # Feature 23: Hardening and demo polish
 
 **Status:** In progress (2026-09-29). Everything that runs locally is
-done and verified. The deployment, the run against the deployed URL, the
-two rehearsals and CI on GitHub are still to do (see "As built" below).
+done and verified. The deployment, the run against the deployed URL and the
+two rehearsals are still to do (see "As built" below). CI was dropped
+(2026-09-30).
 **Depends on:** all previous features
 **Demo step:** all
 
@@ -70,10 +71,9 @@ are tracked in `../progress-tracker.md`.
 - [x] Monthly running cost at demo usage is logged in
       `progress-tracker.md`: free tiers plus the OpenRouter spend from
       `ai_usage`.
-- [ ] `npm run build` passes in CI. (The workflow is in
-      `.github/workflows/ci.yml`: lint, 339 unit tests, build and the
-      secret check, all passing locally. It runs once the branch is pushed
-      and the repository secrets are set.)
+- ~~`npm run build` passes in CI.~~ Dropped (owner's call, 2026-09-30):
+      no CI. Vercel builds each push to `main`; lint, unit tests, build
+      and the secret check run locally.
 
 ## As built
 
