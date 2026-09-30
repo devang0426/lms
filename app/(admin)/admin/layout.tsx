@@ -1,19 +1,20 @@
 import { SidebarShell } from "@/components/shell/sidebar-shell";
 import { toMenuUser } from "@/components/shell/shell-user";
-import { Badge } from "@/components/ui";
 import { requireAreaRole } from "@/lib/auth";
 import { isDemoMode } from "@/lib/demo/accounts";
 
-/* Admin area: admins only. Anyone else goes to their own home. */
+/* Admin area: admins only. Anyone else goes to their own home. The
+   Teaching / Admin switch says which side this is (feature 28). */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAreaRole("admin");
   return (
     <SidebarShell
-      areas={["instructor", "admin"]}
+      areas={["admin"]}
       homeHref="/instructor"
       user={toMenuUser(user)}
       demoMode={isDemoMode()}
-      badge={<Badge tone="neutral" size="md">Admin</Badge>}
+      areaSwitch
+      viewAsStudent
     >
       {children}
     </SidebarShell>

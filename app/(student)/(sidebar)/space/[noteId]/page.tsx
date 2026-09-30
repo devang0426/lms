@@ -1,4 +1,4 @@
-import { ArrowLeft, ExternalLink, RotateCcw } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,8 +7,10 @@ import { StudyNotes } from "@/components/player/study-notes";
 import { PageHeader } from "@/components/shell/page-header";
 import { DeleteNoteButton } from "@/components/space/delete-note-button";
 import { NoteExport } from "@/components/space/note-export";
+import { RetryNoteButton } from "@/components/space/retry-note-button";
 import { SpaceChat } from "@/components/space/space-chat";
 import { FlashcardDeck } from "@/components/study/flashcard-deck";
+import { renderCards } from "@/components/study/render-cards";
 import { PodcastTab } from "@/components/study/podcast-tab";
 import { QuizTab } from "@/components/study/quiz-tab";
 import { Button, Card, EmptyState, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
@@ -113,11 +115,7 @@ export default async function NotePage({ params }: PageProps<"/space/[noteId]">)
           <p role="alert" className="m-0 text-small text-clay-ink">
             {state.error ?? "This note couldn't be made."}
           </p>
-          <form action={retry}>
-            <Button type="submit" variant="secondary" size="sm" leading={<Icon icon={RotateCcw} size={16} />}>
-              Try again
-            </Button>
-          </form>
+          <RetryNoteButton retry={retry} />
         </div>
       ) : state.phase === "uploading" ? (
         <Card className="gap-1">
@@ -153,7 +151,7 @@ export default async function NotePage({ params }: PageProps<"/space/[noteId]">)
         <TabsContent value="flashcards">
           <div className="w-full max-w-[760px]">
             <FlashcardDeck
-              cards={deck.cards}
+              cards={renderCards(deck.cards)}
               total={deck.total}
               nextDueAt={deck.nextDueAt}
               emptyText="Your flashcards appear here once your notes are written."

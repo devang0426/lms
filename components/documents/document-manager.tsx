@@ -33,7 +33,18 @@ const statusBadge: Record<DocumentView["status"], { tone: BadgeTone; label: stri
   failed: { tone: "new", label: "Failed" },
 };
 
-export function DocumentManager({ lessonId, documents, reading }: { lessonId: string; documents: EditorDocumentView[]; reading: boolean }) {
+export function DocumentManager({
+  lessonId,
+  documents,
+  reading,
+  video,
+}: {
+  lessonId: string;
+  documents: EditorDocumentView[];
+  reading: boolean;
+  /* A video lesson takes the lecture itself; any other points to one (feature 27). */
+  video: boolean;
+}) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const { state, start, reset } = useBlobUpload();
@@ -80,6 +91,14 @@ export function DocumentManager({ lessonId, documents, reading }: { lessonId: st
     });
   }
 
+  function retry(documentId: string) {
+    setError(null);
+    startTransition(async () => {
+      const res = await retryDocument({ lessonId, documentId });
+      if (!res.ok) setError(res.error.message);
+    });
+  }
+
   const uploading = state.phase === "uploading";
   const shownError = error ?? (state.phase === "error" ? state.message : null);
 
@@ -112,7 +131,8 @@ export function DocumentManager({ lessonId, documents, reading }: { lessonId: st
                       size="xs"
                       variant="quiet"
                       leading={<Icon icon={RotateCcw} size={14} />}
-                      onClick={() => startTransition(() => retryDocument({ lessonId, documentId: doc.id }))}
+                      disabled={pending}
+                      onClick={() => retry(doc.id)}
                     >
                       Try again
                     </Button>
@@ -210,7 +230,9 @@ export function DocumentManager({ lessonId, documents, reading }: { lessonId: st
         </Button>
       </form>
       <p className="m-0 text-meta text-ink-soft">
-        YouTube often blocks servers; if a video can&apos;t be read, upload the video or its audio instead.
+        {video
+          ? "YouTube often blocks servers; if a video can't be read, upload the video or its audio instead."
+          : "YouTube often blocks servers; if a video can't be read, upload its audio instead. For a lecture video, create a Video lesson."}
       </p>
 
       {shownError && (

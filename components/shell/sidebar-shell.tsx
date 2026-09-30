@@ -1,23 +1,36 @@
+import { Eye } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { UserMenu, type MenuUser } from "@/components/auth/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { Logo } from "@/components/ui";
+import { Icon, Logo } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { MobileMenu } from "./mobile-menu";
-import type { NavArea } from "./nav-config";
-import { SidebarNav, StudentTabBar } from "./sidebar-nav";
+import { VIEW_AS_STUDENT_HREF, type NavArea } from "./nav-config";
+import { AreaSwitch, SidebarNav, StudentTabBar } from "./sidebar-nav";
+import { StudentViewBanner } from "./student-view-banner";
 
 /* The app shell for student, instructor and admin areas
    (ui-context.md → Layout Patterns). Desktop: 248px Oat sidebar with logo,
    nav, optional notice card and the user block. Below 768px the sidebar
-   collapses: students get the bottom tab bar, staff get a menu button. */
+   collapses: students get the bottom tab bar, staff get a menu button.
+
+   Feature 28:
+   - `areaSwitch`: an admin's Teaching / Admin switch at the top, in place
+     of the badge.
+   - `viewAsStudent`: staff get "View as student" in the footer and the
+     account menu.
+   - `staffView`: a staff member on the student pages gets the Student view
+     banner and "Teaching home". */
 export function SidebarShell({
   areas,
   homeHref,
   user,
   demoMode,
   badge,
+  areaSwitch = false,
+  viewAsStudent = false,
+  staffView = false,
   notice,
   tabBar = false,
   children,
@@ -27,10 +40,14 @@ export function SidebarShell({
   user: MenuUser;
   demoMode: boolean;
   badge?: ReactNode;
+  areaSwitch?: boolean;
+  viewAsStudent?: boolean;
+  staffView?: boolean;
   notice?: ReactNode;
   tabBar?: boolean;
   children: ReactNode;
 }) {
+  const menu = { user, demoMode, viewAsStudent, profile: tabBar && !staffView };
   return (
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col gap-8 overflow-y-auto bg-oat px-4 pt-7 pb-5 md:flex">
@@ -41,12 +58,21 @@ export function SidebarShell({
             </Link>
             <NotificationBell align="start" />
           </div>
-          {badge}
+          {areaSwitch ? <AreaSwitch /> : badge}
         </div>
-        <SidebarNav areas={areas} />
+        <SidebarNav areas={areas} staff={staffView} />
         <div className="mt-auto flex flex-col gap-4">
           {notice}
-          <UserMenu user={user} demoMode={demoMode} />
+          {viewAsStudent && (
+            <Link
+              href={VIEW_AS_STUDENT_HREF}
+              className="flex h-10 items-center gap-3 rounded-xl px-3.5 text-small text-ink-soft no-underline hover:bg-paper/60 hover:text-ink"
+            >
+              <Icon icon={Eye} size={16} />
+              View as student
+            </Link>
+          )}
+          <UserMenu {...menu} />
         </div>
       </aside>
 
@@ -56,14 +82,15 @@ export function SidebarShell({
             <Link href={homeHref} aria-label="Studyhall home" className="text-ink no-underline hover:text-ink">
               <Logo size="sm" />
             </Link>
-            {badge}
+            {!areaSwitch && badge}
           </span>
           <span className="flex items-center gap-2">
             <NotificationBell />
-            {!tabBar && <MobileMenu areas={areas} />}
-            <UserMenu user={user} demoMode={demoMode} variant="avatar" />
+            {!tabBar && <MobileMenu areas={areas} areaSwitch={areaSwitch} viewAsStudent={viewAsStudent} />}
+            <UserMenu {...menu} variant="avatar" />
           </span>
         </header>
+        {staffView && <StudentViewBanner />}
 
         <main
           className={cn(
@@ -74,7 +101,7 @@ export function SidebarShell({
           {children}
         </main>
 
-        {tabBar && <StudentTabBar className="fixed inset-x-0 bottom-0 z-30 md:hidden" />}
+        {tabBar && <StudentTabBar staff={staffView} className="fixed inset-x-0 bottom-0 z-30 md:hidden" />}
       </div>
     </div>
   );

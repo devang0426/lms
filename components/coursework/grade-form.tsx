@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { saveGrade } from "@/app/(instructor)/instructor/grading/[submissionId]/actions";
 import { Button, Field, Input, Textarea, toast } from "@/components/ui";
 import type { SubmissionStatus } from "@/lib/db/schema";
+import { settle } from "@/lib/utils/action-result";
 
 /* Score and feedback for one submission (feature 20). "Save and next"
    returns the grade to the student and opens the next submission in the
@@ -36,7 +37,7 @@ export function GradeForm({
     setError(null);
     setPendingAction(returnToStudent ? "return" : "draft");
     startSaving(async () => {
-      const res = await saveGrade({ submissionId, score, feedback, returnToStudent });
+      const res = await settle(saveGrade({ submissionId, score, feedback, returnToStudent }));
       if (!res.ok) {
         setPendingAction(null);
         return setError(res.error.message);

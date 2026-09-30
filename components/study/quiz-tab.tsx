@@ -3,21 +3,33 @@
 import { useState } from "react";
 import {
   loadPractice,
+  reviewGraded,
   savePractice,
   startGraded,
   submitGraded,
 } from "@/app/(student)/(focus)/courses/[courseId]/lessons/[lessonId]/quiz-actions";
 import { loadNotePractice, saveNotePractice } from "@/app/(student)/(sidebar)/space/[noteId]/actions";
 import { Badge, Button, ChipGroup, Eyebrow } from "@/components/ui";
-import { isCorrect, type GradedQuizSummary, type PracticeQuestion, type QuestionView, type QuizLevel, type TopicMasteryView } from "@/lib/study/quiz";
+import {
+  answersRevealed,
+  isCorrect,
+  type AnswerFeedback,
+  type GradedQuizSummary,
+  type PracticeQuestion,
+  type QuestionView,
+  type QuizLevel,
+  type TopicMasteryView,
+} from "@/lib/study/quiz";
+import { settle } from "@/lib/utils/action-result";
 import { MasteryBars } from "./mastery-bars";
-import { QuizRunner, type Answers, type FinishResult } from "./quiz-runner";
+import { QuizResults, QuizRunner, type Answers, type FinishResult } from "./quiz-runner";
 
 /* The lesson player's Quiz tab (feature 16): practice at three levels,
    the lesson's graded quizzes, and mastery by topic. Questions load only
-   when a quiz starts; a graded quiz's questions arrive without answers.
-   A private note (feature 19) gets the same tab with practice and mastery
-   only, saved through its own actions. */
+   when a quiz starts; a graded quiz's questions arrive without answers,
+   and its correct answers only after the due date ("Review answers",
+   feature 24). A private note (feature 19) gets the same tab with
+   practice and mastery only, saved through its own actions. */
 
 export type QuizTarget = { courseId: string; lessonId: string } | { noteId: string };
 
@@ -30,7 +42,8 @@ const LEVELS: { value: QuizLevel; label: string }[] = [
 type View =
   | { kind: "home" }
   | { kind: "practice"; level: QuizLevel; questions: PracticeQuestion[] }
-  | { kind: "graded"; quiz: GradedQuizSummary; attemptId: string; questions: QuestionView[] };
+  | { kind: "graded"; quiz: GradedQuizSummary; attemptId: string; questions: QuestionView[] }
+  | { kind: "review"; quiz: GradedQuizSummary; score: number; questions: QuestionView[]; feedback: AnswerFeedback[] };
 
 const toList = (answers: Answers) =>
   Object.entries(answers)
@@ -54,12 +67,12 @@ export function QuizTab({
   const practice =
     "noteId" in target
       ? {
-          load: (level: QuizLevel) => loadNotePractice({ noteId: target.noteId, level }),
-          save: (answers: ReturnType<typeof toList>) => saveNotePractice({ noteId: target.noteId, answers }),
+          load: (level: QuizLevel) => settle(loadNotePractice({ noteId: target.noteId, level })),
+          save: (answers: ReturnType<typeof toList>) => settle(saveNotePractice({ noteId: target.noteId, answers })),
         }
       : {
-          load: (level: QuizLevel) => loadPractice({ lessonId: target.lessonId, level }),
-          save: (answers: ReturnType<typeof toList>) => savePractice({ lessonId: target.lessonId, answers }),
+          load: (level: QuizLevel) => settle(loadPractice({ lessonId: target.lessonId, level })),
+          save: (answers: ReturnType<typeof toList>) => settle(savePractice({ lessonId: target.lessonId, answers })),
         };
   const firstLevel = LEVELS.find((l) => levelCounts[l.value] > 0)?.value ?? "basic";
   const [level, setLevel] = useState<QuizLevel>(firstLevel);
@@ -106,7 +119,7 @@ export function QuizTab({
         lessonId={lesson.lessonId}
         onClose={home}
         onFinish={async (answers): Promise<FinishResult> => {
-          const res = await submitGraded({ lessonId: lesson.lessonId, attemptId: view.attemptId, answers: toList(answers) });
+          const res = await settle(submitGraded({ lessonId: lesson.lessonId, attemptId: view.attemptId, answers: toList(answers) }));
           if (!res.ok) return { ok: false, message: res.error.message };
           setMastery(res.data.mastery);
           setGraded((list) =>
@@ -116,6 +129,20 @@ export function QuizTab({
           );
           return { ok: true, score: res.data.score, feedback: res.data.feedback };
         }}
+      />
+    );
+  }
+
+  if (view.kind === "review" && lesson) {
+    return (
+      <QuizResults
+        title={`${view.quiz.title} · Your best attempt`}
+        score={view.score}
+        feedback={view.feedback}
+        questions={view.questions}
+        courseId={lesson.courseId}
+        lessonId={lesson.lessonId}
+        onClose={home}
       />
     );
   }
@@ -152,7 +179,24 @@ export function QuizTab({
                   </div>
                   <div className="flex items-center gap-2">
                     {g.best !== null && <Badge tone="success">Best {Math.round(g.best * 100)}%</Badge>}
-                    {closed ? (
+                    {closed && g.best !== null && answersRevealed(g.dueAt, now) && !preview ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={busy === g.id}
+                        disabled={Boolean(busy)}
+                        onClick={async () => {
+                          setBusy(g.id);
+                          setError(null);
+                          const res = await settle(reviewGraded({ lessonId: lesson.lessonId, quizId: g.id }));
+                          setBusy(null);
+                          if (!res.ok) return setError(res.error.message);
+                          setView({ kind: "review", quiz: g, ...res.data });
+                        }}
+                      >
+                        Review answers
+                      </Button>
+                    ) : closed ? (
                       <Badge tone="neutral">Closed</Badge>
                     ) : used ? (
                       <Badge tone="neutral">No attempts left</Badge>
@@ -166,7 +210,7 @@ export function QuizTab({
                         onClick={async () => {
                           setBusy(g.id);
                           setError(null);
-                          const res = await startGraded({ lessonId: lesson.lessonId, quizId: g.id });
+                          const res = await settle(startGraded({ lessonId: lesson.lessonId, quizId: g.id }));
                           setBusy(null);
                           if (!res.ok) return setError(res.error.message);
                           setGraded((list) =>

@@ -10,12 +10,14 @@ import { courseIdForLesson, getCourseAccess } from "@/lib/db/courses";
 import { canonicalYoutubeUrl } from "@/lib/ai/ingest/youtube";
 import { createDocument, getDocument } from "@/lib/db/documents";
 import { documents, lessons, type User } from "@/lib/db/schema";
-import { retryDocumentIngest, startLinkIngest } from "@/lib/documents";
+import { retryDocumentIngest, START_FAILED, startLinkIngest } from "@/lib/documents";
 import { checkUrl, SafeFetchError } from "@/lib/net/safe-fetch";
 import { deleteBlobs } from "@/lib/storage/blob";
 import { blobPaths, documentKindFor, UPLOAD_KINDS } from "@/lib/storage/upload-kinds";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 import { getVideo, prepareVideoRow, retryVideoProcessingRun, startLessonIndexing } from "@/lib/video/lessons";
+import { videoFileProblem } from "@/lib/video/upload-check";
 
 /* Lesson editor: video uploads (feature 10) and documents (feature 18). zod → course staff → write
    (+ audit) → revalidate, like the builder's actions. */
@@ -32,14 +34,16 @@ async function asLessonStaff(lessonId: string): Promise<{ user: User; courseId: 
 
 const prepareSchema = z.object({
   lessonId: z.uuid(),
-  file: z.object({ name: z.string().max(300), size: z.number().int().positive(), type: z.string().max(100) }),
+  file: z.object({ name: z.string().max(300), size: z.number().int().nonnegative(), type: z.string().max(100) }),
 });
 
-/* Before the browser uploads: check the file's declared type and size and
-   create the videos row the upload is recorded against. */
-export async function prepareVideoUpload(
+/* Before the browser uploads: check the file (the uploader's own check,
+   videoFileProblem: a .mp4 passes whatever type the browser reports, and
+   ffprobe checks the codecs afterwards) and create the videos row the
+   upload is recorded against. */
+export const prepareVideoUpload = safeAction("prepareVideoUpload", async (
   input: z.input<typeof prepareSchema>,
-): Promise<ActionResult<{ videoId: string; pathname: string }>> {
+): Promise<ActionResult<{ lessonId: string; videoId: string; pathname: string }>> => {
   const parsed = prepareSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", "That file couldn't be read.");
   const { lessonId, file } = parsed.data;
@@ -49,10 +53,8 @@ export async function prepareVideoUpload(
 
   const [lesson] = await db.select({ kind: lessons.kind }).from(lessons).where(eq(lessons.id, lessonId));
   if (lesson?.kind !== "video") return fail("invalid", "Only video lessons take a video upload.");
-  if (file.type !== "video/mp4") return fail("invalid", "Please upload an MP4 (H.264) file.");
-  if (file.size > UPLOAD_KINDS["lesson-video"].maxBytes) {
-    return fail("invalid", "This video is over 2 GB. Export it at 720p or a lower bitrate.");
-  }
+  const problem = videoFileProblem(file);
+  if (problem) return fail("invalid", problem);
 
   const video = await prepareVideoRow(lessonId, staff.user.id);
   await auditInsert({
@@ -62,19 +64,26 @@ export async function prepareVideoUpload(
     entityId: lessonId,
     data: { videoId: video.id, name: file.name, size: file.size },
   });
-  return ok({ videoId: video.id, pathname: blobPaths.videoSource(lessonId) });
-}
+  return ok({ lessonId, videoId: video.id, pathname: blobPaths.videoSource(lessonId) });
+});
 
-/* Start a fresh processing run for a video that failed (not rejected). */
-export async function retryVideo(videoId: string): Promise<void> {
+/* Start a fresh processing run for a video that failed (not rejected). If
+   the run can't be queued, the video stays failed and the message says so
+   (feature 26). */
+export const retryVideo = safeAction("retryVideo", async (videoId: string): Promise<ActionResult> => {
+  if (!z.uuid().safeParse(videoId).success) return fail("invalid", "That video couldn't be found.");
   const video = await getVideo(videoId);
-  if (!video || video.status !== "failed") return;
+  if (!video) return fail("not_found", "That video couldn't be found.");
   const staff = await asLessonStaff(video.lessonId);
-  if ("ok" in staff) return;
-  await retryVideoProcessingRun(video, staff.user.id);
-  await auditInsert({ actorId: staff.user.id, action: "video.retry", entityType: "lesson", entityId: video.lessonId, data: { videoId } });
+  if ("ok" in staff) return staff;
+  if (video.status !== "failed") return fail("conflict", "Only a video whose processing stopped can be tried again.");
+  const started = await retryVideoProcessingRun(video, staff.user.id);
+  if (started.ok) {
+    await auditInsert({ actorId: staff.user.id, action: "video.retry", entityType: "lesson", entityId: video.lessonId, data: { videoId } });
+  }
   revalidatePath(`/instructor/courses/${staff.courseId}/lessons/${video.lessonId}`);
-}
+  return started;
+});
 
 /* ---- Documents (feature 18) ------------------------------------------------
    PDF, Word and recordings upload straight to Blob like videos; web pages
@@ -86,9 +95,9 @@ const docFileSchema = z.object({
   file: z.object({ name: z.string().min(1).max(300), size: z.number().int().positive(), type: z.string().max(120) }),
 });
 
-export async function prepareDocumentUpload(
+export const prepareDocumentUpload = safeAction("prepareDocumentUpload", async (
   input: z.input<typeof docFileSchema>,
-): Promise<ActionResult<{ documentId: string; pathname: string }>> {
+): Promise<ActionResult<{ documentId: string; pathname: string }>> => {
   const parsed = docFileSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", "That file couldn't be read.");
   const { lessonId, file } = parsed.data;
@@ -112,11 +121,11 @@ export async function prepareDocumentUpload(
   });
   await auditInsert({ actorId: staff.user.id, action: "document.upload_started", entityType: "lesson", entityId: lessonId, data: { documentId: doc.id, name: file.name, kind } });
   return ok({ documentId: doc.id, pathname });
-}
+});
 
 const linkSchema = z.object({ lessonId: z.uuid(), url: z.string().trim().min(1, "Paste a link first.").max(2000) });
 
-export async function addDocumentLink(input: z.input<typeof linkSchema>): Promise<ActionResult> {
+export const addDocumentLink = safeAction("addDocumentLink", async (input: z.input<typeof linkSchema>): Promise<ActionResult> => {
   const parsed = linkSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "That link couldn't be read.");
   const { lessonId } = parsed.data;
@@ -143,25 +152,30 @@ export async function addDocumentLink(input: z.input<typeof linkSchema>): Promis
   await startLinkIngest(doc, staff.user.id);
   revalidatePath(`/instructor/courses/${staff.courseId}/lessons/${lessonId}`);
   return ok();
-}
+});
 
 const docRef = z.object({ lessonId: z.uuid(), documentId: z.uuid() });
 
-export async function retryDocument(input: z.input<typeof docRef>): Promise<void> {
+/* A fresh run for a document whose reading failed. If the run can't be
+   queued, the document stays failed and the message says so (feature 30). */
+export const retryDocument = safeAction("retryDocument", async (input: z.input<typeof docRef>): Promise<ActionResult> => {
   const parsed = docRef.safeParse(input);
-  if (!parsed.success) return;
+  if (!parsed.success) return fail("invalid", "That document couldn't be found.");
   const staff = await asLessonStaff(parsed.data.lessonId);
-  if ("ok" in staff) return;
+  if ("ok" in staff) return staff;
   const doc = await getDocument(parsed.data.documentId);
-  if (!doc || doc.lessonId !== parsed.data.lessonId) return;
-  await retryDocumentIngest(doc, staff.user.id);
-  await auditInsert({ actorId: staff.user.id, action: "document.retry", entityType: "lesson", entityId: doc.lessonId, data: { documentId: doc.id } });
+  if (!doc || doc.lessonId !== parsed.data.lessonId) return fail("not_found", "That document couldn't be found.");
+  const started = await retryDocumentIngest(doc, staff.user.id);
+  if (started) {
+    await auditInsert({ actorId: staff.user.id, action: "document.retry", entityType: "lesson", entityId: doc.lessonId, data: { documentId: doc.id } });
+  }
   revalidatePath(`/instructor/courses/${staff.courseId}/lessons/${doc.lessonId}`);
-}
+  return started ? ok() : fail("conflict", START_FAILED);
+});
 
 /* Removes the document, its file and its passages. A published lesson is
    re-indexed; drafts made from it stay until they're regenerated. */
-export async function removeDocument(input: z.input<typeof docRef>): Promise<ActionResult> {
+export const removeDocument = safeAction("removeDocument", async (input: z.input<typeof docRef>): Promise<ActionResult> => {
   const parsed = docRef.safeParse(input);
   if (!parsed.success) return fail("invalid", "That document couldn't be found.");
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -177,7 +191,7 @@ export async function removeDocument(input: z.input<typeof docRef>): Promise<Act
   if (lesson?.status === "published") await startLessonIndexing(removed.lessonId!, staff.user.id);
   revalidatePath(`/instructor/courses/${staff.courseId}/lessons/${parsed.data.lessonId}`);
   return ok();
-}
+});
 
 function titleFromFileName(name: string): string {
   return name.replace(/\.[^./\]+$/, "").replace(/[_-]+/g, " ").trim().slice(0, 120) || "Document";

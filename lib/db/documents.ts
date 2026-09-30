@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import type { DocPart } from "@/lib/ai/types";
 import { db } from "./client";
 import { getLessonForUser, type Viewer } from "./courses";
@@ -100,20 +100,20 @@ const summaryColumns = {
 
 /* The lesson's documents, without their text. Students get ready ones
    only. Call after getLessonForUser has let the viewer into the lesson. */
-export async function lessonDocuments(lessonId: string, opts: { readyOnly: boolean }): Promise<DocumentSummary[]> {
-  const rows = await db
+export function lessonDocumentsQuery(lessonId: string, opts: { readyOnly: boolean }) {
+  return db
     .select(summaryColumns)
     .from(documents)
     .where(and(eq(documents.lessonId, lessonId), opts.readyOnly ? eq(documents.status, "ready") : undefined))
     .orderBy(asc(documents.createdAt));
+}
+
+export function toDocumentSummaries(rows: Awaited<ReturnType<typeof lessonDocumentsQuery>>): DocumentSummary[] {
   return rows.map(({ blobUrl, ...r }) => ({ ...r, hasFile: Boolean(blobUrl) }));
 }
 
-/* Titles for citation labels. The chunks were already access-checked. */
-export async function documentTitles(ids: string[]): Promise<Map<string, string>> {
-  if (ids.length === 0) return new Map();
-  const rows = await db.select({ id: documents.id, title: documents.title }).from(documents).where(inArray(documents.id, ids));
-  return new Map(rows.map((r) => [r.id, r.title]));
+export async function lessonDocuments(lessonId: string, opts: { readyOnly: boolean }): Promise<DocumentSummary[]> {
+  return toDocumentSummaries(await lessonDocumentsQuery(lessonId, opts));
 }
 
 /* The document, if this viewer may open it: its owner, or anyone who can

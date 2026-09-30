@@ -6,6 +6,7 @@ import { createGradedQuiz } from "@/app/(instructor)/instructor/courses/[courseI
 import { Badge, Button, Card, Field, Input, toast } from "@/components/ui";
 import { renderRichInline } from "@/lib/markdown";
 import type { QuizLevel } from "@/lib/study/quiz";
+import { settle } from "@/lib/utils/action-result";
 import { cn } from "@/lib/utils/cn";
 
 /* "Create graded quiz from bank" (feature 16). The instructor picks
@@ -66,14 +67,16 @@ export function GradedQuizForm({
     const dueDate = new Date(due);
     if (Number.isNaN(dueDate.getTime())) return setError("Pick a due date and time.");
     startSaving(async () => {
-      const res = await createGradedQuiz({
-        lessonId,
-        title,
-        dueAt: dueDate.toISOString(),
-        maxAttempts: Number(attempts),
-        points: Number(points),
-        questionIds: questions.filter((q) => picked.has(q.id)).map((q) => q.id),
-      });
+      const res = await settle(
+        createGradedQuiz({
+          lessonId,
+          title,
+          dueAt: dueDate.toISOString(),
+          maxAttempts: Number(attempts),
+          points: Number(points),
+          questionIds: questions.filter((q) => picked.has(q.id)).map((q) => q.id),
+        }),
+      );
       if (!res.ok) return setError(res.error.message);
       toast.success("Graded quiz created. Students see it in the lesson's Quiz tab.");
       router.push(backHref);

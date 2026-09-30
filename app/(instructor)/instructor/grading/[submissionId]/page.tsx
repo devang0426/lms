@@ -1,13 +1,12 @@
 import "katex/dist/katex.min.css";
 
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GradeForm } from "@/components/coursework/grade-form";
 import { LocalDate } from "@/components/coursework/local-date";
 import { SubmittedWork } from "@/components/coursework/submitted-work";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { PageHeader } from "@/components/shell/page-header";
-import { Badge, Card, Icon } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
 import { requireAreaRole } from "@/lib/auth";
 import { formatPoints } from "@/lib/coursework/rules";
 import { isUuid } from "@/lib/db/courses";
@@ -28,10 +27,16 @@ export default async function GradeSubmissionPage({ params }: PageProps<"/instru
 
   return (
     <>
-      <Link href="/instructor/grading" className="flex items-center gap-2 text-small text-ink-soft no-underline hover:text-ink">
-        <Icon icon={ArrowLeft} size={16} />
-        Grading queue
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Grading", href: "/instructor/grading" },
+          {
+            label: `${sub.course.code} · ${sub.assignment.title}`,
+            href: `/instructor/courses/${sub.course.id}/lessons/${sub.assignment.lessonId}`,
+          },
+          { label: sub.student.name },
+        ]}
+      />
       <PageHeader
         eyebrow={`${sub.course.code} · ${sub.assignment.title}`}
         title={sub.student.name}

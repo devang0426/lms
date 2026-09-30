@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { answer, answerStream, QUESTION_LIMIT, QUESTION_LIMIT_MESSAGE } from "@/lib/ai/assistant";
+import { checkBudget } from "@/lib/ai/budget";
 import { getCurrentUser } from "@/lib/auth";
-import { addUserTurn, countRecentQuestions, ensureThread, listTurns } from "@/lib/db/chat";
+import { reserveQuestion } from "@/lib/db/chat";
 import { getOwnedNote } from "@/lib/db/space";
 
 /* The private space's chat (feature 19): a note's Chat tab. The same
@@ -12,8 +13,9 @@ import { getOwnedNote } from "@/lib/db/space";
    no model call when nothing relevant is found.
 
    zod body → signed in → the note must be the caller's own (anyone else,
-   admins included, gets a 404) → the shared rate limit → the question is
-   saved on the note's thread → the answer streams back. */
+   admins included, gets a 404) → the daily AI limit → the question is
+   saved on the note's thread if it's under the shared question limit (one
+   locked batch, feature 25) → the answer streams back. */
 
 const body = z.object({
   noteId: z.uuid(),
@@ -23,6 +25,10 @@ const body = z.object({
 });
 
 const json = (status: number, message: string) => Response.json({ error: message }, { status });
+
+/* Vercel Hobby's ceiling; the answer stops at 240 s first (answerStream,
+   feature 30). */
+export const maxDuration = 300;
 
 export async function POST(request: Request): Promise<Response> {
   // Same-origin only (CSRF): a page on another site can't ask as this user.
@@ -43,25 +49,27 @@ export async function POST(request: Request): Promise<Response> {
   if (!user) return json(401, "Your session has ended. Sign in again.");
   if (!(await getOwnedNote(noteId, user.id))) return json(404, "Not found.");
 
-  const [recent, threadId] = await Promise.all([
-    countRecentQuestions(user.id, QUESTION_LIMIT.minutes),
-    ensureThread({ userId: user.id, noteId }, parsed.data.threadId, question),
-  ]);
-  if (recent >= QUESTION_LIMIT.questions) return json(429, QUESTION_LIMIT_MESSAGE);
-  const history = await listTurns(threadId, user.id);
-  await addUserTurn(threadId, question);
+  const budget = await checkBudget(user, { feature: "space-chat", entityType: "note", entityId: noteId });
+  if (!budget.ok) return json(429, budget.message);
+  const reserved = await reserveQuestion({ scope: { userId: user.id, noteId }, threadId: parsed.data.threadId, question, limit: QUESTION_LIMIT });
+  if (!reserved) return json(429, QUESTION_LIMIT_MESSAGE);
+  const { threadId, history } = reserved;
 
-  return answerStream(threadId, (on) =>
-    answer({
-      user,
-      subject: { kind: "space", withCourses: includeCourses },
-      scope: includeCourses ? { ownerId: user.id, withCourses: true } : { ownerId: user.id },
-      threadId,
-      question,
-      history,
-      mode: "answer",
-      onDelta: on.delta,
-      onReset: on.reset,
-    }),
+  return answerStream(
+    threadId,
+    (on) =>
+      answer({
+        user,
+        subject: { kind: "space", withCourses: includeCourses },
+        scope: includeCourses ? { ownerId: user.id, withCourses: true } : { ownerId: user.id },
+        threadId,
+        question,
+        history,
+        mode: "answer",
+        onDelta: on.delta,
+        onReset: on.reset,
+        signal: on.signal,
+      }),
+    { route: "/api/space/chat", userId: user.clerkId },
   );
 }

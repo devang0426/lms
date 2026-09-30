@@ -56,6 +56,34 @@ one-click picker does not need it.
 | 22 | [Dashboards and admin](feature-22-dashboards-admin.md) | 1 |
 | 23 | [Hardening and demo polish](feature-23-hardening-demo-polish.md) | all |
 
+### Production readiness (features 24–33)
+
+These features come from the production-readiness audit in `report.md` at
+the repo root (2026-09-29). Each spec names the finding IDs it fixes.
+
+They are **software-only**. While the app runs on free tiers, none of them
+changes infrastructure or plans. The infrastructure items are listed in
+`../progress-tracker.md` under "Deferred until paid plans".
+
+| # | Feature | Priority |
+| - | ------- | -------- |
+| 24 | [Security lockdown](feature-24-security-lockdown.md) | P0 |
+| 25 | [AI spend guardrails](feature-25-ai-spend-guardrails.md) | P0 |
+| 26 | [Job recovery and clean-up](feature-26-job-recovery-cleanup.md) | P0 |
+| 27 | [Course-building flow (instructor)](feature-27-course-building-flow.md) | P1 |
+| 28 | [Navigation and wayfinding](feature-28-navigation-wayfinding.md) | P1 |
+| 29 | [Performance (software only)](feature-29-performance.md) | P1 |
+| 30 | [Error handling and resilience](feature-30-error-handling-resilience.md) | P1 |
+| 31 | [Learners and progress pages](feature-31-learners-progress.md) | P1 |
+| 32 | ~~[Private messages](feature-32-private-messages.md)~~ | Parked: removed from the plan for now (2026-09-30) |
+| 33 | [Data export and account deletion](feature-33-data-export-deletion.md) | P1 |
+| 34 | [Public landing page](feature-34-landing-page.md) | new |
+| 35 | [Course deletion](feature-35-course-deletion.md) | new (owner's request, 2026-09-30) |
+
+Features 24, 25 and 26 come first: fix them before anyone outside the
+team gets the URL. Feature 29 depends only on 24, so it can run alongside
+27 and 28.
+
 The seed script from feature 03 **grows with later features**. Feature 07
 adds the demo course. Feature 12 adds a pre-processed lecture. Feature 20
 adds an assignment with a submission. With all of that, the demo can run

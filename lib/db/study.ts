@@ -1,9 +1,10 @@
 import "server-only";
 
 import { and, asc, eq, gt, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { cache } from "react";
 import { asFsrsCard, type StudyCard } from "@/lib/study/cards";
 import { newCardState, reviewCard, type Rating } from "@/lib/study/fsrs";
-import { db } from "./client";
+import { db, type BatchRows } from "./client";
 import { cardReviews, courses, flashcards, lessons, modules, notes, type CardState } from "./schema";
 
 /* Flashcard review (feature 15). Every query decides visibility in SQL: a
@@ -136,28 +137,51 @@ export interface StudyQueue {
   cards: StudyCard[];
   /* All live cards in the scope, due or not. */
   total: number;
+  /* Cards due now (`cards` holds at most the limit of them). */
+  due: number;
   /* When the next card comes due, if none is due now. */
   nextDueAt: number | null;
 }
 
-/* The due cards plus what the empty state needs, in one round trip. */
-export async function studyQueue(userId: string, scope: StudyScope, limit: number): Promise<StudyQueue> {
-  const counted = db
-    .select({ n: sql<number>`count(*)`.mapWith(Number), next: sql<Date | null>`min(${cardReviews.due})` })
-    .from(flashcards)
-    .innerJoin(lessons, eq(lessons.id, flashcards.lessonId))
-    .innerJoin(modules, eq(modules.id, lessons.moduleId))
-    .innerJoin(courses, eq(courses.id, modules.courseId))
-    .leftJoin(cardReviews, and(review(userId), gt(cardReviews.due, sql`now()`)))
-    .where(visibleTo(userId, scope));
-  const [rows, [agg]] = await db.batch([
-    visibleCards(userId).where(and(visibleTo(userId, scope), isDue)).orderBy(...ORDER).limit(limit),
-    counted,
-  ]);
+/* The cards in `deck` due now (in `order`), and the deck's size, due count
+   and next due time, as two statements for the caller's batch. A card
+   with no review due later is due now, which is what `due` counts. */
+function queueQueries(userId: string, deck: SQL, due: SQL | undefined, order: SQL[], limit: number) {
+  return [
+    visibleCards(userId).where(and(deck, due)).orderBy(...order).limit(limit),
+    db
+      .select({
+        n: sql<number>`count(*)`.mapWith(Number),
+        due: sql<number>`count(*) filter (where ${cardReviews.cardId} is null)`.mapWith(Number),
+        next: sql<Date | null>`min(${cardReviews.due})`,
+      })
+      .from(flashcards)
+      .innerJoin(lessons, eq(lessons.id, flashcards.lessonId))
+      .innerJoin(modules, eq(modules.id, lessons.moduleId))
+      .innerJoin(courses, eq(courses.id, modules.courseId))
+      .leftJoin(cardReviews, and(review(userId), gt(cardReviews.due, sql`now()`)))
+      .where(deck),
+  ] as const;
+}
+
+export function toStudyQueue([rows, [agg]]: BatchRows<ReturnType<typeof queueQueries>>): StudyQueue {
   const now = Date.now();
   const cards = rows.map((r) => toStudyCard(r, now));
   const next = agg?.next ? new Date(agg.next).getTime() : null;
-  return { cards, total: agg?.n ?? 0, nextDueAt: cards.length === 0 ? next : null };
+  return { cards, total: agg?.n ?? 0, due: agg?.due ?? 0, nextDueAt: cards.length === 0 ? next : null };
+}
+
+export async function studyQueue(userId: string, scope: StudyScope, limit: number): Promise<StudyQueue> {
+  return toStudyQueue(await db.batch(queueQueries(userId, visibleTo(userId, scope), isDue, ORDER, limit)));
+}
+
+/* The lesson player's Flashcards tab, for its batch (feature 29): the
+   student's due cards, or for a staff preview the whole deck in lesson
+   order, all new and unsaved (the page checked staff access first). */
+export function lessonDeckQueries(userId: string, lessonId: string, preview: boolean, limit: number) {
+  return preview
+    ? queueQueries(userId, eq(flashcards.lessonId, lessonId), undefined, [asc(flashcards.position)], limit)
+    : queueQueries(userId, visibleTo(userId, { lessonId }), isDue, ORDER, limit);
 }
 
 /* studyQueue for a private note's deck (feature 19), its owner's only. */
@@ -179,11 +203,17 @@ export async function noteStudyQueue(userId: string, noteId: string, limit: numb
   const now = Date.now();
   const cards = rows.map((r) => toStudyCard(r, now));
   const next = agg?.next ? new Date(agg.next).getTime() : null;
-  return { cards, total: agg?.n ?? 0, nextDueAt: cards.length === 0 ? next : null };
+  return { cards, total: agg?.n ?? 0, due: cards.length, nextDueAt: cards.length === 0 ? next : null };
 }
 
-/* Due counts per enrolled course (the /study filters and the sidebar notice). */
-export async function dueCountsByCourse(userId: string): Promise<{ courseId: string; code: string; title: string; due: number }[]> {
+export interface DueCount {
+  courseId: string;
+  code: string;
+  title: string;
+  due: number;
+}
+
+function dueCountsQuery(userId: string) {
   return db
     .select({
       courseId: courses.id,
@@ -199,6 +229,32 @@ export async function dueCountsByCourse(userId: string): Promise<{ courseId: str
     .where(and(visibleTo(userId, {}), isDue))
     .groupBy(courses.id, courses.code, courses.title)
     .orderBy(asc(courses.code));
+}
+
+/* Due counts per enrolled course (the /study filters and the sidebar
+   notice), read once per request (feature 29): the first caller's read is
+   shared, including one made inside /study's batch (loadStudyPage). */
+const dueCountsRead = cache((_userId: string): { counts: Promise<DueCount[]> | null } => ({ counts: null }));
+
+export function dueCountsByCourse(userId: string): Promise<DueCount[]> {
+  const read = dueCountsRead(userId);
+  // Promise.resolve: awaiting a query builder twice would run it twice.
+  return (read.counts ??= Promise.resolve(dueCountsQuery(userId)));
+}
+
+/* /study's reads in one batch: the due counts (shared with the sidebar
+   notice) and the queue. */
+export async function loadStudyPage(userId: string, scope: StudyScope, limit: number): Promise<{ counts: DueCount[]; queue: StudyQueue }> {
+  const read = dueCountsRead(userId);
+  if (read.counts) {
+    const [counts, queue] = await Promise.all([read.counts, studyQueue(userId, scope, limit)]);
+    return { counts, queue };
+  }
+  const batch = db.batch([dueCountsQuery(userId), ...queueQueries(userId, visibleTo(userId, scope), isDue, ORDER, limit)]);
+  read.counts = batch.then(([counts]) => counts);
+  read.counts.catch(() => {}); // the page awaits the batch itself
+  const [counts, rows, totals] = await batch;
+  return { counts, queue: toStudyQueue([rows, totals]) };
 }
 
 export type ReviewOutcome = { due: number; state: CardState; intervalMs: number };
@@ -235,27 +291,3 @@ export async function recordReview(userId: string, cardId: string, rating: Ratin
   return { due: next.due, state: next.state, intervalMs: next.due - now };
 }
 
-/* Staff preview of a lesson's deck (drafts included, nothing recorded).
-   The caller has already checked course staff. */
-export async function previewCards(lessonId: string): Promise<StudyCard[]> {
-  const rows = await db
-    .select({
-      id: flashcards.id,
-      courseId: courses.id,
-      courseCode: courses.code,
-      lessonId: lessons.id,
-      lessonTitle: lessons.title,
-      front: flashcards.front,
-      back: flashcards.back,
-      topic: flashcards.topic,
-      startSec: flashcards.startSec,
-    })
-    .from(flashcards)
-    .innerJoin(lessons, eq(lessons.id, flashcards.lessonId))
-    .innerJoin(modules, eq(modules.id, lessons.moduleId))
-    .innerJoin(courses, eq(courses.id, modules.courseId))
-    .where(eq(flashcards.lessonId, lessonId))
-    .orderBy(asc(flashcards.position));
-  const now = Date.now();
-  return rows.map((r) => ({ ...r, ...newCardState(now), lastReview: null }));
-}

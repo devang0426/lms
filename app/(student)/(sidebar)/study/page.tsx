@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/page-header";
 import { FlashcardDeck } from "@/components/study/flashcard-deck";
+import { renderCards } from "@/components/study/render-cards";
 import { Chip } from "@/components/ui";
 import { requireAreaRole } from "@/lib/auth";
 import { isUuid } from "@/lib/db/courses";
-import { dueCountsByCourse, studyQueue } from "@/lib/db/study";
+import { loadStudyPage } from "@/lib/db/study";
 
-export const metadata = { title: "Study · Studyhall" };
+export const metadata = { title: "Flashcards · Studyhall" };
 
 const SESSION_LIMIT = 100;
 
@@ -18,16 +19,14 @@ export default async function StudyPage({ searchParams }: PageProps<"/study">) {
   const { course } = await searchParams;
   const courseId = typeof course === "string" && isUuid(course) ? course : undefined;
 
-  const [counts, queue] = await Promise.all([
-    dueCountsByCourse(user.id),
-    studyQueue(user.id, { courseId }, SESSION_LIMIT),
-  ]);
+  // One batch; the sidebar notice reuses its due counts (feature 29).
+  const { counts, queue } = await loadStudyPage(user.id, { courseId }, SESSION_LIMIT);
   const allDue = counts.reduce((sum, c) => sum + c.due, 0);
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Study"
+        eyebrow="Flashcards"
         title={
           allDue > 0 ? (
             <>
@@ -57,7 +56,7 @@ export default async function StudyPage({ searchParams }: PageProps<"/study">) {
       <div className="w-full max-w-[760px]">
         <FlashcardDeck
           key={courseId ?? "all"}
-          cards={queue.cards}
+          cards={renderCards(queue.cards)}
           total={queue.total}
           nextDueAt={queue.nextDueAt}
           showSource

@@ -42,9 +42,14 @@ export const test = base.extend<{ watchConsole: void }>({
 
 export { expect };
 
-/* One click on the sign-in page's demo picker (a Clerk sign-in ticket). */
+/* One click on the sign-in page's demo picker (a Clerk sign-in ticket).
+   The suite runs only against a server without a demo passcode (feature
+   24), such as a local build. */
 export async function signInAs(page: Page, who: "Admin" | "Student") {
   await page.goto("/sign-in");
+  if (await page.getByLabel("Demo passcode").isVisible()) {
+    throw new Error("This server asks for a demo passcode. Run the suite against one without DEMO_PASSCODE, e.g. a local build.");
+  }
   await page.getByRole("button", { name: `Continue as ${who}` }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/sign-in"), { timeout: 60_000 });
 }
@@ -84,7 +89,9 @@ export async function expectAccessible(page: Page, context: string) {
 export async function openCourseBuilder(page: Page) {
   await page.goto("/instructor/courses");
   await page.getByRole("link", { name: /MATH 201/ }).first().click();
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // The course list has an h1 too: wait for the builder itself.
+  await page.waitForURL(/\/instructor\/courses\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("tab", { name: /Curriculum/ })).toBeVisible();
 }
 
 /* A lesson's row in the builder, by its title. */

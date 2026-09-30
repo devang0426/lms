@@ -51,6 +51,10 @@ export const users = pgTable(
     role: roleEnum("role").notNull().default("student"),
     ...timestamps,
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /* Set by the erase-user task once a deleted account's private data is
+       gone and the row anonymised (feature 33). Deleted but not erased =
+       the erase still has to run. */
+    erasedAt: timestamp("erased_at", { withTimezone: true }),
   },
   (t) => [index("users_email_idx").on(t.email)],
 );
@@ -68,25 +72,34 @@ export const auditLog = pgTable(
   "audit_log",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    actorId: uuid("actor_id").references(() => users.id),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id"),
     data: jsonb("data"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("audit_log_entity_idx").on(t.entityType, t.entityId)],
+  (t) => [
+    index("audit_log_entity_idx").on(t.entityType, t.entityId),
+    /* The per-person limits that count audit rows: uploads, new notes and
+       discussion posts (features 23 and 25). */
+    index("audit_log_actor_idx").on(t.actorId, t.action, t.createdAt),
+    /* The admin Audit page: newest first, paged on (created_at, id)
+       (feature 30). The log is kept for good, so it only grows. */
+    index("audit_log_created_idx").on(t.createdAt, t.id),
+  ],
 );
 
 /* One row per provider call, written by lib/ai/usage.ts (feature 09).
-   Log only — no quotas in v1. Single calls cost fractions of a cent, hence
-   10 decimal places. `estimated` = the provider reported no cost (speech),
-   so it was priced from the list price. */
+   Single calls cost fractions of a cent, hence 10 decimal places.
+   `estimated` = the provider reported no cost (speech), so it was priced
+   from the list price. The daily AI limit per person (feature 25,
+   lib/ai/budget.ts) counts a user's rows over the last 24 hours. */
 export const aiUsage = pgTable(
   "ai_usage",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").references(() => users.id),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     feature: text("feature").notNull(),
     task: text("task").notNull().default("chat"),
     model: text("model").notNull(),
@@ -96,7 +109,7 @@ export const aiUsage = pgTable(
     estimated: boolean("estimated").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("ai_usage_feature_idx").on(t.feature, t.createdAt)],
+  (t) => [index("ai_usage_feature_idx").on(t.feature, t.createdAt), index("ai_usage_user_idx").on(t.userId, t.createdAt)],
 );
 
 export type User = typeof users.$inferSelect;
@@ -124,7 +137,7 @@ export const jobs = pgTable(
     progress: integer("progress").notNull().default(0),
     message: text("message"),
     error: text("error"),
-    createdBy: uuid("created_by").references(() => users.id),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [index("jobs_entity_idx").on(t.entityType, t.entityId, t.createdAt)],
@@ -195,7 +208,7 @@ export const courseStaff = pgTable(
       .references(() => courses.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     role: staffRoleEnum("role").notNull().default("instructor"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -210,7 +223,7 @@ export const enrollments = pgTable(
       .references(() => sections.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     status: enrollmentStatusEnum("status").notNull().default("active"),
     enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -279,7 +292,7 @@ export const videos = pgTable(
     faststart: boolean("faststart").notNull().default(false),
     status: videoStatusEnum("status").notNull().default("uploading"),
     error: text("error"),
-    createdBy: uuid("created_by").references(() => users.id),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [index("videos_lesson_idx").on(t.lessonId, t.createdAt)],
@@ -600,7 +613,13 @@ export const cardReviews = pgTable(
     lastReview: timestamp("last_review", { withTimezone: true }),
     state: cardStateEnum("state").notNull().default("new"),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.cardId] }), index("card_reviews_user_due_idx").on(t.userId, t.due)],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.cardId] }),
+    index("card_reviews_user_due_idx").on(t.userId, t.due),
+    /* Deleting a card (or a lesson's cards) cascades here by card_id
+       (feature 30). */
+    index("card_reviews_card_idx").on(t.cardId),
+  ],
 );
 
 export type CardReview = typeof cardReviews.$inferSelect;
@@ -628,7 +647,7 @@ export const gradedQuizzes = pgTable(
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     maxAttempts: integer("max_attempts").notNull().default(1),
     points: integer("points").notNull(),
-    createdBy: uuid("created_by").references(() => users.id),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [index("graded_quizzes_lesson_idx").on(t.lessonId, t.dueAt)],
@@ -837,7 +856,7 @@ export const submissions = pgTable(
       .references(() => assignments.id),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     text: text("text").notNull().default(""),
     files: jsonb("files").$type<SubmissionFile[]>().notNull().default([]),
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
@@ -861,7 +880,7 @@ export const grades = pgTable(
     /* The student the grade belongs to. */
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     score: numeric("score", { precision: 8, scale: 2, mode: "number" }).notNull(),
     /* The points it was out of when graded. */
     maxScore: integer("max_score").notNull(),
@@ -945,7 +964,7 @@ export const announcements = pgTable(
       .references(() => courses.id, { onDelete: "cascade" }),
     authorId: uuid("author_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     body: text("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1004,7 +1023,15 @@ export const discussionReplies = pgTable(
   ],
 );
 
-export const notificationKindEnum = pgEnum("notification_kind", ["grade_returned", "announcement", "discussion_reply", "due_soon"]);
+/* `draft_ready` (feature 30): a lecture's drafts are ready to review, for
+   the instructor who uploaded it. */
+export const notificationKindEnum = pgEnum("notification_kind", [
+  "grade_returned",
+  "announcement",
+  "discussion_reply",
+  "due_soon",
+  "draft_ready",
+]);
 export type NotificationKind = (typeof notificationKindEnum.enumValues)[number];
 
 /* In-app only (no email, no push). Personal: only the recipient reads
@@ -1063,3 +1090,34 @@ export const invitations = pgTable(
 );
 
 export type Invitation = typeof invitations.$inferSelect;
+
+/* ---- Data export (feature 33) -------------------------------------------------
+   "Download my data" on the Profile page: the export-user-data task writes
+   one JSON file to exports/{userId}/, and /exports/[id] redirects its
+   owner to it until `expiresAt` (7 days after the request). The daily
+   prune-old-rows deletes expired files, then their rows. Personal: only
+   the owner reads them, with no admin override. */
+
+export const exportStatusEnum = pgEnum("export_status", ["building", "ready", "failed"]);
+export type ExportStatus = (typeof exportStatusEnum.enumValues)[number];
+
+export const dataExports = pgTable(
+  "data_exports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: exportStatusEnum("status").notNull().default("building"),
+    blobUrl: text("blob_url"),
+    pathname: text("pathname"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("data_exports_user_idx").on(t.userId, t.createdAt), index("data_exports_expires_idx").on(t.expiresAt)],
+);
+
+export type DataExport = typeof dataExports.$inferSelect;

@@ -27,7 +27,11 @@ export type IndexResult =
 
 export async function indexLessonChunks(
   lessonId: string,
-  opts: { report?: (fraction: number, message: string) => Promise<void> } = {},
+  opts: {
+    report?: (fraction: number, message: string) => Promise<void>;
+    /* Who published: charged for the embeddings (feature 25). Else the video's uploader. */
+    requestedBy?: string;
+  } = {},
 ): Promise<IndexResult> {
   const [lesson] = await db.select({ status: lessons.status }).from(lessons).where(eq(lessons.id, lessonId)).limit(1);
   const courseId = await courseIdForLesson(lessonId);
@@ -58,7 +62,7 @@ export async function indexLessonChunks(
     chunks.map((c) => c.text),
     {
       feature: "lesson-index",
-      userId: src?.createdBy ?? null,
+      userId: opts.requestedBy ?? src?.createdBy ?? null,
       failMessage: "The search model returned an unexpected answer, so the lesson wasn't indexed. Try publishing again.",
       report: opts.report,
     },

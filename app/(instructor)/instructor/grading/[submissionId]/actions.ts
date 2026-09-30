@@ -10,6 +10,7 @@ import { nextInQueue, saveGradeStatements, submissionForGrading } from "@/lib/db
 import { notifyStatement } from "@/lib/db/notifications";
 import { gradeNoticeTitle } from "@/lib/notifications/view";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Grade a submission (feature 20). zod → the viewer teaches its course
    (submissionForGrading, in SQL) → the grade, the submission's status and
@@ -24,7 +25,7 @@ const input = z.object({
   returnToStudent: z.boolean(),
 });
 
-export async function saveGrade(raw: z.input<typeof input>): Promise<ActionResult<{ nextId: string | null; returned: boolean }>> {
+export const saveGrade = safeAction("saveGrade", async (raw: z.input<typeof input>): Promise<ActionResult<{ nextId: string | null; returned: boolean }>> => {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the grade and try again.");
   const { submissionId, feedback, returnToStudent } = parsed.data;
@@ -68,4 +69,4 @@ export async function saveGrade(raw: z.input<typeof input>): Promise<ActionResul
   revalidatePath(`/courses/${sub.course.id}/lessons/${sub.assignment.lessonId}`);
   revalidatePath("/grades");
   return ok({ nextId: status === "returned" ? await nextInQueue(user, submissionId) : null, returned: status === "returned" });
-}
+});

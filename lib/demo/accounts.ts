@@ -1,11 +1,20 @@
 import "server-only";
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { ClerkClient, User as ClerkUser } from "@clerk/backend";
 import type { Role } from "@/lib/db/schema";
 
 /* Demo accounts (feature 03). Only usable when DEMO_MODE=true — never in a
    real rollout. `+clerk_test` addresses skip email verification on Clerk
-   development instances. */
+   development instances.
+
+   Feature 24 (S1): with DEMO_PASSCODE set (required on a production
+   deployment; lib/env.ts refuses to start without it), the picker asks for
+   it and no ticket is minted without it. While demo mode is on, nothing
+   can grant lasting access: role changes, invitations and roster import
+   are refused with DEMO_MODE_REFUSAL. */
+
+export const DEMO_MODE_REFUSAL = "Turned off in demo mode.";
 
 export type DemoAccountKey = "admin" | "student";
 
@@ -44,6 +53,18 @@ export function isDemoMode(): boolean {
   return process.env.DEMO_MODE === "true";
 }
 
+/* The passcode the picker asks for, or null when none is set (local dev). */
+export function demoPasscode(): string | null {
+  return process.env.DEMO_PASSCODE?.trim() || null;
+}
+
+/* Constant-time comparison: both sides are hashed to the same length
+   first, so neither the length nor a matching prefix shows in the timing. */
+export function passcodeMatches(given: string, expected: string): boolean {
+  const digest = (s: string) => createHash("sha256").update(s, "utf8").digest();
+  return timingSafeEqual(digest(given.trim()), digest(expected));
+}
+
 export function demoPassword(): string {
   const pw = process.env.DEMO_ACCOUNT_PASSWORD;
   if (!pw) throw new Error("DEMO_ACCOUNT_PASSWORD is not set.");
@@ -52,6 +73,13 @@ export function demoPassword(): string {
 
 export function getDemoAccount(key: string): DemoAccount | undefined {
   return DEMO_ACCOUNTS.find((a) => a.key === key);
+}
+
+/* Feature 33: the demo accounts can't be deleted while in demo mode. */
+export const DEMO_ACCOUNT_EMAILS: readonly string[] = DEMO_ACCOUNTS.map((a) => a.email.toLowerCase());
+
+export function isProtectedDemoAccount(email: string): boolean {
+  return isDemoMode() && DEMO_ACCOUNT_EMAILS.includes(email.trim().toLowerCase());
 }
 
 /* Find the Clerk user for a demo account, creating it if missing. Keeps the

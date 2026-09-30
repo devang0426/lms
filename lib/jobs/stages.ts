@@ -57,8 +57,19 @@ export const VIDEO_STAGES = [
   ...CONTENT_STAGES,
 ] as const satisfies readonly JobStage[];
 
+/* export-user-data (feature 33): "Download my data" on the Profile page. */
+export const EXPORT_STAGES = [
+  { key: "collect", label: "Collecting your data" },
+  { key: "save", label: "Saving the file" },
+] as const satisfies readonly JobStage[];
+
+/* erase-user (feature 33): after an account is deleted. Nobody watches it. */
+export const ERASE_STAGES = [{ key: "erase", label: "Erasing the account's private data" }] as const satisfies readonly JobStage[];
+
 export const JOB_STAGES = {
   hello: HELLO_STAGES,
+  "export-user-data": EXPORT_STAGES,
+  "erase-user": ERASE_STAGES,
   "video-process": VIDEO_STAGES,
   "generate-chapters": [CONTENT_STAGES[0]],
   "generate-notes": [CONTENT_STAGES[1]],

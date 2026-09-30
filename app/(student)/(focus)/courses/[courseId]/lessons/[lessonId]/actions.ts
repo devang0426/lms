@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
 import { addLessonNote, deleteLessonNote, markLessonComplete, type ProgressResult } from "@/lib/db/progress";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 import { saveProgress, type ProgressInput } from "@/lib/video/progress";
 
 /* Lesson player actions (feature 11). zod → session → lesson visible to
@@ -17,15 +18,15 @@ const signedOut = () => fail("unauthorized", "Your session has ended. Sign in ag
 /* Periodic save from the player (at most every 15 s). A save that
    completes the lesson refreshes the page so the header and contents
    show it. The pagehide save goes through app/api/progress instead. */
-export async function saveWatchProgress(input: ProgressInput): Promise<ActionResult<ProgressResult>> {
+export const saveWatchProgress = safeAction("saveWatchProgress", async (input: ProgressInput): Promise<ActionResult<ProgressResult>> => {
   const user = await getCurrentUser();
   if (!user) return signedOut();
   const result = await saveProgress(user, input);
   if (result.ok && result.data.newlyCompleted) refresh();
   return result;
-}
+});
 
-export async function markComplete(lessonId: string): Promise<ActionResult<ProgressResult>> {
+export const markComplete = safeAction("markComplete", async (lessonId: string): Promise<ActionResult<ProgressResult>> => {
   if (!z.uuid().safeParse(lessonId).success) return fail("invalid", "That lesson couldn't be found.");
   const user = await getCurrentUser();
   if (!user) return signedOut();
@@ -35,7 +36,7 @@ export async function markComplete(lessonId: string): Promise<ActionResult<Progr
   const result = await markLessonComplete(user.id, lessonId);
   refresh();
   return ok(result);
-}
+});
 
 export interface NoteView {
   id: string;
@@ -49,7 +50,7 @@ const noteSchema = z.object({
   text: z.string().trim().min(1, "Write something first.").max(2000, "Notes can be up to 2,000 characters."),
 });
 
-export async function addNote(input: z.input<typeof noteSchema>): Promise<ActionResult<NoteView>> {
+export const addNote = safeAction("addNote", async (input: z.input<typeof noteSchema>): Promise<ActionResult<NoteView>> => {
   const parsed = noteSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "That note couldn't be saved.");
   const user = await getCurrentUser();
@@ -58,13 +59,13 @@ export async function addNote(input: z.input<typeof noteSchema>): Promise<Action
 
   const note = await addLessonNote({ userId: user.id, ...parsed.data });
   return ok({ id: note.id, atSec: note.atSec, text: note.text });
-}
+});
 
-export async function deleteNote(noteId: string): Promise<ActionResult> {
+export const deleteNote = safeAction("deleteNote", async (noteId: string): Promise<ActionResult> => {
   if (!z.uuid().safeParse(noteId).success) return fail("invalid", "That note couldn't be found.");
   const user = await getCurrentUser();
   if (!user) return signedOut();
   // Scoped to the owner inside the query.
   if (!(await deleteLessonNote(user.id, noteId))) return fail("not_found", "That note couldn't be found.");
   return ok();
-}
+});

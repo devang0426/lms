@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { vttToCues, vttToText } from "./ytdlp.mjs";
+import { parseInfo, vttToCues, vttToText } from "./ytdlp.mjs";
+
+describe("parseInfo (feature 25)", () => {
+  it("reads the title and the length in seconds", () => {
+    expect(parseInfo("Lecture 3: Eigenvalues\n4212\n")).toEqual({ title: "Lecture 3: Eigenvalues", durationSec: 4212 });
+    expect(parseInfo("Windows line ends\r\n95.5\r\n")).toEqual({ title: "Windows line ends", durationSec: 95.5 });
+  });
+
+  it("has no length for a live stream or a missing line", () => {
+    expect(parseInfo("Live now\nNA\n")).toEqual({ title: "Live now", durationSec: null });
+    expect(parseInfo("Only a title")).toEqual({ title: "Only a title", durationSec: null });
+    expect(parseInfo("")).toEqual({ title: null, durationSec: null });
+  });
+});
 
 const VTT = `WEBVTT
 Kind: captions

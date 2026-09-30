@@ -17,8 +17,9 @@ import { cn } from "@/lib/utils/cn";
      feedback and the explanation. The finished set is saved (and
      re-scored) by the server.
    - graded: no answers in the browser. Answers are collected, then
-     submitted; the server scores them and only then returns what was right,
-     with explanations. */
+     submitted; the server scores them and returns which were right. The
+     correct answers and explanations come only after the due date
+     (feature 24), through "Review answers" on the Quiz tab. */
 
 export type Answers = Record<string, string>;
 export type FinishResult = { ok: true; score: number; feedback?: AnswerFeedback[] } | { ok: false; message: string };
@@ -75,7 +76,7 @@ export function QuizRunner(props: Props) {
 
   if (result) {
     return (
-      <Summary
+      <QuizResults
         title={title}
         score={result.score}
         feedback={result.feedback}
@@ -298,7 +299,11 @@ function ReviewInVideo({ sec, courseId, lessonId }: { sec: number; courseId?: st
   );
 }
 
-function Summary({
+/* A finished quiz: the score, then each question with the student's answer.
+   A graded attempt's feedback has no correct answers until they are
+   revealed; it says when they will be. Also the Quiz tab's "Review
+   answers" view (feature 24). */
+export function QuizResults({
   title,
   score,
   feedback,
@@ -317,6 +322,7 @@ function Summary({
 }) {
   const byId = new Map(questions.map((q) => [q.id, q]));
   const right = feedback.filter((f) => f.correct).length;
+  const withheld = feedback.some((f) => !f.correct && f.correctAnswer === null);
   return (
     <section aria-label={`${title} results`} className="flex flex-col gap-5">
       <div className="flex flex-col items-center gap-2 rounded-3xl border border-line bg-paper px-6 py-8 text-center">
@@ -325,6 +331,7 @@ function Summary({
         <p className="m-0 text-small text-ink-soft">
           {right} of {feedback.length} correct
         </p>
+        {withheld && <p className="m-0 text-small text-ink-soft">Answers are shown after the due date.</p>}
         <Button variant="secondary" size="sm" onClick={onClose} className="mt-2">
           Done
         </Button>
@@ -345,7 +352,7 @@ function Summary({
               </div>
               <p className="m-0 text-small text-ink-soft">
                 Your answer: {yours.trim() ? <span className="text-ink" dangerouslySetInnerHTML={{ __html: renderRichInline(yours) }} /> : <em>none</em>}
-                {!f.correct && (
+                {!f.correct && f.correctAnswer !== null && (
                   <>
                     {" "}
                     · Correct: <span className="text-ink" dangerouslySetInnerHTML={{ __html: renderRichInline(f.correctAnswer) }} />

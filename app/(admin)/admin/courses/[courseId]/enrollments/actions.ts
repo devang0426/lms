@@ -8,6 +8,7 @@ import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
 import { enrollments, sections, users } from "@/lib/db/schema";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Roster changes (admin only). Removing a student marks the enrollment
    dropped rather than deleting it, so the history stays auditable. */
@@ -25,7 +26,7 @@ function refresh(courseId: string) {
   revalidatePath("/admin/courses");
 }
 
-export async function enrollStudent(input: z.input<typeof enrollSchema>): Promise<ActionResult> {
+export const enrollStudent = safeAction("enrollStudent", async (input: z.input<typeof enrollSchema>): Promise<ActionResult> => {
   const parsed = enrollSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", "Pick a student and a section.");
   const admin = await requireAdmin();
@@ -54,9 +55,9 @@ export async function enrollStudent(input: z.input<typeof enrollSchema>): Promis
   ]);
   refresh(courseId);
   return ok();
-}
+});
 
-export async function unenrollStudent(input: z.input<typeof unenrollSchema>): Promise<ActionResult> {
+export const unenrollStudent = safeAction("unenrollStudent", async (input: z.input<typeof unenrollSchema>): Promise<ActionResult> => {
   const parsed = unenrollSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", "Pick a student to remove.");
   const admin = await requireAdmin();
@@ -73,4 +74,4 @@ export async function unenrollStudent(input: z.input<typeof unenrollSchema>): Pr
   ]);
   refresh(courseId);
   return ok();
-}
+});

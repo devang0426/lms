@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { setCoursePublished, updateCourseDetails } from "@/app/(instructor)/instructor/courses/actions";
+import { publishCourseWithModules, setCoursePublished, updateCourseDetails } from "@/app/(instructor)/instructor/courses/actions";
 import { Button, Field, Input, Textarea, toast } from "@/components/ui";
 import type { Course, CoverTintValue } from "@/lib/db/schema";
 import { cn } from "@/lib/utils/cn";
@@ -22,6 +22,27 @@ export function PublishCourseButton({ courseId, published }: { courseId: string;
       }
     >
       {published ? "Unpublish course" : "Publish course"}
+    </Button>
+  );
+}
+
+/* The draft banner's shortcut (feature 27): the course and every module.
+   Lessons are still published one by one, with their content. */
+export function PublishCourseWithModulesButton({ courseId }: { courseId: string }) {
+  const { pending, run } = useAction();
+  return (
+    <Button
+      variant="secondary"
+      size="xs"
+      loading={pending}
+      onClick={() =>
+        run(
+          () => publishCourseWithModules({ courseId }),
+          () => toast.success("Course and modules published. Publish each lesson when it's ready."),
+        )
+      }
+    >
+      Publish the course and all its modules
     </Button>
   );
 }
@@ -71,7 +92,7 @@ export function CourseDetailsForm({ course }: { course: Course }) {
         </Field>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Subject" htmlFor="subject" hint="Shown as a catalog filter, e.g. Mathematics.">
+        <Field label="Subject" htmlFor="subject" hint="Shown as a filter in Explore, e.g. Mathematics.">
           <Input id="subject" name="subject" defaultValue={course.subject} maxLength={60} />
         </Field>
         <Field label="Level" htmlFor="level" hint="e.g. Beginner, Intermediate.">

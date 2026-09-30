@@ -81,20 +81,21 @@ export function claimsFor(text: string, n: number): string {
     .join(" ");
 }
 
-/* The saved answer's [S#] markers → inline chips (.cite-chip buttons) in
-   the Markdown, before lib/markdown renders and sanitizes it. [S1] is
-   citations[0]; a marker with no citation behind it becomes nothing, so a
-   made-up [S9] can never render. */
+/* The saved answer's [S#] markers → inline chips (.cite-chip buttons).
+   [S1] is citations[0]; a marker with no citation behind it becomes
+   nothing, so a made-up [S9] can never render. `place` is
+   renderAnswerMarkdown's keep() (feature 24): the answer's own raw HTML is
+   escaped, and the chips go in after that. */
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 
-export function citationChipsHtml(content: string, citations: ChatCitation[]): string {
+export function citationChipsHtml(content: string, citations: ChatCitation[], place: (chipHtml: string) => string = (html) => html): string {
   return normalizeMarkers(content).replace(MARKER, (_m, n: string) => {
     const index = Number(n) - 1;
     const c = citations[index];
     if (!c) return "";
     const short = c.page !== null ? `p. ${c.page}` : c.startSec !== null ? formatTime(c.startSec) : c.section ? shorten(c.section, 24) : "source";
-    return `<button type="button" class="cite-chip" data-cite="${index}" aria-label="${escapeHtml(c.label)}">${escapeHtml(short)}</button>`;
+    return place(`<button type="button" class="cite-chip" data-cite="${index}" aria-label="${escapeHtml(c.label)}">${escapeHtml(short)}</button>`);
   });
 }
 

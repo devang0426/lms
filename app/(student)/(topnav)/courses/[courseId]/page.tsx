@@ -1,6 +1,21 @@
-import { BarChart3, BookOpen, Check, Clock, FileText, ListChecks, ClipboardList, Play, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ClipboardList,
+  Clock,
+  FileText,
+  GraduationCap,
+  Layers,
+  ListChecks,
+  MessagesSquare,
+  Play,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AnnouncementList } from "@/components/announcements/announcement-list";
 import { StatusBadge } from "@/components/course-builder/status-badge";
 import {
@@ -21,17 +36,19 @@ import {
   type StepState,
 } from "@/components/ui";
 import { requireAreaRole } from "@/lib/auth";
-import { courseAnnouncements } from "@/lib/db/announcements";
-import { getCatalogCourse, listCourseInstructors } from "@/lib/db/catalog";
-import { getCourseForUser, type ModuleWithLessons } from "@/lib/db/courses";
-import { completedLessonIds } from "@/lib/db/progress";
+import { courseDetailFor } from "@/lib/db/course-page";
+import type { ModuleWithLessons } from "@/lib/db/courses";
 import type { Course, LessonKind } from "@/lib/db/schema";
 import { formatLength, plural } from "@/lib/utils/format";
 
 /* Course detail (wireframe 04). Enrolled students (and staff) get the full
    curriculum through getCourseForUser. Anyone else who can see the course
    in the catalog gets its catalog fields only — no lesson titles or links
-   — and a note that enrollment is by roster. Everything else is a 404. */
+   — and a note that enrollment is by roster. Everything else is a 404.
+   All of it is one batch after the user lookup (loadCourseDetail, cached
+   so the layout's breadcrumb shares it). Feature 28: a course's
+   instructors open it too (Student view), and enrolled students get quick
+   links to the course's tools. */
 
 const kindIcons: Record<LessonKind, LucideIcon> = {
   video: Play,
@@ -43,11 +60,13 @@ const kindIcons: Record<LessonKind, LucideIcon> = {
 export default async function CourseDetailPage({ params, searchParams }: PageProps<"/courses/[courseId]">) {
   const { courseId } = await params;
   const { tab } = await searchParams;
-  const user = await requireAreaRole("student", "admin");
+  const user = await requireAreaRole("student", "admin", "instructor");
 
-  const full = await getCourseForUser(courseId, user);
-  const preview = full ? null : await getCatalogCourse(courseId, user);
-  if (!full && !preview) notFound();
+  const detail = await courseDetailFor(courseId, user);
+  // An instructor sees only the courses they teach as a student would.
+  if (user.role === "instructor" && detail?.full?.access !== "staff") redirect("/instructor");
+  if (!detail) notFound();
+  const { full, preview, instructors, announcements, completed } = detail;
 
   const course = (full?.course ?? preview?.course) as Course;
   const modules = full?.modules ?? [];
@@ -56,15 +75,9 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
   const durationSec = full
     ? lessonsInOrder.reduce((sum, l) => sum + (l.durationSec ?? 0), 0)
     : preview!.durationSec;
-  // Announcements (feature 21) are for people in the course, like the curriculum.
-  const [instructors, announcements] = await Promise.all([
-    listCourseInstructors(course.id),
-    full ? courseAnnouncements(course.id) : Promise.resolve([]),
-  ]);
   const lead = instructors.find((i) => i.role === "instructor") ?? instructors[0];
 
   // The first unfinished lesson is "current"; staff have no progress.
-  const completed = full?.access === "student" ? await completedLessonIds(user.id, course.id) : new Set<string>();
   const firstLesson = lessonsInOrder.find((l) => !completed.has(l.id)) ?? lessonsInOrder[0];
   const started = completed.size > 0;
   const firstHref = firstLesson ? `/courses/${course.id}/lessons/${firstLesson.id}` : null;
@@ -129,6 +142,8 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
           )}
         </div>
       </section>
+
+      {full?.access === "student" && <QuickLinks courseId={course.id} />}
 
       <Tabs
         // Keyed so following ?tab= from the bell switches tabs on this page too.
@@ -217,6 +232,29 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
         </TabsContent>
       </Tabs>
     </>
+  );
+}
+
+/* The course's tools, one click from its page (feature 28, N4). */
+function QuickLinks({ courseId }: { courseId: string }) {
+  const links: { href: string; label: string; icon: LucideIcon }[] = [
+    { href: "/discussions", label: "Discussions", icon: MessagesSquare },
+    { href: "/grades", label: "Grades", icon: GraduationCap },
+    { href: `/study?course=${courseId}`, label: "Flashcards", icon: Layers },
+    { href: "/calendar", label: "Calendar", icon: CalendarDays },
+    { href: `/courses/${courseId}/assistant`, label: "Assistant", icon: Sparkles },
+  ];
+  return (
+    <nav aria-label="Course tools" className="flex flex-wrap gap-2">
+      {links.map((l) => (
+        <Button key={l.label} asChild variant="quiet" size="sm">
+          <Link href={l.href}>
+            <Icon icon={l.icon} size={16} />
+            {l.label}
+          </Link>
+        </Button>
+      ))}
+    </nav>
   );
 }
 

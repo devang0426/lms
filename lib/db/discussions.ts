@@ -85,8 +85,8 @@ export interface DiscussionFilter {
 }
 
 /* Threads the viewer can read, most recently active first. */
-export async function listDiscussions(viewer: Viewer, filter: DiscussionFilter = {}): Promise<DiscussionSummary[]> {
-  const rows = await summaryQuery(viewer)
+export function listDiscussionsQuery(viewer: Viewer, filter: DiscussionFilter = {}) {
+  return summaryQuery(viewer)
     .where(
       and(
         visibleTo(viewer),
@@ -98,17 +98,40 @@ export async function listDiscussions(viewer: Viewer, filter: DiscussionFilter =
     )
     .orderBy(sql`coalesce((select max(r.created_at) from discussion_replies r where r.discussion_id = ${discussions.id}), ${discussions.createdAt}) desc`, desc(discussions.id))
     .limit(filter.limit ?? 100);
-  return rows.map((r) => ({ ...r, authorIsStaff: Boolean(r.authorIsStaff), mine: Boolean(r.mine) }));
+}
+
+export async function listDiscussions(viewer: Viewer, filter: DiscussionFilter = {}): Promise<DiscussionSummary[]> {
+  return toDiscussionSummaries(await listDiscussionsQuery(viewer, filter));
+}
+
+/* How many of a lesson's threads the viewer can read, capped like the
+   player's list: the Discussion tab's count, in the player's batch while
+   the list itself streams in (feature 29). */
+export function lessonDiscussionCountQuery(viewer: Viewer, lessonId: string, cap: number) {
+  return db
+    .select({ n: sql<number>`least(count(*), ${cap})`.mapWith(Number) })
+    .from(discussions)
+    .innerJoin(courses, eq(courses.id, discussions.courseId))
+    .leftJoin(lessons, eq(lessons.id, discussions.lessonId))
+    .leftJoin(modules, eq(modules.id, lessons.moduleId))
+    .where(and(visibleTo(viewer), eq(discussions.lessonId, lessonId)));
 }
 
 /* "Unanswered questions": open threads in the courses this viewer
    teaches, the longest waiting first. */
-export async function unansweredQuestions(viewer: Viewer, limit = 50): Promise<DiscussionSummary[]> {
-  const rows = await summaryQuery(viewer)
+export function unansweredQuestionsQuery(viewer: Viewer, limit = 50) {
+  return summaryQuery(viewer)
     .where(and(staffPredicate(viewer), eq(discussions.status, "open")))
     .orderBy(asc(discussions.createdAt), asc(discussions.id))
     .limit(limit);
+}
+
+export function toDiscussionSummaries(rows: Awaited<ReturnType<typeof unansweredQuestionsQuery>>): DiscussionSummary[] {
   return rows.map((r) => ({ ...r, authorIsStaff: Boolean(r.authorIsStaff), mine: Boolean(r.mine) }));
+}
+
+export async function unansweredQuestions(viewer: Viewer, limit = 50): Promise<DiscussionSummary[]> {
+  return toDiscussionSummaries(await unansweredQuestionsQuery(viewer, limit));
 }
 
 export interface ReplyView {
@@ -206,6 +229,15 @@ export async function threadAccess(viewer: Viewer, discussionId: string): Promis
 
 /* ---- Writes (the actions check access first, then batch these with the
    audit row) ------------------------------------------------------------------ */
+
+/* The posting limit's count (feature 25): the person's new threads or
+   replies in the window, from their audit rows, so a deleted post still
+   counts. Used inside a locked batch (lib/db/limits). */
+export function recentPosts(authorId: string, kind: "threads" | "replies", windowMinutes: number): SQL {
+  const action = kind === "threads" ? "discussion.start" : "discussion.reply";
+  return sql`select count(*) from audit_log where audit_log.actor_id = ${authorId}::uuid
+    and audit_log.action = ${action} and audit_log.created_at > now() - make_interval(mins => ${windowMinutes})`;
+}
 
 export function startDiscussionStatement(input: {
   id: string;

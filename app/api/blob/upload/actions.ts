@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { authorizeUpload, type TokenPayload } from "@/lib/storage/authorize";
 import { headBlob, recordUpload, uploadDeps } from "@/lib/storage/blob";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Local-dev fallback for Blob's onUploadCompleted callback, which can't
    reach localhost. The browser calls this after upload() resolves. It
@@ -13,9 +14,9 @@ import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
 
 const confirmSchema = z.object({ url: z.url(), clientPayload: z.string().max(2000) });
 
-export async function confirmUpload(
+export const confirmUpload = safeAction("confirmUpload", async (
   input: z.input<typeof confirmSchema>,
-): Promise<ActionResult<{ pathname: string; size: number }>> {
+): Promise<ActionResult<{ pathname: string; size: number }>> => {
   const parsed = confirmSchema.safeParse(input);
   if (!parsed.success) return fail("invalid", "That upload couldn't be confirmed.");
 
@@ -26,16 +27,18 @@ export async function confirmUpload(
   if (!blob) return fail("not_found", "The uploaded file wasn't found. Try uploading it again.");
 
   const decision = await authorizeUpload(
-    { viewer, pathname: blob.pathname, clientPayload: parsed.data.clientPayload },
+    { viewer, pathname: blob.pathname, clientPayload: parsed.data.clientPayload, stage: "confirm" },
     uploadDeps,
   );
   if (!decision.ok) return fail("unauthorized", decision.reason);
 
-  await recordUpload(JSON.parse(decision.tokenPayload) as TokenPayload, {
+  const recorded = await recordUpload(JSON.parse(decision.tokenPayload) as TokenPayload, {
     url: blob.url,
     pathname: blob.pathname,
     contentType: blob.contentType,
     size: blob.size,
   });
+  // E.g. a video whose processing couldn't be queued (feature 26).
+  if (!recorded.ok) return recorded;
   return ok({ pathname: blob.pathname, size: blob.size });
-}
+});

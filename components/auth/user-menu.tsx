@@ -1,7 +1,9 @@
 "use client";
 
 import { SignOutButton } from "@clerk/nextjs";
-import { ArrowLeftRight, ChevronsUpDown, LogOut } from "lucide-react";
+import { ArrowLeftRight, ChevronsUpDown, Eye, LogOut, UserRound } from "lucide-react";
+import Link from "next/link";
+import { VIEW_AS_STUDENT_HREF } from "@/components/shell/nav-config";
 import {
   Avatar,
   Icon,
@@ -23,15 +25,20 @@ export interface MenuUser {
 /* User menu: name, role, "Switch demo account" (DEMO_MODE only) and sign
    out. `block` is the sidebar footer (name + role); `avatar` is the compact
    trigger for top bars. Both sign-out paths return to /sign-in, where the
-   demo picker lives. */
+   demo picker lives. Feature 28: `profile` (students) and `viewAsStudent`
+   (staff) add those pages. */
 export function UserMenu({
   user,
   demoMode,
   variant = "block",
+  profile = false,
+  viewAsStudent = false,
 }: {
   user: MenuUser;
   demoMode: boolean;
   variant?: "block" | "avatar";
+  profile?: boolean;
+  viewAsStudent?: boolean;
 }) {
   return (
     <Menu>
@@ -58,6 +65,27 @@ export function UserMenu({
           <span className="text-[12px] text-ink-soft">{user.roleLabel}</span>
         </div>
         <MenuSeparator />
+        {(profile || viewAsStudent) && (
+          <>
+            {profile && (
+              <MenuItem asChild>
+                <Link href="/profile" className="no-underline">
+                  <Icon icon={UserRound} size={16} className="text-ink-soft" />
+                  Profile
+                </Link>
+              </MenuItem>
+            )}
+            {viewAsStudent && (
+              <MenuItem asChild>
+                <Link href={VIEW_AS_STUDENT_HREF} className="no-underline">
+                  <Icon icon={Eye} size={16} className="text-ink-soft" />
+                  View as student
+                </Link>
+              </MenuItem>
+            )}
+            <MenuSeparator />
+          </>
+        )}
         {demoMode && (
           <>
             <MenuLabel>Demo</MenuLabel>

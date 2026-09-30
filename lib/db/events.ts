@@ -76,21 +76,27 @@ export async function eventsBetween(viewer: Viewer, from: Date, to: Date): Promi
 }
 
 /* "Coming up": the next few events from `from`. */
-export async function upcomingEvents(viewer: Viewer, from: Date, limit: number): Promise<CalendarEvent[]> {
-  const rows = await baseQuery(viewer)
+export function upcomingEventsQuery(viewer: Viewer, from: Date, limit: number) {
+  return baseQuery(viewer)
     .where(and(visibleTo(viewer), gte(events.at, from)))
     .orderBy(asc(events.at), asc(events.id))
     .limit(limit);
+}
+
+export function toEvents(rows: Row[]): CalendarEvent[] {
   return rows.map(toView);
 }
 
 /* A course's events for its staff (the builder's Calendar tab), from
    `from` on. Call after requireCourseStaff. */
-export async function courseEventsForStaff(viewer: Viewer, courseId: string, from: Date): Promise<CalendarEvent[]> {
-  const rows = await baseQuery(viewer)
+export function courseEventsForStaffQuery(viewer: Viewer, courseId: string, from: Date) {
+  return baseQuery(viewer)
     .where(and(eq(events.courseId, courseId), staffPredicate(viewer), gte(events.at, from)))
     .orderBy(asc(events.at), asc(events.id));
-  return rows.map(toView);
+}
+
+export async function courseEventsForStaff(viewer: Viewer, courseId: string, from: Date): Promise<CalendarEvent[]> {
+  return toEvents(await courseEventsForStaffQuery(viewer, courseId, from));
 }
 
 /* ---- Writes ---------------------------------------------------------------- */

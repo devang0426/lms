@@ -186,7 +186,14 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
 ### LMS core (new)
 
 - Terms/semesters, courses, sections, enrollments. Courses are split into
-  modules, and modules into lessons (video, reading, quiz, assignment).
+  modules, and modules into lessons (video, reading, assignment). Since
+  feature 27, teachers can't add Quiz lessons, which only ever held
+  documents. Graded quizzes live in each lesson's Quiz tab, and existing
+  quiz lessons keep working.
+- A course can be deleted by its staff only while nobody depends on it:
+  no enrolled student, no handed-in work, no pending invitation
+  (feature 35). Any other course is unpublished instead, so its records
+  stay.
 - Course catalog and course detail with the curriculum and outcomes.
   Enrollment is set by admin or roster. There is no open self-enroll in v1.
 - Assignments: file or text submissions, due dates, late flags, rubric and
@@ -200,6 +207,14 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
   - Active learners and average completion.
   - Where students re-watch or drop off in a video.
   - Topics students ask the assistant about most.
+- Learners and progress (feature 31):
+  - Teachers see each course's students: lessons completed, quiz
+    scores, and work handed in, graded and missing. They can export it
+    as CSV and open a report per student.
+  - Students see their own progress per course, with a "Next up"
+    suggestion.
+  - Teachers never see a student's assistant questions or private space,
+    and there are no rankings.
 
 ### Student private space (from NitroAI)
 
@@ -213,9 +228,31 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
   University SSO (Google or Microsoft) is a Clerk setting, switched on
   later.
 - CSV roster import. Roles and an audit log.
-- AI usage logging per feature (log only, no caps).
-- Data export and deletion. WCAG 2.2 AA. Responsive down to phone (Mobile
-  home wireframe).
+- AI usage logging per feature, plus a daily safety limit per person on
+  AI calls and cost (feature 25). It keeps one account from running up the
+  bill or using up the free models' shared quota; normal study never meets
+  it.
+- **Data export and deletion** (feature 33):
+  - "Download my data" on the Profile page (students and admins) builds
+    one JSON file in the background, covering everything Studyhall keeps
+    about the person. The link works for 7 days, at most 3 a day.
+  - Deleting an account comes from Clerk or from an admin's **Delete
+    user**. It erases the person's private data and files and anonymises
+    them as "Deleted user".
+  - It keeps the academic records (submissions, grades, graded quiz
+    attempts) and discussion posts.
+- WCAG 2.2 AA. Responsive down to phone (Mobile home wireframe).
+- **A public landing page** (feature 34) at `/welcome`, where a
+  signed-out visitor on `/` lands instead of the sign-in form:
+  - the institute's name and tagline, **Sign in**, and **Try the demo**
+    while demo mode is on;
+  - what students get;
+  - the courses published this term (catalog fields only);
+  - how to join (the institute enrolls you: there's no self-enrollment);
+  - contact details, and simple privacy and terms pages.
+  The institute's details come from environment variables. The page is
+  static, with SEO basics (Open Graph, `robots.txt`, a sitemap of the
+  public pages). There is no CMS, blog, pricing or enquiry form.
 
 ## Scope
 
@@ -239,8 +276,10 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
 - Native apps, the Electron/Tauri wrapper, local Ollama, the publik API,
   bring-your-own keys.
 - Dark mode.
-- **AI credits, quotas or budgets per student or per course.** Usage is only
-  logged in v1.
+- **AI credits, paid top-ups, or budgets per course.** The only ceiling is
+  the daily safety limit per person (feature 25): calls and cost over the
+  last 24 hours, set per role in the environment. It is not a credit or
+  payment system.
 - Video transcoding, adaptive streaming (HLS), and formats other than MP4.
 - Email notifications.
 

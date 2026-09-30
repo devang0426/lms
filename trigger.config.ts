@@ -7,7 +7,8 @@ config({ path: ".env.local", quiet: true });
 
 /* Trigger.dev (feature 09). Tasks live in ./trigger. Set DATABASE_URL,
    DATABASE_URL_POOLED, BLOB_READ_WRITE_TOKEN and OPENROUTER_API_KEY in the
-   Trigger.dev dashboard for both dev and prod. */
+   Trigger.dev dashboard for both dev and prod, plus NEXT_PUBLIC_APP_URL
+   (feature 33: a data export's links to files; without it they're paths). */
 // Trigger.dev's cloud build re-reads this file where no .env exists, so the
 // ref (not a secret: it's in every dashboard URL) has a literal fallback.
 const project = process.env.TRIGGER_PROJECT_REF ?? "proj_wlyvxhwdxatszvquczwl";
@@ -15,7 +16,8 @@ const project = process.env.TRIGGER_PROJECT_REF ?? "proj_wlyvxhwdxatszvquczwl";
 export default defineConfig({
   project,
   dirs: ["./trigger"],
-  runtime: "node",
+  // Plain "node" is Node 21, which Trigger.dev has deprecated (feature 26).
+  runtime: "node-22",
   // Per-task maxDuration overrides this; video tasks set their own.
   maxDuration: 900,
   retries: {

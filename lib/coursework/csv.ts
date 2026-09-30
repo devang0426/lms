@@ -20,3 +20,9 @@ export function csvCell(value: CsvCell): string {
 export function toCsv(rows: CsvCell[][]): string {
   return `﻿${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }
+
+/* "MATH 201", "learners" on 29 Sep 2026 → "math-201-learners-2026-09-29.csv". */
+export function csvFileName(courseCode: string, what: string, now: Date): string {
+  const code = courseCode.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "course";
+  return `${code}-${what}-${now.toISOString().slice(0, 10)}.csv`;
+}

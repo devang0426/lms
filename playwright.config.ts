@@ -36,8 +36,11 @@ export default defineConfig({
   },
   projects: [
     { name: "demo", testMatch: /demo\.spec\.ts/, use: { ...chrome, viewport: { width: 1440, height: 960 } } },
+    { name: "builder", testMatch: /builder\.spec\.ts/, use: { ...chrome, viewport: { width: 1440, height: 960 } } },
     { name: "a11y", testMatch: /a11y\.spec\.ts/, use: { ...chrome, viewport: { width: 1440, height: 960 } } },
     { name: "perf", testMatch: /perf\.spec\.ts/, use: { ...chrome, viewport: { width: 1440, height: 960 } } },
+    // Feature 34: the public landing page, signed out (its 390px test sets its own viewport).
+    { name: "landing", testMatch: /landing\.spec\.ts/, use: { ...chrome, viewport: { width: 1440, height: 960 } } },
     {
       name: "mobile",
       testMatch: /mobile\.spec\.ts/,

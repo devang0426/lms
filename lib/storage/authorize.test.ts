@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { authorizeUpload, UPLOAD_RATE, uploadRateCheck } from "./authorize";
+import { authorizeUpload, UPLOAD_RATE, uploadRateCheck, uploadRecordKey, waitingForFile, type PrivateDocumentState } from "./authorize";
 import { blobPaths, isInFolder, safeFileName } from "./upload-kinds";
 
 const admin = { id: "11111111-1111-4111-8111-111111111111", role: "admin" as const };
@@ -9,10 +9,16 @@ const lessonId = "44444444-4444-4444-8444-444444444444";
 
 const assignmentId = "66666666-6666-4666-8666-666666666666";
 const studentDocumentId = "77777777-7777-4777-8777-777777777777";
+const readyDocumentId = "88888888-8888-4888-8888-888888888888";
+/* The student's notes: one waiting for its file, one already ready. */
+const studentDocs: Record<string, PrivateDocumentState> = {
+  [studentDocumentId]: { status: "uploading", hasFile: false },
+  [readyDocumentId]: { status: "ready", hasFile: true },
+};
 const deps = {
   isLessonStaff: vi.fn(async (_id: string, v: { id: string }) => v.id === instructor.id),
   canSubmitTo: vi.fn(async (id: string, v: { id: string }) => id === assignmentId && v.id === student.id),
-  ownsDocument: vi.fn(async (id: string, v: { id: string }) => id === studentDocumentId && v.id === student.id),
+  privateDocument: vi.fn(async (id: string, v: { id: string }) => (v.id === student.id ? (studentDocs[id] ?? null) : null)),
 };
 const devPayload = JSON.stringify({ kind: "dev-test" });
 const videoPayload = JSON.stringify({ kind: "lesson-video", lessonId, videoId: "55555555-5555-4555-8555-555555555555" });
@@ -148,6 +154,50 @@ describe("authorizeUpload: private space (feature 19)", () => {
     for (const pathname of [blobPaths.private(admin.id, "x.pdf"), blobPaths.doc(lessonId, "x.pdf"), `private/${student.id}/a/b.pdf`]) {
       expect(await authorizeUpload({ viewer: student, pathname, clientPayload: payload }, deps)).toMatchObject({ ok: false });
     }
+  });
+
+  // Feature 24 (S5): no more files for a note that already has one.
+  it("refuses a token for the owner's note that already has its file", async () => {
+    const ready = JSON.stringify({ kind: "private-document", documentId: readyDocumentId });
+    expect(
+      await authorizeUpload({ viewer: student, pathname: blobPaths.private(student.id, "again.pdf"), clientPayload: ready }, deps),
+    ).toEqual({ ok: false, reason: "This note already has its file. Start a new note to upload another." });
+  });
+
+  it("still lets the confirm step re-check a file that's already attached", async () => {
+    const ready = JSON.stringify({ kind: "private-document", documentId: readyDocumentId });
+    const pathname = `private/${student.id}/notes-AbC123xyz.pdf`;
+    expect(await authorizeUpload({ viewer: student, pathname, clientPayload: ready, stage: "confirm" }, deps)).toMatchObject({ ok: true });
+    // Still only the owner.
+    expect(await authorizeUpload({ viewer: admin, pathname, clientPayload: ready, stage: "confirm" }, deps)).toMatchObject({ ok: false });
+  });
+
+  it("waits for a file only while uploading with none attached", () => {
+    expect(waitingForFile({ status: "uploading", hasFile: false })).toBe(true);
+    expect(waitingForFile({ status: "uploading", hasFile: true })).toBe(false);
+    for (const status of ["processing", "ready", "failed"] as const) expect(waitingForFile({ status, hasFile: false })).toBe(false);
+  });
+});
+
+describe("upload records (feature 24)", () => {
+  const privatePayload = { kind: "private-document" as const, documentId: studentDocumentId };
+
+  it("counts every file: one record per path, even for the same note", () => {
+    const a = uploadRecordKey(privatePayload, `private/${student.id}/notes-AAA.pdf`);
+    const b = uploadRecordKey(privatePayload, `private/${student.id}/notes-BBB.pdf`);
+    expect(a.entityId).toBe(studentDocumentId);
+    expect(b.entityId).toBe(studentDocumentId);
+    expect(a.file).not.toBe(b.file);
+    // The same file recorded twice (Blob's callback, then the confirm) is one record.
+    expect(uploadRecordKey(privatePayload, `private/${student.id}/notes-AAA.pdf`)).toEqual(a);
+  });
+
+  it("keeps the file name out of a private upload's record", () => {
+    const key = uploadRecordKey(privatePayload, `private/${student.id}/my-secret-diary-AAA.pdf`);
+    expect(JSON.stringify(key)).not.toMatch(/diary|private\//);
+    expect(key.file).toMatch(/^[a-f0-9]{32}$/);
+    // Other kinds are logged by their path, as before.
+    expect(uploadRecordKey({ kind: "dev-test" }, "dev/u/x.txt")).toEqual({ entityId: "dev/u/x.txt", file: null });
   });
 });
 

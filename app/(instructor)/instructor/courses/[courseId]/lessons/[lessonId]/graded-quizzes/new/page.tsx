@@ -1,9 +1,8 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GradedQuizForm } from "@/components/course-builder/graded-quiz-form";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { PageHeader } from "@/components/shell/page-header";
-import { Card, EmptyState, Icon } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { requireCourseStaff } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
 import { questionBank } from "@/lib/db/quizzes";
@@ -22,10 +21,14 @@ export default async function NewGradedQuizPage({
 
   return (
     <>
-      <Link href={backHref} className="flex items-center gap-2 text-small text-ink-soft no-underline hover:text-ink">
-        <Icon icon={ArrowLeft} size={16} />
-        {found.lesson.title}
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: found.course.code, href: `/instructor/courses/${courseId}` },
+          { label: found.module.title },
+          { label: found.lesson.title, href: backHref },
+          { label: "New graded quiz" },
+        ]}
+      />
       <PageHeader eyebrow={`${found.course.code} · Graded quiz`} title="Create a graded quiz" />
       {questions.length === 0 ? (
         <Card padded={false} className="border-dashed">

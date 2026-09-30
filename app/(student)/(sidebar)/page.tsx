@@ -10,10 +10,9 @@ import {
   CourseGrid,
   DueNotice,
 } from "@/components/student/home-cards";
-import { loadStudentCourses } from "@/components/student/load-courses";
+import { loadStudentHome } from "@/components/student/load-courses";
 import { EmptyState, SearchField } from "@/components/ui";
 import { homePathFor, requireAreaRole } from "@/lib/auth";
-import { upcomingEvents } from "@/lib/db/events";
 import { requestTime } from "@/lib/utils/clock";
 import { firstName } from "@/lib/utils/format";
 
@@ -27,7 +26,7 @@ export default async function StudentHomePage({ searchParams }: PageProps<"/">) 
   const { show } = await searchParams;
   const filter = parseCourseFilter(show);
   const now = requestTime();
-  const [courses, comingUp] = await Promise.all([loadStudentCourses(user), upcomingEvents(user, new Date(now), 3)]);
+  const { courses, comingUp } = await loadStudentHome(user, new Date(now), 3);
   const current = pickCurrentCourse(courses);
   const name = firstName(user.name);
   const nextDeadline = comingUp.find((e) => (e.kind === "due" || e.kind === "quiz") && !e.done);

@@ -6,15 +6,20 @@ import { getCurrentUser } from "@/lib/auth";
 import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
 import { getCourseAccess, getLessonForUser } from "@/lib/db/courses";
-import { markAnswerStatements, replyStatements, startDiscussionStatement, threadAccess, type ThreadAccess } from "@/lib/db/discussions";
-import { DISCUSSION_LIMITS, discussionHref } from "@/lib/discussions/view";
+import { markAnswerStatements, recentPosts, replyStatements, startDiscussionStatement, threadAccess, type ThreadAccess } from "@/lib/db/discussions";
+import { isLimitError, lockFor, underLimit } from "@/lib/db/limits";
+import { DISCUSSION_LIMITS, discussionHref, POSTING_LIMIT, POSTING_LIMIT_MESSAGES } from "@/lib/discussions/view";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Course discussions (feature 21), shared by the student's /discussions,
    the lesson player's Discussion tab, "Ask your instructor" and the
    instructor's Messages. Each: zod → signed in → the thread or course is
    visible to this viewer (in SQL) → the write, its notification and its
-   audit row in one batch. Audit rows carry ids only. */
+   audit row in one batch. Audit rows carry ids only. New threads and
+   replies are limited per person per hour (POSTING_LIMIT, feature 25):
+   the batch takes the person's lock and counts first, so posts sent at
+   once can't get past it. */
 
 const title = z
   .string()
@@ -40,7 +45,7 @@ const startInput = z.object({ courseId: z.uuid(), lessonId: z.uuid().nullable(),
 
 /* Start a thread in a course the viewer is in, optionally about a lesson
    they can open. Returns where the thread opens for them. */
-export async function startDiscussion(raw: z.input<typeof startInput>): Promise<ActionResult<{ id: string; href: string }>> {
+export const startDiscussion = safeAction("startDiscussion", async (raw: z.input<typeof startInput>): Promise<ActionResult<{ id: string; href: string }>> => {
   const parsed = startInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check your question and try again.");
   const { courseId, lessonId, ...post } = parsed.data;
@@ -54,20 +59,27 @@ export async function startDiscussion(raw: z.input<typeof startInput>): Promise<
   }
 
   const id = crypto.randomUUID();
-  await db.batch([
-    startDiscussionStatement({ id, courseId, lessonId, authorId: user.id, ...post }),
-    auditInsert({ actorId: user.id, action: "discussion.start", entityType: "discussion", entityId: id, data: { courseId, lessonId } }),
-  ]);
+  try {
+    await db.batch([
+      lockFor("post", user.id),
+      underLimit(recentPosts(user.id, "threads", POSTING_LIMIT.minutes), POSTING_LIMIT.threads, "threads"),
+      startDiscussionStatement({ id, courseId, lessonId, authorId: user.id, ...post }),
+      auditInsert({ actorId: user.id, action: "discussion.start", entityType: "discussion", entityId: id, data: { courseId, lessonId } }),
+    ]);
+  } catch (err) {
+    if (isLimitError(err)) return fail("conflict", POSTING_LIMIT_MESSAGES.threads);
+    throw err;
+  }
   revalidateThread({ id, courseId, lessonId });
   return ok({ id, href: discussionHref(id, user.role) });
-}
+});
 
 const replyInput = z.object({ discussionId: z.uuid(), body, markAnswer: z.boolean().default(false) });
 
 /* Reply to a thread the viewer can read. Staff may reply "as the answer",
    which marks it and answers the thread. The thread's author is notified
    unless they wrote the reply. */
-export async function replyToDiscussion(raw: z.input<typeof replyInput>): Promise<ActionResult<{ id: string }>> {
+export const replyToDiscussion = safeAction("replyToDiscussion", async (raw: z.input<typeof replyInput>): Promise<ActionResult<{ id: string }>> => {
   const parsed = replyInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check your reply and try again.");
   const { discussionId, markAnswer } = parsed.data;
@@ -79,24 +91,31 @@ export async function replyToDiscussion(raw: z.input<typeof replyInput>): Promis
 
   const id = crypto.randomUUID();
   const answered = markAnswer && thread.viewerIsStaff;
-  await db.batch([
-    auditInsert({
-      actorId: user.id,
-      action: "discussion.reply",
-      entityType: "discussion",
-      entityId: discussionId,
-      data: { replyId: id, markedAnswer: answered },
-    }),
-    ...replyStatements({ id, thread, author: { id: user.id, name: user.name }, body: parsed.data.body, markAnswer: answered }),
-  ]);
+  try {
+    await db.batch([
+      lockFor("post", user.id),
+      underLimit(recentPosts(user.id, "replies", POSTING_LIMIT.minutes), POSTING_LIMIT.replies, "replies"),
+      auditInsert({
+        actorId: user.id,
+        action: "discussion.reply",
+        entityType: "discussion",
+        entityId: discussionId,
+        data: { replyId: id, markedAnswer: answered },
+      }),
+      ...replyStatements({ id, thread, author: { id: user.id, name: user.name }, body: parsed.data.body, markAnswer: answered }),
+    ]);
+  } catch (err) {
+    if (isLimitError(err)) return fail("conflict", POSTING_LIMIT_MESSAGES.replies);
+    throw err;
+  }
   revalidateThread(thread);
   return ok({ id });
-}
+});
 
 const answerInput = z.object({ discussionId: z.uuid(), replyId: z.uuid().nullable() });
 
 /* Staff mark a reply as the answer (or clear it with null). */
-export async function setAnswer(raw: z.input<typeof answerInput>): Promise<ActionResult> {
+export const setAnswer = safeAction("setAnswer", async (raw: z.input<typeof answerInput>): Promise<ActionResult> => {
   const parsed = answerInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", "Pick a reply to mark.");
   const { discussionId, replyId } = parsed.data;
@@ -113,4 +132,4 @@ export async function setAnswer(raw: z.input<typeof answerInput>): Promise<Actio
   ]);
   revalidateThread(thread);
   return ok();
-}
+});

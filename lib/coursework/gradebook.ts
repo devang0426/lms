@@ -1,5 +1,5 @@
 import type { AssignmentCategory, SubmissionStatus } from "@/lib/db/schema";
-import { toCsv, type CsvCell } from "./csv";
+import { csvFileName, toCsv, type CsvCell } from "./csv";
 import { CATEGORY_LABELS, formatPoints } from "./rules";
 
 /* The gradebook (feature 20), pure. What counts toward a total is what
@@ -161,6 +161,5 @@ export function gradebookCsv(items: GradebookItem[], rows: GradebookRow[]): stri
 
 /* "MATH 201" on 29 Sep 2026 → "math-201-gradebook-2026-09-29.csv". */
 export function gradebookFileName(courseCode: string, now: Date): string {
-  const code = courseCode.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "course";
-  return `${code}-gradebook-${now.toISOString().slice(0, 10)}.csv`;
+  return csvFileName(courseCode, "gradebook", now);
 }

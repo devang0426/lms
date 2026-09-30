@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "./client";
+import { db, type BatchRows } from "./client";
 import {
   courses,
   enrollments,
@@ -100,23 +100,33 @@ export async function isCourseStaff(courseId: string, viewer: Viewer): Promise<b
   return (await getCourseAccess(courseId, viewer)) === "staff";
 }
 
-export async function getCourseForUser(courseId: string, viewer: Viewer): Promise<CourseForUser | null> {
-  if (!isUuid(courseId)) return null;
-  const [row] = await db
-    .select({ course: courses, isStaff: sql<boolean>`${staffPredicate(viewer)}` })
-    .from(courses)
-    .where(and(eq(courses.id, courseId), accessWhere(viewer)))
-    .limit(1);
-  if (!row) return null;
+/* For statements batched with the access check (feature 29): each still
+   checks access itself (invariant 4), so none returns anything when the
+   check fails. Both are uncorrelated, so Postgres runs them once. */
+export function canSeeCourse(courseId: string, viewer: Viewer): SQL {
+  return sql`exists (select 1 from courses where courses.id = ${courseId}
+    and (${staffPredicate(viewer)} or (courses.status = 'published' and ${enrolledPredicate(viewer)})))`;
+}
 
-  const access: CourseAccess = row.isStaff ? "staff" : "student";
-  const studentOnly = access === "student";
+export function isStaffOf(courseId: string, viewer: Viewer): SQL {
+  return sql`exists (select 1 from courses where courses.id = ${courseId} and ${staffPredicate(viewer)})`;
+}
 
-  const [mods, lessonRows] = await db.batch([
+/* getCourseForUser's statements, for a page's batch: the course with the
+   viewer's access, its modules and its lessons. Students get published
+   modules and lessons only. Take the result with toCourseForUser(). */
+export function courseForUserQueries(courseId: string, viewer: Viewer) {
+  const staff = isStaffOf(courseId, viewer);
+  return [
+    db
+      .select({ course: courses, isStaff: sql<boolean>`${staffPredicate(viewer)}` })
+      .from(courses)
+      .where(and(eq(courses.id, courseId), accessWhere(viewer)))
+      .limit(1),
     db
       .select()
       .from(modules)
-      .where(and(eq(modules.courseId, courseId), studentOnly ? eq(modules.status, "published") : undefined))
+      .where(and(eq(modules.courseId, courseId), canSeeCourse(courseId, viewer), or(staff, eq(modules.status, "published"))))
       .orderBy(asc(modules.position)),
     db
       .select({ lesson: lessons })
@@ -125,12 +135,16 @@ export async function getCourseForUser(courseId: string, viewer: Viewer): Promis
       .where(
         and(
           eq(modules.courseId, courseId),
-          studentOnly ? and(eq(modules.status, "published"), eq(lessons.status, "published")) : undefined,
+          canSeeCourse(courseId, viewer),
+          or(staff, and(eq(modules.status, "published"), eq(lessons.status, "published"))),
         ),
       )
       .orderBy(asc(lessons.position)),
-  ]);
+  ] as const;
+}
 
+export function toCourseForUser([[row], mods, lessonRows]: BatchRows<ReturnType<typeof courseForUserQueries>>): CourseForUser | null {
+  if (!row) return null;
   const byModule = new Map<string, Lesson[]>();
   for (const { lesson } of lessonRows) {
     const list = byModule.get(lesson.moduleId) ?? [];
@@ -139,9 +153,15 @@ export async function getCourseForUser(courseId: string, viewer: Viewer): Promis
   }
   return {
     course: row.course,
-    access,
+    access: row.isStaff ? "staff" : "student",
     modules: mods.map((m) => ({ ...m, lessons: byModule.get(m.id) ?? [] })),
   };
+}
+
+/* One round trip: the access check and the curriculum in one batch. */
+export async function getCourseForUser(courseId: string, viewer: Viewer): Promise<CourseForUser | null> {
+  if (!isUuid(courseId)) return null;
+  return toCourseForUser(await db.batch(courseForUserQueries(courseId, viewer)));
 }
 
 export interface LessonForUser {

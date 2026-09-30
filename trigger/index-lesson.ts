@@ -14,16 +14,17 @@ const lessonIndex = queue({ name: "lesson-index", concurrencyLimit: 5 });
 
 export const indexLesson = schemaTask({
   id: "index-lesson",
-  schema: z.object({ lessonId: z.uuid() }),
+  /* requestedBy: who published, charged for the embeddings (feature 25). */
+  schema: z.object({ lessonId: z.uuid(), requestedBy: z.uuid().optional() }),
   queue: lessonIndex,
   retry: { maxAttempts: 3 },
   maxDuration: 600,
   ...jobHooks,
-  run: async ({ lessonId }, { ctx }) => {
+  run: async ({ lessonId, requestedBy }, { ctx }) => {
     const report = (fraction: number, message: string) =>
       reportProgress(ctx.run.id, { stage: "index", progress: Math.round(fraction * 95), message });
     await report(0, "Cutting the transcript and documents into passages…");
-    const result = await indexLessonChunks(lessonId, { report });
+    const result = await indexLessonChunks(lessonId, { report, requestedBy });
     const message = {
       indexed: `The assistant can now answer from ${result.chunks} passages.`,
       not_published: "The lesson isn't published, so it was left out of the assistant.",

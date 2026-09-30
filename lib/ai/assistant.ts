@@ -2,23 +2,26 @@ import "server-only";
 
 import { EngineError, type ChatMessage } from "@/lib/ai/engine";
 import { getEngine } from "@/lib/ai/engine/server";
-import { assistantSystem, assistantUser, spaceAssistantSystem } from "@/lib/ai/prompts";
+import { assistantSources, assistantSystem, assistantUser, spaceAssistantSystem } from "@/lib/ai/prompts";
 import { searchChunks, type SearchResult, type SearchScope } from "@/lib/ai/retrieval/search";
+import { toUsageToday, usageTodayQuery, type AiUsageToday } from "@/lib/ai/budget";
 import { withUsage } from "@/lib/ai/usage";
 import { addAssistantTurn, segmentsInRanges } from "@/lib/db/chat";
-import { documentTitles } from "@/lib/db/documents";
-import { getCourseForUser, type Viewer } from "@/lib/db/courses";
+import { db } from "@/lib/db/client";
+import { courseForUserQueries, getCourseForUser, toCourseForUser, type CourseForUser, type Viewer } from "@/lib/db/courses";
 import type { AssistantEvent, AssistantMode, ChatCitation, TurnView } from "@/lib/chat/types";
 import type { ChatTurn } from "@/lib/db/schema";
 import { bestMoment, checkAnswer, citationLabel, claimsFor, NOT_IN_SYLLABUS, releasable, stripMarkers } from "@/lib/chat/citations";
+import { logServerError } from "@/lib/utils/server-error";
 
 /* The course assistant (feature 14): explain, cite, jump — or refuse.
 
    1. Retrieve the course's chunks the user may see (searchChunks).
    2. Relevance gate: best similarity under ASSISTANT_MIN_SIMILARITY and no
       full-text hit → refuse with NO model call.
-   3. Number the chunks as sources: "[S1] Lecture 3 · 12:48 — …", or
-      "[S2] Week 2 slides · p. 7 — …" for a document (feature 18).
+   3. Number the chunks as sources, each in <source> tags (feature 24):
+      id "S1" from "Lecture 3 · 12:48", or
+      from "Week 2 slides · p. 7" for a document (feature 18).
    4. Stream the answer from the fast tier (ai_usage feature "assistant").
    5. Refuse on the refusal token or when no valid [S#] is left; drop the
       rest of the invalid ones (lib/chat/citations.ts). An empty or
@@ -79,10 +82,14 @@ export async function answer(input: {
   onDelta?: (text: string) => void;
   /* The streamed draft is being thrown away and retried. */
   onReset?: () => void;
+  /* The request's time limit (answerStream, feature 30): the model call
+     stops, and nothing is saved after it. */
+  signal?: AbortSignal;
 }): Promise<TurnView> {
-  const { user, subject, threadId, question, mode } = input;
-  const save = async (fields: { content: string; citations: ChatCitation[]; refused: boolean; ids: string[] }) =>
-    toTurnView(
+  const { user, subject, threadId, question, mode, signal } = input;
+  const save = async (fields: { content: string; citations: ChatCitation[]; refused: boolean; ids: string[] }) => {
+    signal?.throwIfAborted();
+    return toTurnView(
       await addAssistantTurn({
         threadId,
         content: fields.content,
@@ -91,6 +98,7 @@ export async function answer(input: {
         retrievedChunkIds: fields.ids,
       }),
     );
+  };
 
   // A follow-up ("and in 3D?") is searched together with the question before it.
   const previous = mode === "answer" ? [...input.history].reverse().find((t) => t.role === "user")?.content : undefined;
@@ -110,9 +118,7 @@ export async function answer(input: {
     return save({ content: "", citations, refused: false, ids });
   }
 
-  const sources = results
-    .map((r, i) => `[S${i + 1}] ${where(r)} — ${bodyText(r.chunk.text)}`)
-    .join("\n\n");
+  const sources = assistantSources(results.map((r) => ({ label: where(r), text: bodyText(r.chunk.text) })));
   const messages: ChatMessage[] = [
     ...historyMessages(input.history),
     { role: "user", content: assistantUser(sources, question) },
@@ -129,7 +135,7 @@ export async function answer(input: {
     let released = false;
     const text = await withUsage(subject.kind === "course" ? "assistant" : "space-chat", user.id, () =>
       getEngine().complete(
-        { system, messages, tier: "fast", temperature: 0.2, maxTokens: ANSWER_MAX_TOKENS },
+        { system, messages, tier: "fast", temperature: 0.2, maxTokens: ANSWER_MAX_TOKENS, signal },
         (delta) => {
           full += delta;
           if (released) return input.onDelta?.(delta);
@@ -164,12 +170,13 @@ interface Labels {
   codes: Map<string, string> | null;
 }
 
-/* Document chunks (feature 18) are labelled with their document's title,
-   lecture chunks by their lesson's number in the course. */
+/* Document chunks (feature 18) are labelled with their document's title
+   (joined into the search, feature 29), lecture chunks by their lesson's
+   number in the course. */
 async function labelsFor(subject: AssistantSubject, results: SearchResult[], user: Viewer): Promise<Labels> {
-  const titles = documentTitles([...new Set(results.flatMap((r) => (r.chunk.documentId ? [r.chunk.documentId] : [])))]);
+  const titles = new Map(results.flatMap((r) => (r.chunk.documentId && r.chunk.documentTitle !== null ? [[r.chunk.documentId, r.chunk.documentTitle] as const] : [])));
   if (subject.kind === "course") {
-    return { ordinals: new Map(subject.lessonIds.map((id, i) => [id, i + 1])), titles: await titles, codes: null };
+    return { ordinals: new Map(subject.lessonIds.map((id, i) => [id, i + 1])), titles, codes: null };
   }
   // Number each cited course's lessons the way its player does, as this user sees them.
   const courseIds = [...new Set(results.flatMap((r) => (r.chunk.courseId ? [r.chunk.courseId] : [])))];
@@ -181,7 +188,7 @@ async function labelsFor(subject: AssistantSubject, results: SearchResult[], use
     codes.set(found.course.id, found.course.code);
     found.modules.flatMap((m) => m.lessons).forEach((l, i) => ordinals.set(l.id, i + 1));
   }
-  return { ordinals, titles: await titles, codes };
+  return { ordinals, titles, codes };
 }
 
 function label(r: SearchResult, startSec: number | null, { ordinals, titles, codes }: Labels): string {
@@ -255,9 +262,28 @@ function historyMessages(history: ChatTurn[]): ChatMessage[] {
 /* ---- The routes' shared pieces ------------------------------------------------
    POST /api/assistant (feature 14) and POST /api/space/chat (feature 19). */
 
+/* The course a question is about, if this person may see it, and their AI
+   usage over the day, in one batch: one round trip before the question is
+   reserved (feature 29). The usage is only acted on once the course is
+   known to be visible (checkCountedBudget). */
+export async function courseForQuestion(courseId: string, user: Viewer): Promise<{ course: CourseForUser | null; usage: AiUsageToday }> {
+  const [access, mods, lessons, usage] = await db.batch([...courseForUserQueries(courseId, user), usageTodayQuery(user.id)]);
+  return { course: toCourseForUser([access, mods, lessons]), usage: toUsageToday(usage) };
+}
+
 /* Per user, across both: they count the same chat_turns. */
 export const QUESTION_LIMIT = { questions: 20, minutes: 5 };
 export const QUESTION_LIMIT_MESSAGE = `That's ${QUESTION_LIMIT.questions} questions in ${QUESTION_LIMIT.minutes} minutes. Take a short break and ask again.`;
+
+/* Both routes export maxDuration = 300, Vercel Hobby's ceiling, where the
+   function is stopped and the stream cut with no message. The whole answer
+   (retrieval, the model with its fallbacks and one retry, placing the
+   chips) gets 240 s of it (feature 30). At the limit the stream ends with
+   TOO_LONG, the model call is abandoned (the engine gets the signal), and
+   no answer is saved afterwards. The question stays saved in its thread
+   (reserveQuestion), so it's there to ask again. */
+export const ANSWER_TIME_LIMIT_MS = 240_000;
+export const TOO_LONG_MESSAGE = "That took too long. Try again.";
 
 /* The answer as NDJSON, one event per line:
      {"type":"thread","threadId"}   first
@@ -265,23 +291,44 @@ export const QUESTION_LIMIT_MESSAGE = `That's ${QUESTION_LIMIT.questions} questi
      {"type":"reset"}               drop the text so far (a retry follows)
      {"type":"done","turn"}         the checked answer, which replaces the
                                     streamed text, with its citations
-     {"type":"error","message"}     instead of done, if it failed */
+     {"type":"error","message"}     instead of done, if it failed or ran
+                                    out of time
+   A failure is logged like any server error (lib/utils/server-error.ts):
+   by then the response has started, so onRequestError doesn't see it. */
 export function answerStream(
   threadId: string,
-  run: (on: { delta: (text: string) => void; reset: () => void }) => Promise<TurnView>,
+  run: (on: { delta: (text: string) => void; reset: () => void; signal: AbortSignal }) => Promise<TurnView>,
+  where: { route: string; userId: string | null; limitMs?: number },
 ): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: AssistantEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      let open = true;
+      const send = (event: AssistantEvent) => {
+        if (open) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
+      const deadline = new AbortController();
+      const timer = setTimeout(
+        () => deadline.abort(new DOMException(TOO_LONG_MESSAGE, "TimeoutError")),
+        where.limitMs ?? ANSWER_TIME_LIMIT_MS,
+      );
+      const expired = new Promise<never>((_, reject) =>
+        deadline.signal.addEventListener("abort", () => reject(deadline.signal.reason), { once: true }),
+      );
       send({ type: "thread", threadId });
       try {
-        const turn = await run({ delta: (text) => send({ type: "delta", text }), reset: () => send({ type: "reset" }) });
+        const turn = await Promise.race([
+          run({ delta: (text) => send({ type: "delta", text }), reset: () => send({ type: "reset" }), signal: deadline.signal }),
+          expired,
+        ]);
         send({ type: "done", turn });
       } catch (err) {
-        console.error("[assistant] answer failed", err);
-        send({ type: "error", message: friendly(err) });
+        const timedOut = deadline.signal.aborted;
+        logServerError({ source: "stream", route: where.route, path: `thread ${threadId}`, userId: where.userId, error: err });
+        send({ type: "error", message: timedOut ? TOO_LONG_MESSAGE : friendly(err) });
       } finally {
+        clearTimeout(timer);
+        open = false;
         controller.close();
       }
     },

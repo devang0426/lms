@@ -13,7 +13,7 @@ import type {
   QuizType,
 } from "@/lib/ai/types";
 import { uuid } from "@/lib/utils/ids";
-import { markdownToBlocks, plainText, stripFence } from "@/lib/markdown";
+import { markdownToBlocks, plainText, stripFence } from "@/lib/markdown-blocks";
 import { newCardState } from "@/lib/study/fsrs";
 import { capTokens, chunkByTokens, estimateTokens } from "./chunk";
 import {

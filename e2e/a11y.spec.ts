@@ -8,20 +8,33 @@ test.describe("axe", () => {
   test("student pages", async ({ page }) => {
     await signInAs(page, "Student");
     await expectAccessible(page, "Student home");
-    for (const path of ["/courses", "/calendar", "/discussions", "/study", "/grades", "/space"]) {
+    for (const path of ["/courses", "/calendar", "/discussions", "/study", "/grades", "/progress", "/space", "/profile"]) {
       await page.goto(path);
       await expectAccessible(page, path);
     }
+    await page.goto("/courses");
+    await page.getByRole("link", { name: /Linear Algebra/ }).first().click();
+    await expect(page.getByRole("navigation", { name: "Course tools" })).toBeVisible();
+    await expectAccessible(page, "the course page");
     await openLectureAsStudent(page);
     await expectAccessible(page, "the lesson player");
   });
 
   test("instructor and admin pages", async ({ page }) => {
     await signInAs(page, "Admin");
-    for (const path of ["/instructor", "/instructor/grading", "/instructor/analytics", "/instructor/messages", "/admin/users", "/admin/audit"]) {
+    for (const path of ["/instructor", "/instructor/learners", "/instructor/grading", "/instructor/analytics", "/instructor/messages", "/admin/users", "/admin/courses", "/admin/audit"]) {
       await page.goto(path);
       await expectAccessible(page, path);
     }
+    // A student's report (feature 31), opened from Learners.
+    await page.goto("/instructor/learners");
+    await page.getByRole("link", { name: "Aanya Sharma" }).first().click();
+    await expect(page.getByRole("heading", { level: 1, name: "Aanya Sharma" })).toBeVisible();
+    await expectAccessible(page, "a student report");
+    // View as student (feature 28): the course page with the Student view banner.
+    await page.goto("/instructor/view-as-student");
+    await expect(page.getByRole("note", { name: "Student view" })).toBeVisible();
+    await expectAccessible(page, "Student view of the course page");
   });
 
   test("sign-in page", async ({ page }) => {

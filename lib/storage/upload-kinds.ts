@@ -22,6 +22,12 @@ export function privateFolder(userId: string): string {
   return `private/${userId}/`;
 }
 
+/* A person's data exports (feature 33). Written by the export-user-data
+   task, never uploaded from a browser; the erase deletes the folder. */
+export function exportFolder(userId: string): string {
+  return `exports/${userId}/`;
+}
+
 /* Only this student's files for this assignment live here. */
 export function submissionFolder(assignmentId: string, userId: string): string {
   return `submissions/${assignmentId}/${userId}/`;

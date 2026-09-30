@@ -5,6 +5,7 @@ import { saveAssignment } from "@/app/(instructor)/instructor/courses/[courseId]
 import { Button, Field, Input, Select, Textarea, toast } from "@/components/ui";
 import { CATEGORY_LABELS } from "@/lib/coursework/rules";
 import type { AssignmentCategory } from "@/lib/db/schema";
+import { settle } from "@/lib/utils/action-result";
 
 /* The lesson editor's assignment settings (feature 20): instructions
    (Markdown), due date in the instructor's own time zone, points,
@@ -48,14 +49,16 @@ export function AssignmentForm({ lessonId, initial }: { lessonId: string; initia
     const dueDate = new Date(due);
     if (Number.isNaN(dueDate.getTime())) return setError("Pick a due date and time.");
     startSaving(async () => {
-      const res = await saveAssignment({
-        lessonId,
-        instructions,
-        dueAt: dueDate.toISOString(),
-        points: Number(points),
-        allowLate,
-        category,
-      });
+      const res = await settle(
+        saveAssignment({
+          lessonId,
+          instructions,
+          dueAt: dueDate.toISOString(),
+          points: Number(points),
+          allowLate,
+          category,
+        }),
+      );
       if (!res.ok) return setError(res.error.message);
       toast.success(initial.dueAt === null ? "Assignment set. Students see it once the lesson is published." : "Assignment saved.");
     });

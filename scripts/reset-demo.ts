@@ -7,7 +7,10 @@
    Later features register their student-activity cleanup in RESET_STEPS:
    watch progress & notes (11), card reviews (15), quiz attempts (16),
    chats (14), podcasts the student asked for (17), private space (19), submissions & grades (20),
-   notifications & discussions (21). */
+   notifications & discussions (21), data exports (33).
+
+   It refuses to run unless DEMO_MODE=true and every database URL points
+   at a host in DEMO_DB_HOSTS (feature 24). */
 
 import { createClerkClient } from "@clerk/backend";
 import { eq, inArray } from "drizzle-orm";
@@ -16,6 +19,7 @@ import {
   cardReviews,
   chatThreads,
   courses,
+  dataExports,
   discussionReplies,
   discussions,
   documents,
@@ -29,8 +33,9 @@ import {
   watchProgress,
   type User,
 } from "@/lib/db/schema";
-import { deleteBlobs } from "@/lib/storage/blob";
+import { deleteBlobs, exportFolder, listBlobUrls } from "@/lib/storage/blob";
 import { DEMO_ACCOUNTS, ensureDemoClerkUser, isDemoMode } from "@/lib/demo/accounts";
+import { checkResetTarget } from "@/lib/demo/reset-guard";
 import { DEMO_COURSE_CODE, ensureDemoSubmission } from "./lib/demo-assignment";
 import { ensureDemoQuestion } from "./lib/demo-communication";
 
@@ -136,6 +141,25 @@ const RESET_STEPS: ResetStep[] = [
       return gone.length;
     },
   },
+  {
+    // Feature 33: both demo accounts' data exports, rows and files, so the
+    // Profile page's "Your data" starts from "Prepare my data".
+    label: "Data exports",
+    run: async () => {
+      const demo = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(inArray(users.email, DEMO_ACCOUNTS.map((a) => a.email)));
+      if (demo.length === 0) return 0;
+      const gone = await db
+        .delete(dataExports)
+        .where(inArray(dataExports.userId, demo.map((u) => u.id)))
+        .returning({ id: dataExports.id });
+      const files = (await Promise.all(demo.map((u) => listBlobUrls(exportFolder(u.id))))).flat();
+      await deleteBlobs(files);
+      return gone.length;
+    },
+  },
 ];
 
 async function resetAccounts() {
@@ -162,6 +186,7 @@ async function resetAccounts() {
           name: `${account.firstName} ${account.lastName}`,
           role: account.role,
           deletedAt: null,
+          erasedAt: null,
         },
       });
 
@@ -191,7 +216,14 @@ async function main() {
     console.error("Refusing to reset: DEMO_MODE is not \"true\" in .env.local.");
     process.exit(1);
   }
-  console.log("Resetting Studyhall demo…");
+  // Feature 24 (R10): only a database listed as a demo one, checked before
+  // anything is touched (Clerk sessions included).
+  const target = checkResetTarget(process.env);
+  if (!target.ok) {
+    console.error(`Refusing to reset: ${target.reason} Nothing was changed.`);
+    process.exit(1);
+  }
+  console.log(`Resetting Studyhall demo on ${[...new Set(target.hosts)].join(", ")}…`);
   await resetAccounts();
   await resetStudentActivity();
   console.log("Done. Course content was left untouched.");

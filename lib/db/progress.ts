@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { isWatchedEnough, MAX_RANGES, mergeRanges, type Range } from "@/lib/video/watch";
 import type { NextLesson } from "./catalog";
 import { db } from "./client";
@@ -12,12 +12,16 @@ import { lessonNotes, lessons, modules, watchProgress, type LessonNote, type Wat
    user. Callers check that the user may see the lesson first
    (getLessonForUser) — these functions don't repeat that check. */
 
-export async function getWatchProgress(userId: string, lessonId: string): Promise<WatchProgress | null> {
-  const [row] = await db
+export function watchProgressQuery(userId: string, lessonId: string) {
+  return db
     .select()
     .from(watchProgress)
     .where(and(eq(watchProgress.userId, userId), eq(watchProgress.lessonId, lessonId)))
     .limit(1);
+}
+
+export async function getWatchProgress(userId: string, lessonId: string): Promise<WatchProgress | null> {
+  const [row] = await watchProgressQuery(userId, lessonId);
   return row ?? null;
 }
 
@@ -75,15 +79,18 @@ export async function markLessonComplete(userId: string, lessonId: string): Prom
 }
 
 /* The user's completed lessons in one course. */
-export async function completedLessonIds(userId: string, courseId: string): Promise<Set<string>> {
-  if (!isUuid(courseId)) return new Set();
-  const rows = await db
+export function completedLessonsQuery(userId: string, courseId: string) {
+  return db
     .select({ lessonId: watchProgress.lessonId })
     .from(watchProgress)
     .innerJoin(lessons, eq(lessons.id, watchProgress.lessonId))
     .innerJoin(modules, eq(modules.id, lessons.moduleId))
     .where(and(eq(watchProgress.userId, userId), eq(modules.courseId, courseId), isNotNull(watchProgress.completedAt)));
-  return new Set(rows.map((r) => r.lessonId));
+}
+
+export async function completedLessonIds(userId: string, courseId: string): Promise<Set<string>> {
+  if (!isUuid(courseId)) return new Set();
+  return new Set((await completedLessonsQuery(userId, courseId)).map((r) => r.lessonId));
 }
 
 export interface CourseProgress {
@@ -91,11 +98,17 @@ export interface CourseProgress {
   lastWatchedAt: Date | null;
 }
 
-/* Completed published lessons and the latest activity, per course. */
-export async function courseProgressFor(userId: string, courseIds: string[]): Promise<Map<string, CourseProgress>> {
-  const ids = courseIds.filter(isUuid);
-  if (ids.length === 0) return new Map();
-  const rows = await db
+/* The courses the student is actively enrolled in and can open (published),
+   as a subquery: the home page's reads filter on it instead of a list of
+   ids read first, so they share one batch (feature 29). */
+export function enrolledCourses(userId: string) {
+  return sql`(select s.course_id from enrollments e join sections s on s.id = e.section_id join courses c on c.id = s.course_id
+    where e.user_id = ${userId} and e.status = 'active' and c.status = 'published')`;
+}
+
+/* Completed published lessons and the latest activity, per enrolled course. */
+export function courseProgressQuery(userId: string) {
+  return db
     .select({
       courseId: modules.courseId,
       completedLessons: sql<number>`count(*) filter (where ${watchProgress.completedAt} is not null)`.mapWith(Number),
@@ -107,22 +120,23 @@ export async function courseProgressFor(userId: string, courseIds: string[]): Pr
     .where(
       and(
         eq(watchProgress.userId, userId),
-        inArray(modules.courseId, ids),
+        sql`${modules.courseId} in ${enrolledCourses(userId)}`,
         eq(modules.status, "published"),
         eq(lessons.status, "published"),
       ),
     )
     .groupBy(modules.courseId);
+}
+
+export function toCourseProgress(rows: Awaited<ReturnType<typeof courseProgressQuery>>): Map<string, CourseProgress> {
   return new Map(rows.map((r) => [r.courseId, { completedLessons: r.completedLessons, lastWatchedAt: r.lastWatchedAt }]));
 }
 
-/* Where "Continue" points in each course: the most recently watched
-   lesson that isn't complete, else the first unfinished one in course
-   order. Courses with every lesson complete are absent. */
-export async function nextLessonsFor(userId: string, courseIds: string[]): Promise<Map<string, NextLesson>> {
-  const ids = courseIds.filter(isUuid);
-  if (ids.length === 0) return new Map();
-  const rows = await db
+/* Where "Continue" points in each enrolled course: the most recently
+   watched lesson that isn't complete, else the first unfinished one in
+   course order. Courses with every lesson complete are absent. */
+export function nextLessonsQuery(userId: string) {
+  return db
     .selectDistinctOn([modules.courseId], {
       courseId: modules.courseId,
       lessonId: lessons.id,
@@ -136,17 +150,20 @@ export async function nextLessonsFor(userId: string, courseIds: string[]): Promi
     .leftJoin(watchProgress, and(eq(watchProgress.lessonId, lessons.id), eq(watchProgress.userId, userId)))
     .where(
       and(
-        inArray(modules.courseId, ids),
+        sql`${modules.courseId} in ${enrolledCourses(userId)}`,
         eq(modules.status, "published"),
         eq(lessons.status, "published"),
         sql`${watchProgress.completedAt} is null`,
       ),
     )
     .orderBy(modules.courseId, sql`${watchProgress.updatedAt} desc nulls last`, asc(modules.position), asc(lessons.position));
+}
+
+export function toNextLessons(rows: Awaited<ReturnType<typeof nextLessonsQuery>>): Map<string, NextLesson> {
   return new Map(rows.map((r) => [r.courseId, r]));
 }
 
-export async function listLessonNotes(userId: string, lessonId: string): Promise<LessonNote[]> {
+export function lessonNotesQuery(userId: string, lessonId: string) {
   return db
     .select()
     .from(lessonNotes)

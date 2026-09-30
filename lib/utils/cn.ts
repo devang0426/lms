@@ -10,6 +10,7 @@ const twMerge = extendTailwindMerge({
       text: ["display", "h1", "h2", "h3", "body", "small", "meta", "label"],
       radius: ["tile", "card", "panel"],
       shadow: ["hairline", "raised"],
+      animate: ["skeleton", "pending-bar"],
       color: [
         "cream", "paper", "oat", "line", "line-strong", "ink", "ink-soft",
         "terracotta", "terracotta-hover", "clay", "clay-ink", "clay-stripe",

@@ -22,6 +22,9 @@ const runOptions = {
   parentRunId: z.string().min(1).optional(),
   /* Regenerate even if this video (or note) already has content of this kind. */
   force: z.boolean().optional(),
+  /* Who pressed Regenerate: the AI calls are charged to them (feature 25).
+     Left out, a lesson's drafts are charged to whoever uploaded its source. */
+  requestedBy: z.uuid().optional(),
 };
 
 export const lessonContentPayload = z.union([
@@ -53,7 +56,7 @@ function contentTask(kind: Kind, step: Step, noteStep?: Step) {
     maxDuration: 1800,
     ...jobHooks,
     run: async (payload, { ctx }) => {
-      const { parentRunId, force } = payload;
+      const { parentRunId, force, requestedBy } = payload;
       const [from, to] = parentRunId ? CONTENT_SLICES[kind] : [0, 100];
       const report = (fraction: number, message: string) =>
         reportProgress(
@@ -66,7 +69,7 @@ function contentTask(kind: Kind, step: Step, noteStep?: Step) {
           ? noteStep
             ? await noteStep(payload.noteId, { force, report })
             : { skipped: true, count: 0 }
-          : await step(payload.lessonId, { force, report });
+          : await step(payload.lessonId, { force, report, requestedBy });
       if (!parentRunId) await report(1, result.skipped ? "Already drafted." : "Draft ready to review.");
       return result;
     },

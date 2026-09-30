@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /* Sign-in / sign-up split layout from wireframe 01: Clay-tint hero panel on
@@ -7,12 +8,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <section className="relative m-4 hidden flex-col justify-between overflow-hidden rounded-panel bg-clay p-12 lg:m-5 lg:flex">
-        <div className="flex items-center gap-2.5">
+        {/* Back to the landing page (feature 34). */}
+        <Link href="/welcome" className="flex items-center gap-2.5 self-start text-ink no-underline hover:text-ink">
           <div className="flex size-[34px] items-center justify-center rounded-[9px] bg-terracotta font-serif text-[22px] text-cream italic">
             s
           </div>
           <span className="font-serif text-[26px]">Studyhall</span>
-        </div>
+        </Link>
         <div aria-hidden className="absolute top-[150px] -right-[120px] size-[420px] rounded-full bg-butter opacity-55" />
         <div aria-hidden className="absolute top-[380px] right-[120px] size-[220px] rounded-full bg-sage-tint" />
         <div className="relative flex flex-col gap-5">

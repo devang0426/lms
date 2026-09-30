@@ -26,8 +26,12 @@ import {
    and lesson published — checked in the SQL below. A student only ever
    reads their own submission; staff read any in their courses. */
 
+export function assignmentQuery(lessonId: string) {
+  return db.select().from(assignments).where(eq(assignments.lessonId, lessonId)).limit(1);
+}
+
 export async function getAssignment(lessonId: string): Promise<Assignment | null> {
-  const [row] = await db.select().from(assignments).where(eq(assignments.lessonId, lessonId)).limit(1);
+  const [row] = await assignmentQuery(lessonId);
   return row ?? null;
 }
 
@@ -99,18 +103,31 @@ export interface StudentWork {
 
 /* The student's view of an assignment lesson. Call after getLessonForUser
    has let them into the lesson. */
-export async function studentWork(userId: string, lessonId: string): Promise<StudentWork | null> {
-  const assignment = await getAssignment(lessonId);
-  if (!assignment) return null;
-  const [row] = await db
-    .select({ submission: submissions, grade: { score: grades.score, maxScore: grades.maxScore, feedback: grades.feedback, gradedAt: grades.gradedAt } })
-    .from(submissions)
+/* The assignment with this user's submission and grade joined in, one
+   statement (feature 29). Staff previewing have no submission. */
+export function studentWorkQuery(userId: string, lessonId: string) {
+  return db
+    .select({
+      assignment: assignments,
+      submission: submissions,
+      grade: { score: grades.score, maxScore: grades.maxScore, feedback: grades.feedback, gradedAt: grades.gradedAt },
+    })
+    .from(assignments)
+    .leftJoin(submissions, and(eq(submissions.assignmentId, assignments.id), eq(submissions.userId, userId)))
     .leftJoin(grades, eq(grades.submissionId, submissions.id))
-    .where(and(eq(submissions.assignmentId, assignment.id), eq(submissions.userId, userId)))
+    .where(eq(assignments.lessonId, lessonId))
     .limit(1);
-  const submission = row?.submission ?? null;
-  const grade = submission?.status === "returned" && row?.grade?.score != null ? row.grade : null;
-  return { assignment, submission, grade: grade as StudentWork["grade"] };
+}
+
+export function toStudentWork([row]: Awaited<ReturnType<typeof studentWorkQuery>>): StudentWork | null {
+  if (!row) return null;
+  const submission = row.submission ?? null;
+  const grade = submission?.status === "returned" && row.grade?.score != null ? row.grade : null;
+  return { assignment: row.assignment, submission, grade: grade as StudentWork["grade"] };
+}
+
+export async function studentWork(userId: string, lessonId: string): Promise<StudentWork | null> {
+  return toStudentWork(await studentWorkQuery(userId, lessonId));
 }
 
 export type HandInResult =
@@ -188,6 +205,20 @@ export async function submissionCounts(assignmentId: string): Promise<{ handedIn
     .from(submissions)
     .where(eq(submissions.assignmentId, assignmentId))
     .groupBy(submissions.status);
+  return toSubmissionCounts(rows);
+}
+
+/* The same counts for a lesson's assignment, in the editor's batch. */
+export function lessonSubmissionCountsQuery(lessonId: string) {
+  return db
+    .select({ status: submissions.status, n: sql<number>`count(*)`.mapWith(Number) })
+    .from(submissions)
+    .innerJoin(assignments, eq(assignments.id, submissions.assignmentId))
+    .where(eq(assignments.lessonId, lessonId))
+    .groupBy(submissions.status);
+}
+
+export function toSubmissionCounts(rows: readonly { status: Submission["status"]; n: number }[]): { handedIn: number; toGrade: number; returned: number } {
   const n = (s: Submission["status"]) => rows.find((r) => r.status === s)?.n ?? 0;
   return { handedIn: n("submitted") + n("graded") + n("returned"), toGrade: n("submitted") + n("graded"), returned: n("returned") };
 }

@@ -27,11 +27,12 @@ export default async function AdminCoursesPage() {
                 key: "course",
                 header: "Course",
                 width: "2.4fr",
+                // The title opens the course builder (feature 28); admins are staff everywhere.
                 cell: (r) => (
-                  <span className="flex flex-col gap-0.5">
+                  <Link href={`/instructor/courses/${r.course.id}`} className="flex min-w-0 flex-col gap-0.5 text-ink no-underline hover:text-terracotta">
                     <Eyebrow>{r.course.code}</Eyebrow>
                     <span className="truncate text-[15px] font-medium">{r.course.title}</span>
-                  </span>
+                  </Link>
                 ),
               },
               { key: "status", header: "Status", width: "1fr", cell: (r) => <StatusBadge status={r.course.status} size="md" /> },
@@ -42,7 +43,9 @@ export default async function AdminCoursesPage() {
                 width: "auto",
                 cell: (r) => (
                   <Button asChild variant="quiet" size="xs">
-                    <Link href={`/admin/courses/${r.course.id}/enrollments`}>Manage</Link>
+                    <Link href={`/admin/courses/${r.course.id}/enrollments`} aria-label={`Enrollments for ${r.course.code}`}>
+                      Enrollments
+                    </Link>
                   </Button>
                 ),
               },

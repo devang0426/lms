@@ -7,6 +7,7 @@ import { createNoteFromLink, discardUnfinishedUpload, prepareNoteUpload } from "
 import { useBlobUpload } from "@/components/uploads/use-blob-upload";
 import { Button, ChipGroup, Dialog, DialogContent, DialogTrigger, Icon, Input, ProgressBar } from "@/components/ui";
 import { documentKindFor, documentTypeFromName } from "@/lib/storage/upload-kinds";
+import { settle } from "@/lib/utils/action-result";
 import { cn } from "@/lib/utils/cn";
 
 /* "New note" in the private space (feature 19). File: a PDF, Word file or
@@ -45,7 +46,7 @@ export function NewNoteDialog() {
     if (!documentKindFor(type)) return setError("Add a PDF, a Word document (.docx) or an audio recording (MP3, M4A, WAV).");
     setWorking(true);
     try {
-      const prepared = await prepareNoteUpload({ file: { name: file.name, size: file.size, type } });
+      const prepared = await settle(prepareNoteUpload({ file: { name: file.name, size: file.size, type } }));
       if (!prepared.ok) return setError(prepared.error.message);
       const result = await start(new File([file], file.name, { type }), prepared.data.pathname, {
         kind: "private-document",
@@ -53,7 +54,7 @@ export function NewNoteDialog() {
       });
       if (result.phase === "done") return router.push(`/space/${prepared.data.noteId}`);
       // The upload didn't finish: its empty note goes, so nothing is left half-made.
-      await discardUnfinishedUpload({ noteId: prepared.data.noteId });
+      await settle(discardUnfinishedUpload({ noteId: prepared.data.noteId }));
     } finally {
       setWorking(false);
     }
@@ -64,7 +65,7 @@ export function NewNoteDialog() {
     setError(null);
     setWorking(true);
     try {
-      const res = await createNoteFromLink({ url: link, source: source === "youtube" ? "youtube" : "link" });
+      const res = await settle(createNoteFromLink({ url: link, source: source === "youtube" ? "youtube" : "link" }));
       if (!res.ok) return setError(res.error.message);
       router.push(`/space/${res.data.noteId}`);
     } finally {

@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { checkBudget } from "@/lib/ai/budget";
 import type { Block } from "@/lib/ai/types";
 import { getCurrentUser } from "@/lib/auth";
+import { publishLessonWithContent } from "@/lib/courses/publish";
 import { auditInsert } from "@/lib/db/audit";
-import { db } from "@/lib/db/client";
 import { courseIdForLesson, getCourseAccess } from "@/lib/db/courses";
 import {
   addCard,
@@ -14,7 +15,6 @@ import {
   deleteChapter,
   deleteQuestion,
   loadDraftSource,
-  publishLessonStatements,
   updateCard,
   updateChapter,
   updateNoteBlocks,
@@ -22,10 +22,10 @@ import {
 } from "@/lib/db/lesson-content";
 import { QUIZ_BANKS, QUIZ_DIFFICULTIES, type User } from "@/lib/db/schema";
 import { startJob } from "@/lib/jobs";
-import { startLessonIndexing } from "@/lib/video/lessons";
 import { markdownToBlocks } from "@/lib/markdown";
 import { parseT } from "@/lib/time";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Review screen (feature 12). Every action: zod → course staff for the
    lesson → write (edits scoped to the lesson in the query) → revalidate.
@@ -71,7 +71,7 @@ const time = z
 
 const chapterFields = z.object({ title: text("The title", 120), start: time, summary: z.string().trim().max(600) });
 
-export async function saveChapter(input: { lessonId: string; id: string; title: string; start: string; summary: string }): Promise<ActionResult> {
+export const saveChapter = safeAction("saveChapter", async (input: { lessonId: string; id: string; title: string; start: string; summary: string }): Promise<ActionResult> => {
   const parsed = chapterFields.extend({ lessonId, id: itemId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -79,25 +79,25 @@ export async function saveChapter(input: { lessonId: string; id: string; title: 
   const { title, start, summary } = parsed.data;
   if (!(await updateChapter(staff.lessonId, parsed.data.id, { title, startSec: start, summary }))) return missing();
   return done(staff);
-}
+});
 
-export async function createChapter(input: { lessonId: string; title: string; start: string; summary: string }): Promise<ActionResult> {
+export const createChapter = safeAction("createChapter", async (input: { lessonId: string; title: string; start: string; summary: string }): Promise<ActionResult> => {
   const parsed = chapterFields.extend({ lessonId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
   await addChapter(staff.lessonId, { title: parsed.data.title, startSec: parsed.data.start, summary: parsed.data.summary });
   return done(staff);
-}
+});
 
-export async function removeChapter(input: { lessonId: string; id: string }): Promise<ActionResult> {
+export const removeChapter = safeAction("removeChapter", async (input: { lessonId: string; id: string }): Promise<ActionResult> => {
   const parsed = z.object({ lessonId, id: itemId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
   if (!(await deleteChapter(staff.lessonId, parsed.data.id))) return missing();
   return done(staff);
-}
+});
 
 /* ---- Notes ----------------------------------------------------------------- */
 
@@ -109,7 +109,7 @@ const noteItem = z.object({
   startSec: z.number().finite().min(0).max(24 * 3600).nullable(),
 });
 
-export async function saveNote(input: { lessonId: string; items: z.input<typeof noteItem>[] }): Promise<ActionResult> {
+export const saveNote = safeAction("saveNote", async (input: { lessonId: string; items: z.input<typeof noteItem>[] }): Promise<ActionResult> => {
   const parsed = z.object({ lessonId, items: z.array(noteItem).max(2000) }).safeParse(input);
   if (!parsed.success) return fail("invalid", "Those notes couldn't be saved. Reload and try again.");
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -122,13 +122,13 @@ export async function saveNote(input: { lessonId: string; items: z.input<typeof 
   });
   if (!(await updateNoteBlocks(staff.lessonId, blocks))) return missing();
   return done(staff);
-}
+});
 
 /* ---- Flashcards ------------------------------------------------------------ */
 
 const cardFields = z.object({ front: text("The front", 500), back: text("The back", 1500), topic: z.string().trim().max(80) });
 
-export async function saveCard(input: { lessonId: string; id: string; front: string; back: string; topic: string }): Promise<ActionResult> {
+export const saveCard = safeAction("saveCard", async (input: { lessonId: string; id: string; front: string; back: string; topic: string }): Promise<ActionResult> => {
   const parsed = cardFields.extend({ lessonId, id: itemId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -136,25 +136,25 @@ export async function saveCard(input: { lessonId: string; id: string; front: str
   const { front, back, topic } = parsed.data;
   if (!(await updateCard(staff.lessonId, parsed.data.id, { front, back, topic }))) return missing();
   return done(staff);
-}
+});
 
-export async function createCard(input: { lessonId: string; front: string; back: string; topic: string }): Promise<ActionResult> {
+export const createCard = safeAction("createCard", async (input: { lessonId: string; front: string; back: string; topic: string }): Promise<ActionResult> => {
   const parsed = cardFields.extend({ lessonId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
   await addCard(staff.lessonId, { front: parsed.data.front, back: parsed.data.back, topic: parsed.data.topic });
   return done(staff);
-}
+});
 
-export async function removeCard(input: { lessonId: string; id: string }): Promise<ActionResult> {
+export const removeCard = safeAction("removeCard", async (input: { lessonId: string; id: string }): Promise<ActionResult> => {
   const parsed = z.object({ lessonId, id: itemId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
   if (!(await deleteCard(staff.lessonId, parsed.data.id))) return missing();
   return done(staff);
-}
+});
 
 /* ---- Quiz ------------------------------------------------------------------ */
 
@@ -178,7 +178,7 @@ const questionFields = z
     }
   });
 
-export async function saveQuestion(input: { lessonId: string; id: string } & z.input<typeof questionFields>): Promise<ActionResult> {
+export const saveQuestion = safeAction("saveQuestion", async (input: { lessonId: string; id: string } & z.input<typeof questionFields>): Promise<ActionResult> => {
   const parsed = z.object({ lessonId, id: itemId }).and(questionFields).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -187,24 +187,25 @@ export async function saveQuestion(input: { lessonId: string; id: string } & z.i
   const saved = await updateQuestion(staff.lessonId, parsed.data.id, { question, options, correctIndex, explanation, topic, bank, difficulty });
   if (!saved) return missing();
   return done(staff);
-}
+});
 
-export async function removeQuestion(input: { lessonId: string; id: string }): Promise<ActionResult> {
+export const removeQuestion = safeAction("removeQuestion", async (input: { lessonId: string; id: string }): Promise<ActionResult> => {
   const parsed = z.object({ lessonId, id: itemId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
   if ("ok" in staff) return staff;
   if (!(await deleteQuestion(staff.lessonId, parsed.data.id))) return missing();
   return done(staff);
-}
+});
 
 /* ---- Regenerate and publish -------------------------------------------------- */
 
 const KINDS = ["chapters", "notes", "cards", "quiz"] as const;
 
 /* Redraft one tab. Replaces that tab's items (edits included) with new
-   drafts; the review page shows the run's progress. */
-export async function regenerate(input: { lessonId: string; kind: (typeof KINDS)[number] }): Promise<ActionResult> {
+   drafts; the review page shows the run's progress. Within the daily AI
+   limit of whoever presses it, who is charged for the run (feature 25). */
+export const regenerate = safeAction("regenerate", async (input: { lessonId: string; kind: (typeof KINDS)[number] }): Promise<ActionResult> => {
   const parsed = z.object({ lessonId, kind: z.enum(KINDS) }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -212,20 +213,23 @@ export async function regenerate(input: { lessonId: string; kind: (typeof KINDS)
   if (!(await loadDraftSource(staff.lessonId))) {
     return fail("invalid", "Upload the video and let it finish processing (or, for a reading lesson, add a document) first.");
   }
+  const budget = await checkBudget(staff.user, { feature: "regenerate", entityType: "lesson", entityId: staff.lessonId });
+  if (!budget.ok) return fail("conflict", budget.message);
   const { kind } = parsed.data;
   await startJob({
     kind: `generate-${kind}`,
     entity: { type: "lesson", id: staff.lessonId },
-    payload: { lessonId: staff.lessonId, force: true },
+    payload: { lessonId: staff.lessonId, force: true, requestedBy: staff.user.id },
     createdBy: staff.user.id,
     idempotencyKey: `lesson:${staff.lessonId}:generate-${kind}:${Date.now()}`,
   });
   await auditInsert({ actorId: staff.user.id, action: `lesson.regenerate_${kind}`, entityType: "lesson", entityId: staff.lessonId });
   return done(staff);
-}
+});
 
-/* The lesson and every generated item go live together. */
-export async function publishLesson(input: { lessonId: string }): Promise<ActionResult> {
+/* The lesson and every generated item go live together, the same way the
+   curriculum row's Publish does (publishLessonWithContent, feature 27). */
+export const publishLesson = safeAction("publishLesson", async (input: { lessonId: string }): Promise<ActionResult> => {
   const parsed = z.object({ lessonId }).safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const staff = await asLessonStaff(parsed.data.lessonId);
@@ -233,12 +237,9 @@ export async function publishLesson(input: { lessonId: string }): Promise<Action
   if (!(await loadDraftSource(staff.lessonId))) {
     return fail("invalid", "This lesson has no processed video or documents yet, so there's nothing to publish.");
   }
-  await db.batch([
-    ...publishLessonStatements(staff.lessonId),
-    auditInsert({ actorId: staff.user.id, action: "lesson.published_with_content", entityType: "lesson", entityId: staff.lessonId }),
-  ]);
-  await startLessonIndexing(staff.lessonId, staff.user.id);
+  const published = await publishLessonWithContent(staff.lessonId, staff.user.id, "review");
+  if (!published.ok) return published;
   revalidatePath(`/instructor/courses/${staff.courseId}`);
   revalidatePath(`/instructor/courses/${staff.courseId}/lessons/${staff.lessonId}`);
   return done(staff);
-}
+});

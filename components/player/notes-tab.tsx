@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { addNote, deleteNote, type NoteView } from "@/app/(student)/(focus)/courses/[courseId]/lessons/[lessonId]/actions";
 import { Button, Icon, Textarea, toast } from "@/components/ui";
 import { formatTime } from "@/lib/time";
+import { settle } from "@/lib/utils/action-result";
 import { usePlayer } from "./player-context";
 
 /* Timestamped personal notes (feature 11). The note is pinned to the
@@ -25,7 +26,7 @@ export function NotesTab({ lessonId, initialNotes }: { lessonId: string; initial
     const text = draft.trim();
     if (!text || saving) return;
     startSaving(async () => {
-      const result = await addNote({ lessonId, atSec: at, text });
+      const result = await settle(addNote({ lessonId, atSec: at, text }));
       if (!result.ok) {
         setError(result.error.message);
         return;
@@ -40,7 +41,7 @@ export function NotesTab({ lessonId, initialNotes }: { lessonId: string; initial
   const remove = async (id: string) => {
     const previous = notes;
     setNotes((list) => list.filter((n) => n.id !== id));
-    const result = await deleteNote(id);
+    const result = await settle(deleteNote(id));
     if (!result.ok) {
       setNotes(previous);
       toast.error(result.error.message);

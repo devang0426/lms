@@ -2,10 +2,10 @@ import "server-only";
 
 import { and, eq, sql } from "drizzle-orm";
 import { podcastSource } from "@/lib/ai/generation/podcast";
-import { PROMPTS_VERSION } from "@/lib/ai/prompts";
+import { PODCAST_PROMPTS_VERSION } from "@/lib/ai/prompts";
 import type { Block, PodcastLine } from "@/lib/ai/types";
-import type { PodcastLanguage, PodcastLength } from "@/lib/study/podcast";
-import { db } from "./client";
+import { PODCAST_LANGUAGES, type PodcastLanguage, type PodcastLength } from "@/lib/study/podcast";
+import { db, type BatchRows } from "./client";
 import { lessons, notes, podcasts, type PodcastRow } from "./schema";
 
 /* Lesson podcasts (feature 17). A podcast is made from the lesson's
@@ -30,6 +30,30 @@ async function publishedNoteBlocks(lessonId: string): Promise<Block[] | null> {
   return note?.blocks ?? null;
 }
 
+/* The Podcast tab's statements for a batch (feature 29): the published
+   notes and this length's episode in every language. */
+export function lessonPodcastQueries(lessonId: string, length: PodcastLength) {
+  return [
+    db
+      .select({ blocks: notes.blocks })
+      .from(notes)
+      .where(and(eq(notes.lessonId, lessonId), eq(notes.status, "published")))
+      .limit(1),
+    db
+      .select()
+      .from(podcasts)
+      .where(and(eq(podcasts.lessonId, lessonId), eq(podcasts.length, length))),
+  ] as const;
+}
+
+export function toLessonPodcasts([noteRows, podcastRows]: BatchRows<ReturnType<typeof lessonPodcastQueries>>): Record<PodcastLanguage, LessonPodcast> {
+  const src = noteRows[0] ? podcastSource(noteRows[0].blocks) : null;
+  const source = src && { hash: src.hash, promptsVersion: PODCAST_PROMPTS_VERSION };
+  return Object.fromEntries(
+    PODCAST_LANGUAGES.map((l) => [l.value, { row: podcastRows.find((r) => r.language === l.value) ?? null, source }]),
+  ) as Record<PodcastLanguage, LessonPodcast>;
+}
+
 /* The stored podcast and the current source, in one round trip. */
 export async function getLessonPodcast(lessonId: string, length: PodcastLength, language: PodcastLanguage = "en"): Promise<LessonPodcast> {
   const [noteRows, podcastRows] = await db.batch([
@@ -45,7 +69,7 @@ export async function getLessonPodcast(lessonId: string, length: PodcastLength, 
       .limit(1),
   ]);
   const src = noteRows[0] ? podcastSource(noteRows[0].blocks) : null;
-  return { row: podcastRows[0] ?? null, source: src && { hash: src.hash, promptsVersion: PROMPTS_VERSION } };
+  return { row: podcastRows[0] ?? null, source: src && { hash: src.hash, promptsVersion: PODCAST_PROMPTS_VERSION } };
 }
 
 /* Start a generation, atomically: at most one runs per (lesson, length, language),
@@ -61,7 +85,7 @@ export async function claimLessonPodcast(input: {
   allowStale: boolean;
 }): Promise<string | null> {
   const stale = input.allowStale
-    ? sql`(podcasts.source_hash is distinct from ${input.sourceHash} or podcasts.prompts_version is distinct from ${PROMPTS_VERSION})`
+    ? sql`(podcasts.source_hash is distinct from ${input.sourceHash} or podcasts.prompts_version is distinct from ${PODCAST_PROMPTS_VERSION})`
     : sql`false`;
   const [row] = await db
     .insert(podcasts)
@@ -92,7 +116,7 @@ export async function getNotePodcast(noteId: string, ownerId: string, length: Po
       .limit(1),
   ]);
   const src = noteRows[0] ? podcastSource(noteRows[0].blocks) : null;
-  return { row: podcastRows[0]?.podcast ?? null, source: src && { hash: src.hash, promptsVersion: PROMPTS_VERSION } };
+  return { row: podcastRows[0]?.podcast ?? null, source: src && { hash: src.hash, promptsVersion: PODCAST_PROMPTS_VERSION } };
 }
 
 /* claimLessonPodcast for a private note. The owner may always remake a
@@ -104,7 +128,7 @@ export async function claimNotePodcast(input: {
   userId: string;
   sourceHash: string;
 }): Promise<string | null> {
-  const stale = sql`(podcasts.source_hash is distinct from ${input.sourceHash} or podcasts.prompts_version is distinct from ${PROMPTS_VERSION})`;
+  const stale = sql`(podcasts.source_hash is distinct from ${input.sourceHash} or podcasts.prompts_version is distinct from ${PODCAST_PROMPTS_VERSION})`;
   const [row] = await db
     .insert(podcasts)
     .values({ noteId: input.noteId, length: input.length, language: input.language, status: "generating", requestedBy: input.userId })
@@ -148,7 +172,7 @@ export async function savePodcastEpisode(
 ): Promise<void> {
   await db
     .update(podcasts)
-    .set({ ...episode, status: "ready", error: null, promptsVersion: PROMPTS_VERSION })
+    .set({ ...episode, status: "ready", error: null, promptsVersion: PODCAST_PROMPTS_VERSION })
     .where(eq(podcasts.id, podcastId));
 }
 

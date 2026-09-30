@@ -3,19 +3,28 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { clerkMessage, clerkUsersByEmail, revokeInvitations, sendInvitations, setClerkRole } from "@/lib/admin/clerk";
+import { startErase } from "@/lib/account/erase";
+import { confirmsDeletion, deleteRefusal } from "@/lib/account/rules";
+import { clerkMessage, clerkUsersByEmail, deleteClerkUser, revokeInvitations, sendInvitations, setClerkRole } from "@/lib/admin/clerk";
 import { signUpUrl } from "@/lib/admin/links";
 import { getCurrentUser, syncUserFromClerk } from "@/lib/auth";
 import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
 import { pendingForEmail, saveInvitationsStatement } from "@/lib/db/invitations";
 import { courseStaff, enrollments, ROLES } from "@/lib/db/schema";
+import { markUserDeleted } from "@/lib/db/user-erase";
 import { getUser, setRoleStatement, usersByEmail } from "@/lib/db/users";
+import { DEMO_ACCOUNT_EMAILS, DEMO_MODE_REFUSAL, isDemoMode } from "@/lib/demo/accounts";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* People (feature 22), admin only. zod → admin → Clerk (the source of
    truth for identity and the role) → the Neon mirror and the audit row in
-   one batch. */
+   one batch. In demo mode (feature 24) anyone can be the admin, so role
+   changes and invitations, which would outlast demo mode, are refused.
+   Withdrawing an invitation only takes access away, so it still works.
+   Deleting an account (feature 33) works too, except for the demo
+   accounts themselves. */
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -28,11 +37,12 @@ const roleInput = z.object({ userId: z.uuid(), role: z.enum(ROLES) });
    leaves their enrollments (dropped, kept for audit); someone made a
    student stops teaching (their course_staff rows go), since course
    staff rows grant staff access whatever the role. */
-export async function changeRole(raw: z.input<typeof roleInput>): Promise<ActionResult<{ coursesLeft: number }>> {
+export const changeRole = safeAction("changeRole", async (raw: z.input<typeof roleInput>): Promise<ActionResult<{ coursesLeft: number }>> => {
   const parsed = roleInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", "Pick a role.");
   const admin = await requireAdmin();
   if (!admin) return fail("unauthorized", "Only admins can change roles.");
+  if (isDemoMode()) return fail("conflict", DEMO_MODE_REFUSAL);
   const { userId, role } = parsed.data;
   if (userId === admin.id) return fail("invalid", "You can't change your own role. Ask another admin.");
   const target = await getUser(userId);
@@ -78,7 +88,7 @@ export async function changeRole(raw: z.input<typeof roleInput>): Promise<Action
   revalidatePath("/admin/users");
   revalidatePath("/admin/audit");
   return ok({ coursesLeft: stopTeaching ? taught.length : leaveCourses ? enrolled.length : 0 });
-}
+});
 
 const inviteInput = z.object({
   email: z.email("Enter an email address.").transform((e) => e.trim().toLowerCase()),
@@ -88,11 +98,12 @@ const inviteInput = z.object({
 
 /* Invite someone by email (a Clerk invitation). Someone who already has a
    Clerk account but hasn't opened Studyhall is linked instead. */
-export async function inviteUser(raw: z.input<typeof inviteInput>): Promise<ActionResult<{ outcome: "invited" | "linked" }>> {
+export const inviteUser = safeAction("inviteUser", async (raw: z.input<typeof inviteInput>): Promise<ActionResult<{ outcome: "invited" | "linked" }>> => {
   const parsed = inviteInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the invitation.");
   const admin = await requireAdmin();
   if (!admin) return fail("unauthorized", "Only admins can invite people.");
+  if (isDemoMode()) return fail("conflict", DEMO_MODE_REFUSAL);
   const { email, name, role } = parsed.data;
 
   if ((await usersByEmail([email])).has(email)) return fail("conflict", `${email} already has an account. Change their role in the list below.`);
@@ -104,7 +115,7 @@ export async function inviteUser(raw: z.input<typeof inviteInput>): Promise<Acti
     return ok({ outcome: "linked" });
   }
 
-  const sent = (await sendInvitations([{ email, role }], await signUpUrl())).get(email);
+  const sent = (await sendInvitations([{ email, role }], signUpUrl())).get(email);
   if (!sent?.ok) return fail("conflict", sent?.error ?? "Clerk didn't send the invitation. Try again in a moment.");
   await db.batch([
     saveInvitationsStatement([{ email, name, role, courseId: null, sectionId: null, clerkInvitationId: sent.invitationId, invitedBy: admin.id }]),
@@ -112,12 +123,12 @@ export async function inviteUser(raw: z.input<typeof inviteInput>): Promise<Acti
   ]);
   revalidatePath("/admin/users");
   return ok({ outcome: "invited" });
-}
+});
 
 const revokeInput = z.object({ email: z.email().transform((e) => e.toLowerCase()) });
 
 /* Withdraw someone's pending invitations (Clerk's and ours). */
-export async function revokeInvitation(raw: z.input<typeof revokeInput>): Promise<ActionResult> {
+export const revokeInvitation = safeAction("revokeInvitation", async (raw: z.input<typeof revokeInput>): Promise<ActionResult> => {
   const parsed = revokeInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", "That invitation can't be found.");
   const admin = await requireAdmin();
@@ -133,4 +144,41 @@ export async function revokeInvitation(raw: z.input<typeof revokeInput>): Promis
   ]);
   revalidatePath("/admin/users");
   return ok();
-}
+});
+
+const deleteInput = z.object({ userId: z.uuid(), confirm: z.string().max(320) });
+
+/* Delete someone's account (feature 33). Clerk first, so they can't sign
+   in again; then the Neon row is marked deleted (with its audit row) and
+   the erase-user task removes their private data and anonymises the row.
+   What's kept is in lib/db/user-erase.ts. The confirm step is their
+   email, typed. If the erase can't be queued, the daily clean-up does it
+   within a day, so the delete still stands. */
+export const deleteUser = safeAction("deleteUser", async (raw: z.input<typeof deleteInput>): Promise<ActionResult<{ queued: boolean }>> => {
+  const parsed = deleteInput.safeParse(raw);
+  if (!parsed.success) return fail("invalid", "That account can't be found.");
+  const admin = await requireAdmin();
+  if (!admin) return fail("unauthorized", "Only admins can delete accounts.");
+  const target = await getUser(parsed.data.userId);
+  if (!target) return fail("not_found", "That person doesn't exist.");
+  const refusal = deleteRefusal(target, admin, { on: isDemoMode(), emails: DEMO_ACCOUNT_EMAILS });
+  if (refusal) return fail("conflict", refusal);
+  if (!confirmsDeletion(parsed.data.confirm, target.email)) return fail("invalid", `Type ${target.email} to confirm.`);
+
+  try {
+    await deleteClerkUser(target.clerkId);
+  } catch (err) {
+    return fail("conflict", clerkMessage(err, "Clerk didn't delete the account. Try again in a moment."));
+  }
+  await markUserDeleted(target.id, { actorId: admin.id, via: "admin" });
+  let queued = true;
+  try {
+    await startErase(target.id, admin.id);
+  } catch (err) {
+    console.error("[erase] couldn't start the job", err);
+    queued = false;
+  }
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/audit");
+  return ok({ queued });
+});

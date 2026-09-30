@@ -1,7 +1,18 @@
 import "server-only";
 
+import { checkBudget } from "@/lib/ai/budget";
 import { auditInsert } from "@/lib/db/audit";
-import { claimLessonPodcast, claimNotePodcast, getLessonPodcast, getNotePodcast, markPodcastFailed, type LessonPodcast } from "@/lib/db/podcasts";
+import { db } from "@/lib/db/client";
+import {
+  claimLessonPodcast,
+  claimNotePodcast,
+  getLessonPodcast,
+  getNotePodcast,
+  lessonPodcastQueries,
+  markPodcastFailed,
+  toLessonPodcasts,
+  type LessonPodcast,
+} from "@/lib/db/podcasts";
 import type { Job, User } from "@/lib/db/schema";
 import { getJobAccessToken, latestJobFor, startJob } from "@/lib/jobs";
 import { TERMINAL_JOB_STATES } from "@/lib/jobs/stages";
@@ -25,9 +36,15 @@ import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
 
 const entity = (podcastId: string) => ({ type: "podcast", id: podcastId });
 
-/* The Podcast tab: every language's episode (English, and Hinglish). */
+/* The Podcast tab: every language's episode (English, and Hinglish), in
+   one batch. */
 export async function getPodcastTabs(lessonId: string, access: PodcastAccess, length: PodcastLength = "short"): Promise<PodcastEpisodes> {
-  return byLanguage(async (language) => episodeView(await getLessonPodcast(lessonId, length, language), access));
+  return podcastTabsFrom(toLessonPodcasts(await db.batch(lessonPodcastQueries(lessonId, length))), access);
+}
+
+/* The tab from rows read in a page's batch (lessonPodcastQueries). */
+export async function podcastTabsFrom(episodes: Record<PodcastLanguage, LessonPodcast>, access: PodcastAccess): Promise<PodcastEpisodes> {
+  return byLanguage(async (language) => episodeView(episodes[language], access));
 }
 
 /* The note page's Podcast tab: the owner's own note only. */
@@ -72,11 +89,12 @@ async function episodeView({ row, source }: LessonPodcast, access: PodcastAccess
   };
 }
 
-/* Start one, if the rules in lib/study/podcast allow it. The claim is a
-   single conditional upsert, so two students pressing Generate at once
-   start one run. */
+/* Start one, if the rules in lib/study/podcast allow it and the person is
+   within their daily AI limit (feature 25): the run is charged to them.
+   The claim is a single conditional upsert, so two students pressing
+   Generate at once start one run. */
 export async function requestLessonPodcast(
-  user: Pick<User, "id">,
+  user: Pick<User, "id" | "role">,
   lessonId: string,
   access: PodcastAccess,
   length: PodcastLength,
@@ -86,6 +104,8 @@ export async function requestLessonPodcast(
   if (!source) return fail("invalid", "The podcast is made from the lesson notes, and they aren't published yet.");
   const state = podcastState(row, source, access);
   if (!state.canGenerate) return fail("conflict", conflictMessage(state));
+  const budget = await checkBudget(user, { feature: "podcast", entityType: "lesson", entityId: lessonId });
+  if (!budget.ok) return fail("conflict", budget.message);
 
   const podcastId = await claimLessonPodcast({ lessonId, length, language, userId: user.id, sourceHash: source.hash, allowStale: access === "staff" });
   if (!podcastId) return fail("conflict", "Someone else just started this podcast. It will appear here when it's ready.");
@@ -97,7 +117,7 @@ export async function requestLessonPodcast(
 
 /* The same for a private note, whose owner the caller has checked. */
 export async function requestNotePodcast(
-  user: Pick<User, "id">,
+  user: Pick<User, "id" | "role">,
   noteId: string,
   length: PodcastLength,
   language: PodcastLanguage = "en",
@@ -106,6 +126,8 @@ export async function requestNotePodcast(
   if (!source) return fail("invalid", "The podcast is made from your notes, and they aren't written yet.");
   const state = podcastState(row, source, "owner");
   if (!state.canGenerate) return fail("conflict", conflictMessage(state));
+  const budget = await checkBudget(user, { feature: "space-podcast", entityType: "note", entityId: noteId });
+  if (!budget.ok) return fail("conflict", budget.message);
 
   const podcastId = await claimNotePodcast({ noteId, length, language, userId: user.id, sourceHash: source.hash });
   if (!podcastId) return fail("conflict", "This podcast is already being made. It will appear here when it's ready.");

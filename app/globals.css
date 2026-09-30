@@ -114,6 +114,31 @@
   /* Shadows → shadow-hairline, shadow-raised */
   --shadow-hairline: var(--shadow-hairline-value);
   --shadow-raised: var(--shadow-raised-value);
+
+  /* Loading (feature 29) → animate-skeleton (the Skeleton primitive's
+     gentle pulse), animate-pending-bar (the top bar after a link click).
+     Both are switched off under prefers-reduced-motion by their users. */
+  --animate-skeleton: skeleton-pulse 1.8s ease-in-out infinite;
+  --animate-pending-bar: pending-bar 8s cubic-bezier(0.08, 0.7, 0.2, 1) forwards;
+
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+
+  @keyframes pending-bar {
+    from {
+      transform: scaleX(0.04);
+    }
+    to {
+      transform: scaleX(0.9);
+    }
+  }
 }
 
 /* Placeholder covers (course thumbnails without an image) */

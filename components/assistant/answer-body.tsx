@@ -6,14 +6,15 @@ import { useRouter } from "next/navigation";
 import { useMemo, type MouseEvent } from "react";
 import { citationChipsHtml, stripMarkers } from "@/lib/chat/citations";
 import type { ChatCitation } from "@/lib/chat/types";
-import { renderMarkdown, stripFence } from "@/lib/markdown";
+import { renderAnswerMarkdown, stripFence } from "@/lib/markdown";
 import { citationHref, isDocumentCitation, useCitationSeek } from "./citation-chip";
 
 /* An assistant answer as Markdown with maths (lib/markdown: KaTeX, then
-   DOMPurify). Each [S#] becomes a small time chip (.cite-chip) that seeks
-   or opens the lesson. A marker with no citation behind it renders as
-   nothing. While streaming, markers are hidden altogether: the server
-   hasn't checked them yet. */
+   DOMPurify). The model's own raw HTML shows as text (feature 24). Each
+   [S#] becomes a small time chip (.cite-chip) that seeks or opens the
+   lesson. A marker with no citation behind it renders as nothing. While
+   streaming, markers are hidden altogether: the server hasn't checked
+   them yet. */
 
 export function AnswerBody({
   content,
@@ -33,7 +34,8 @@ export function AnswerBody({
   const seekFor = useCitationSeek(currentLessonId);
   const html = useMemo(() => {
     const md = stripFence(content);
-    return renderMarkdown(streaming ? stripMarkers(md) : citationChipsHtml(md, citations));
+    if (streaming) return renderAnswerMarkdown(stripMarkers(md));
+    return renderAnswerMarkdown(md, (src, keep) => citationChipsHtml(src, citations, keep));
   }, [content, citations, streaming]);
 
   const onClick = (e: MouseEvent<HTMLDivElement>) => {

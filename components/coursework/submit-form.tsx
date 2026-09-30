@@ -8,6 +8,7 @@ import { useBlobUpload } from "@/components/uploads/use-blob-upload";
 import { Button, Field, Icon, ProgressBar, Textarea, toast } from "@/components/ui";
 import { formatBytes } from "@/lib/documents/view";
 import { blobPaths, MAX_SUBMISSION_FILES, SUBMISSION_TYPES, UPLOAD_KINDS } from "@/lib/storage/upload-kinds";
+import { settle } from "@/lib/utils/action-result";
 import type { SubmittedFileView } from "./submitted-work";
 
 /* The hand-in form on an assignment lesson (feature 20). Each file goes
@@ -99,13 +100,15 @@ export function SubmitForm({
   function submit() {
     setError(null);
     startSaving(async () => {
-      const res = await handInAssignment({
-        lessonId,
-        assignmentId,
-        text,
-        keep,
-        files: added.map(({ url, pathname, name }) => ({ url, pathname, name })),
-      });
+      const res = await settle(
+        handInAssignment({
+          lessonId,
+          assignmentId,
+          text,
+          keep,
+          files: added.map(({ url, pathname, name }) => ({ url, pathname, name })),
+        }),
+      );
       if (!res.ok) return setError(res.error.message);
       toast.success(res.data.late ? "Handed in. It's marked late." : "Handed in. Your instructor will see it in their queue.");
       router.refresh();

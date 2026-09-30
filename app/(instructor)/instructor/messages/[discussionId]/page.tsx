@@ -21,7 +21,7 @@ export default async function StaffDiscussionPage({ params }: PageProps<"/instru
     <DiscussionThreadView
       thread={thread}
       backHref="/instructor/messages"
-      backLabel="Messages"
+      backLabel="Questions"
       // Staff open the lesson in the player's preview.
       lessonHref={d.lessonId ? `/courses/${d.courseId}/lessons/${d.lessonId}` : null}
     />

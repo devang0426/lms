@@ -8,7 +8,7 @@
 import "server-only";
 
 import type { Block } from "@/lib/ai/types";
-import { plainText } from "@/lib/markdown";
+import { plainText } from "@/lib/markdown-blocks";
 import type { Engine } from "../engine/types";
 import type { DraftChapter } from "./chapters";
 import { generateNoteBody } from "./index";

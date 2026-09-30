@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
 import { requestLessonPodcast } from "@/lib/podcast";
 import { fail, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* The Podcast tab's Generate button (feature 17). zod → session → lesson
    visible to this user → claim and queue the task. Who may start one
@@ -17,7 +18,7 @@ const input = z.object({
   language: z.enum(["en", "hinglish"]).default("en"),
 });
 
-export async function generatePodcast(raw: z.input<typeof input>): Promise<ActionResult> {
+export const generatePodcast = safeAction("generatePodcast", async (raw: z.input<typeof input>): Promise<ActionResult> => {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return fail("invalid", "That lesson couldn't be found.");
   const user = await getCurrentUser();
@@ -29,4 +30,4 @@ export async function generatePodcast(raw: z.input<typeof input>): Promise<Actio
   // Also on a conflict: someone else's run or episode is now worth showing.
   refresh();
   return result;
-}
+});

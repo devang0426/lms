@@ -10,6 +10,7 @@ import { getLessonForUser } from "@/lib/db/courses";
 import { assignmentEventStatement } from "@/lib/db/events";
 import { ASSIGNMENT_CATEGORIES } from "@/lib/db/schema";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Set an assignment lesson's instructions, due date and points (feature
    20). zod → course staff (getLessonForUser gives staff access in SQL) →
@@ -25,7 +26,7 @@ const input = z.object({
   category: z.enum(ASSIGNMENT_CATEGORIES),
 });
 
-export async function saveAssignment(raw: z.input<typeof input>): Promise<ActionResult> {
+export const saveAssignment = safeAction("saveAssignment", async (raw: z.input<typeof input>): Promise<ActionResult> => {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the form and try again.");
   const { lessonId, ...fields } = parsed.data;
@@ -57,4 +58,4 @@ export async function saveAssignment(raw: z.input<typeof input>): Promise<Action
   revalidatePath("/calendar");
   revalidatePath("/");
   return ok();
-}
+});

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { recordReview } from "@/lib/db/study";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Rate a flashcard (feature 15). Used by the deck at /study and in the
    lesson player. The schedule is computed on the server from the stored
@@ -15,7 +16,7 @@ const input = z.object({
   rating: z.enum(["again", "hard", "good", "easy"]),
 });
 
-export async function rateCard(raw: z.input<typeof input>): Promise<ActionResult<{ due: number }>> {
+export const rateCard = safeAction("rateCard", async (raw: z.input<typeof input>): Promise<ActionResult<{ due: number }>> => {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return fail("invalid", "That rating couldn't be saved.");
   const user = await getCurrentUser();
@@ -23,4 +24,4 @@ export async function rateCard(raw: z.input<typeof input>): Promise<ActionResult
   const outcome = await recordReview(user.id, parsed.data.cardId, parsed.data.rating);
   if (!outcome) return fail("not_found", "That card is no longer available.");
   return ok({ due: outcome.due });
-}
+});

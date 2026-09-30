@@ -9,6 +9,7 @@ import { db } from "@/lib/db/client";
 import { isUuid } from "@/lib/db/courses";
 import { terms } from "@/lib/db/schema";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Academic terms (feature 22), admin only. One term is current: the
    catalog shows its courses and the roster import matches its codes. */
@@ -28,7 +29,7 @@ const termInput = z
   })
   .refine((t) => t.endsOn > t.startsOn, { message: "The term has to end after it starts.", path: ["endsOn"] });
 
-export async function createTerm(raw: z.input<typeof termInput>): Promise<ActionResult<{ id: string }>> {
+export const createTerm = safeAction("createTerm", async (raw: z.input<typeof termInput>): Promise<ActionResult<{ id: string }>> => {
   const parsed = termInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the term.");
   const admin = await requireAdmin();
@@ -43,11 +44,11 @@ export async function createTerm(raw: z.input<typeof termInput>): Promise<Action
   ]);
   revalidatePath("/admin/terms");
   return ok({ id });
-}
+});
 
 const currentInput = z.object({ id: z.uuid() });
 
-export async function makeCurrentTerm(raw: z.input<typeof currentInput>): Promise<ActionResult> {
+export const makeCurrentTerm = safeAction("makeCurrentTerm", async (raw: z.input<typeof currentInput>): Promise<ActionResult> => {
   const parsed = currentInput.safeParse(raw);
   if (!parsed.success || !isUuid(parsed.data.id)) return fail("invalid", "That term can't be found.");
   const admin = await requireAdmin();
@@ -64,4 +65,4 @@ export async function makeCurrentTerm(raw: z.input<typeof currentInput>): Promis
   revalidatePath("/admin/terms");
   revalidatePath("/catalog");
   return ok();
-}
+});

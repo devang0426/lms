@@ -83,3 +83,29 @@ export async function notifyDueSoon(now: Date): Promise<number> {
     returning id`);
   return result.rows.length;
 }
+
+/* "Drafts ready" (feature 30; architecture.md, video pipeline step 12):
+   once video-process has drafted a lecture's chapters, notes, cards and
+   quiz, the instructor who uploaded it gets a notice that opens the review
+   screen. Only while they still teach the course (or are an admin), so the
+   link works for them. Keyed on the video: a re-run sends nothing twice,
+   and a replacement upload is announced again. The seeded lecture has no
+   uploader, so it sends nothing. Returns whether a notice was sent. */
+export async function notifyDraftsReady(videoId: string): Promise<boolean> {
+  const result = await db.execute<{ id: string }>(sql`
+    insert into notifications (user_id, kind, title, url, dedupe_key)
+    select u.id, 'draft_ready'::notification_kind,
+      c.code || ' · Drafts for “' || l.title || '” are ready to review',
+      '/instructor/courses/' || c.id || '/lessons/' || l.id || '/review',
+      'drafts:' || v.id
+    from videos v
+    join lessons l on l.id = v.lesson_id
+    join modules m on m.id = l.module_id
+    join courses c on c.id = m.course_id
+    join users u on u.id = v.created_by and u.deleted_at is null
+    where v.id = ${videoId}::uuid
+      and (u.role = 'admin' or exists (select 1 from course_staff cs where cs.course_id = c.id and cs.user_id = u.id))
+    on conflict (user_id, dedupe_key) do nothing
+    returning id`);
+  return result.rows.length > 0;
+}

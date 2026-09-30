@@ -1,13 +1,14 @@
 import "server-only";
 
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import type { DraftCard, DraftQuestion, QuizLevel } from "@/lib/ai/generation/lesson";
 import { PROMPTS_VERSION } from "@/lib/ai/prompts";
 import type { Block, DocPart } from "@/lib/ai/types";
 import { auditInsert } from "./audit";
 import { db } from "./client";
 import { isUuid } from "./courses";
-import { auditLog, documents, flashcards, notes, podcasts, quizQuestions, type DocumentKind, type DocumentRow, type DocumentStatus } from "./schema";
+import { isLimitError, lockFor, underLimit } from "./limits";
+import { documents, flashcards, notes, podcasts, quizQuestions, type DocumentKind, type DocumentRow, type DocumentStatus } from "./schema";
 
 /* The student's private space (feature 19): notes made from their own
    uploads. Only the owner ever reads them: every query for a person is
@@ -123,42 +124,46 @@ export async function listOwnedNotes(ownerId: string): Promise<OwnedNoteListItem
 }
 
 /* A new note and the document it will be made from, in one batch. */
-export async function createPrivateNote(input: {
-  ownerId: string;
-  title: string;
-  source: {
-    kind: DocumentKind;
-    status: "uploading" | "processing";
-    filename?: string;
-    contentType?: string;
-    sizeBytes?: number;
-    url?: string;
-  };
-}): Promise<{ noteId: string; document: DocumentRow }> {
+/* The note and its source document, if the owner is under the new-note
+   limit: counted and written in one locked batch (feature 25, S3), so
+   notes sent at once can't all squeeze under it. Null over the limit. */
+export async function createPrivateNote(
+  input: {
+    ownerId: string;
+    title: string;
+    source: {
+      kind: DocumentKind;
+      status: "uploading" | "processing";
+      filename?: string;
+      contentType?: string;
+      sizeBytes?: number;
+      url?: string;
+    };
+  },
+  limit: { notes: number; minutes: number },
+): Promise<{ noteId: string; document: DocumentRow } | null> {
   const noteId = crypto.randomUUID();
   const title = input.title.slice(0, 160);
-  const [, [document]] = await db.batch([
-    db.insert(notes).values({ id: noteId, ownerId: input.ownerId, title, promptsVersion: PROMPTS_VERSION }),
-    db.insert(documents).values({ ownerId: input.ownerId, noteId, title, createdBy: input.ownerId, ...input.source }).returning(),
-    auditInsert({ actorId: input.ownerId, action: "space.note_created", entityType: "note", entityId: noteId }),
-  ]);
-  return { noteId, document };
+  try {
+    const [, , , [document]] = await db.batch([
+      lockFor("ai", input.ownerId),
+      underLimit(recentNotes(input.ownerId, limit.minutes), limit.notes, "notes"),
+      db.insert(notes).values({ id: noteId, ownerId: input.ownerId, title, promptsVersion: PROMPTS_VERSION }),
+      db.insert(documents).values({ ownerId: input.ownerId, noteId, title, createdBy: input.ownerId, ...input.source }).returning(),
+      auditInsert({ actorId: input.ownerId, action: "space.note_created", entityType: "note", entityId: noteId }),
+    ]);
+    return { noteId, document };
+  } catch (err) {
+    if (isLimitError(err)) return null;
+    throw err;
+  }
 }
 
-/* New notes in the window, for the rate limit. Counted from the audit log,
-   so deleting a note doesn't give its slot back. */
-export async function countRecentNotes(ownerId: string, windowMinutes: number): Promise<number> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)`.mapWith(Number) })
-    .from(auditLog)
-    .where(
-      and(
-        eq(auditLog.actorId, ownerId),
-        eq(auditLog.action, "space.note_created"),
-        sql`${auditLog.createdAt} > now() - make_interval(mins => ${windowMinutes})`,
-      ),
-    );
-  return row?.n ?? 0;
+/* New notes in the window. Counted from the audit log, so deleting a note
+   doesn't give its slot back. */
+function recentNotes(ownerId: string, windowMinutes: number): SQL {
+  return sql`select count(*) from audit_log where audit_log.actor_id = ${ownerId}::uuid
+    and audit_log.action = 'space.note_created' and audit_log.created_at > now() - make_interval(mins => ${windowMinutes})`;
 }
 
 export interface DeletedNote {

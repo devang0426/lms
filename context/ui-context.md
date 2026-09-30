@@ -345,6 +345,73 @@ Shadows are always tinted warm brown (`rgba(60,40,20,…)`), never grey or black
   - Muted text is `text-ink-soft` at full strength, never a lighter
     opacity (it failed contrast in the calendar). Mark "less important"
     with the background instead (the Oat out-of-month cells).
+- Feature 29 (loading):
+  - **Skeleton** (`components/ui/skeleton.tsx`, in `/dev/ui` under
+    "Loading"): `Skeleton` is an Oat block (`rounded-lg` by default; size
+    and shape it with classes), `SkeletonText` is lines of text with a
+    shorter last line, and `SkeletonCard` is a flat card (Paper, Line
+    border, `rounded-card`) holding a title line and text, or any shapes
+    passed in. On an Oat panel (the player's course contents) use
+    `bg-line`.
+  - The pulse is gentle: `animate-skeleton`, 1.8 s, opacity 1 to 0.55.
+    It's applied as `motion-safe:`, so it stops under
+    `prefers-reduced-motion`.
+  - The shapes are `aria-hidden`. `SkeletonRegion` wraps a loading
+    screen: `role="status"`, `aria-busy`, and an sr-only "Loading…".
+  - **`loading.tsx`**: one per section, drawn in the shape of its page, so
+    nothing jumps when the page arrives. The shell's navigation stays. The
+    sections are the student sidebar pages, the course page, the lesson
+    player (a `bg-media` video block, the tab row, transcript lines and
+    the contents column), the teaching pages, the lesson editor and
+    admin.
+  - **Pending bar** (`components/shell/pending-bar.tsx`, in the root
+    layout): a 3px Terracotta line across the top of the window. It grows
+    (`animate-pending-bar`, scaleX 0.04 to 0.9 over 8 s) from an in-app
+    link click until the URL changes, then fades. It shows only after
+    120 ms, so quick navigations show nothing. Under reduced motion it's
+    a still line at 60%.
+  - A panel that streams in (Suspense) falls back to `SkeletonText` in a
+    `SkeletonRegion`. The dashboard's grading stat shows "…".
+- Feature 31 (`components/learners/`, `components/progress/`):
+  - **Learners table** (`/instructor/learners`, one card per course; the
+    builder's Students tab shows the same card without the course
+    heading). It's a real `<table>` in the gradebook's style: an Oat head
+    in mono 11px and a pinned Student column, and it scrolls sideways on
+    a phone. Its columns:
+    - the name as a link to the report, with the email in 13px muted;
+    - Section;
+    - Last activity ("2 h ago");
+    - Lessons: "1 / 3 · 33%" over a 6px Sage bar;
+    - Avg. quiz: "50%" with the attempts below;
+    - Assignments: "1 handed in · 0 graded", with a Butter "N missing"
+      badge.
+    - The card's header has "N students · N published lessons · N%
+      average completion" and a secondary "Export CSV".
+  - **Student report:** breadcrumb "MATH 201 › Students › Name". Then
+    four stat cards (Lessons completed, Average quiz score, Assignments
+    handed in, which turns Butter when work is missing, and Course total
+    so far). Below them, Lessons and "Quiz mastery by topic" cards side by
+    side, then Grades with the gradebook's cells. The only button is a
+    secondary "Gradebook".
+  - **Lesson progress rows** use the step indicator: Sage check = done,
+    Terracotta ring = started (with "N% watched" for a video), empty ring
+    = not started. Module titles are mono eyebrows.
+  - **Topic mastery** reuses the Quiz tab's bars, weakest first, for
+    answered topics only, with "N more topics not tried yet". On the
+    student's page a topic under 50% gets the Clay "▶ Review in video"
+    chip.
+  - **`/progress`:**
+    - A "Next up" card with a 26px serif title and the page's one
+      Terracotta action ("Continue", "Open the assignment", "Watch from
+      02:05"). It's a Butter card when work is due, and an Oat "You're all
+      caught up" card otherwise.
+    - Then a card per course: the 56px completion ring ("1 of 3 lessons
+      done"), Lessons on the left, and Mastery by topic and "Grades so
+      far" on the right (a 36px serif total and an "All grades" link).
+  - **Two-column grids whose cards hold truncated text use
+    `minmax(0, …)` columns** (`grid-cols-1`,
+    `lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]`). A plain `fr` track
+    grows to fit a long title and pushes the card past a phone's width.
 
 No component library is installed yet. The stack is Next.js 16, React 19 and
 Tailwind CSS v4. The tokens should be defined in `app/globals.css` with
@@ -366,6 +433,14 @@ map to the variables above. The file still has the create-next-app defaults. Bui
 Sizes seen: 42, 44, 46, 48, 50, 52px tall. Large CTAs are 52px with `px-7` and
 16px text. Horizontal padding is 18–28px. Leading and trailing icons use a
 `gap-2`.
+
+- `<Button asChild>` renders only its child, so `leading` and `trailing` are
+  ignored. Put the icon inside the link instead (the builder's "Upload
+  video").
+- **One exception to "one Terracotta action per screen"** (feature 27): each
+  module header in the course builder has a Primary `xs` **Upload lecture**.
+  The audit found teachers never found the upload, and the spec asks for
+  it to be primary.
 
 ### Inputs
 
@@ -441,6 +516,40 @@ On an image, the "New" badge sits on a Paper background with `#8E3C1C` text,
 - **Mobile tab bar:** 84px tall with `pb-6` for the home indicator, Paper bg,
   Line top border, 4 equal columns. Each column has an icon above an 11px
   label. Active is Terracotta and weight 500. Inactive is Ink-soft.
+  - The student bar (feature 28) is Home, My courses, Flashcards and
+    **More**. More is a `TabBarButton` that opens a bottom sheet (the
+    Dialog as an Oat sheet) with the other pages. More is active while one
+    of them is open.
+- **Teaching / Admin switch** (admins, feature 28): a pill segmented
+  control at the top of the sidebar, in place of the badge. It's two links
+  (`/instructor`, `/admin/users`); the active one is Paper with the
+  hairline shadow. Each side shows only its own nav.
+- **Student view banner** (`components/shell/student-view-banner.tsx`): a
+  Butter-tint strip under the header on student pages opened by staff,
+  with "Back to Teaching" (to the course's builder when there is one).
+
+#### Nav as built (feature 28)
+
+The nav lives in `components/shell/nav-config.ts`
+(`nav-config.test.ts` checks the rules). None of it leads to a
+placeholder. Learners and Progress came back with feature 31.
+
+| Where | Items → target |
+| --- | --- |
+| Student sidebar | Home `/` · Explore `/catalog` · My courses `/courses` · Flashcards `/study` · Calendar `/calendar` · Discussions `/discussions` · Grades `/grades` · Progress `/progress` · My space `/space` |
+| Student account menu | Profile `/profile` · Switch demo account (demo mode) · Sign out |
+| Student tab bar (< 768px) | Home · My courses · Flashcards · More → Explore, Calendar, Discussions, Grades, Progress, My space, Profile |
+| Course page top bar | Logo `/` · breadcrumb "My courses › MATH 201" (not enrolled: "Explore › …"; staff: "Teaching › …"; on the assistant "› Assistant") · My courses · bell · account menu |
+| Course page quick links (enrolled students) | Discussions · Grades · Flashcards `/study?course=` · Calendar · Assistant `/courses/[id]/assistant` |
+| Lesson player header | Back (course page; staff: the lesson editor) · bell · account menu |
+| Teaching sidebar | Overview `/instructor` · Courses `/instructor/courses` · Learners `/instructor/learners` · Grading `/instructor/grading` · Analytics `/instructor/analytics` · Questions `/instructor/messages` · View as student `/instructor/view-as-student` (also in the account menu) |
+| Admin sidebar | Teaching / Admin switch · Users `/admin/users` · Courses and enrollments `/admin/courses` (course titles open the builder) · Roster import `/admin/roster` · Terms `/admin/terms` · Audit log `/admin/audit` · View as student |
+| Staff on student pages | Student view banner → Back to Teaching; the student sidebar's Home becomes "Teaching home" `/instructor` |
+| Staff breadcrumbs | Builder: Courses › MATH 201. Lesson editor: MATH 201 › Module › Lesson. Review: … › Review. New graded quiz: … › New graded quiz. Gradebook: MATH 201 › Gradebook. Grading item: Grading › MATH 201 · Assignment › Student. Student report: MATH 201 › Students (the builder's Students tab) › Student |
+
+"Questions" keeps the `/instructor/messages` route, so stored notification
+links still work. (Private messages, feature 32, would bring "Messages"
+back, but that feature is parked.)
 
 ### Other patterns
 
@@ -472,7 +581,37 @@ On an image, the "New" badge sits on a Paper background with `#8E3C1C` text,
   be able to" outcome lists with check icons.
 - **Notice card:** Butter-tint bg, `rounded-2xl`. Holds a mono Butter-ink
   eyebrow ("THIS WEEK") and a 14px message.
+- **Destructive confirm** (features 35 and 33): a dialog that lists what
+  goes (and, for an account, what's kept), then asks for a typed value,
+  such as the course code or the person's email. The delete button is
+  `secondary`, never Terracotta, and stays disabled until the text
+  matches. "Keep it" closes. An error shows in a Clay alert inside the
+  dialog.
+- **Background file card** (feature 33, Profile → "Your data"):
+  - one explanation;
+  - one Terracotta action ("Prepare my data");
+  - `JobProgress` while the task runs;
+  - then "Download my data" with the size and the date its link stops
+    working, plus a quiet "Prepare a new copy".
 - **Links:** Terracotta, hover `#9E4220`. Inline links are 13–14px.
+- **Breadcrumbs** (`components/shell/breadcrumbs.tsx`, feature 27):
+  - 14px muted, with a 14px chevron between crumbs.
+  - The current page is Ink with `aria-current="page"`.
+  - A level with no page of its own (a module) is plain text.
+  - Used on the staff pages listed in "Nav as built" (feature 28), and in
+    the course page's top bar (`CourseBreadcrumbs`, which adds "Assistant"
+    from the route segment).
+- **Setup checklist** ("Get your course live",
+  `components/course-builder/setup-checklist.tsx`, feature 27):
+  - A Card with a mono eyebrow ("2 of 6 done · MATH 201 · …") and an 18px
+    / 600 title.
+  - One row per step: a `StepIndicator`, then a 15px title and a 13px
+    muted hint.
+  - The current step's action is Secondary `xs`; the others are Quiet.
+  - An icon button hides it; that is remembered per course in
+    `localStorage`.
+  - It shows on the overview and the course page until every step is
+    done.
 
 ## Layout Patterns
 
@@ -546,6 +685,40 @@ Desktop frames are 1440×960. The mobile frame is 390×844.
     - Divider.
     - Email and password fields, with a "Forgot?" link.
     - Full-width primary pill.
+- **Landing page** (feature 34, `/welcome`; no wireframe, built from the
+  sign-in hero and these tokens):
+  - A public header (72px, Line bottom border): the logo, then "What you
+    get" and "How to join" links (from 768px) and a quiet **Sign in**.
+  - The hero is the sign-in page's Clay panel (inset 12–20px,
+    `rounded-panel`, the Butter 55% and Sage-tint circles):
+    - a mono eyebrow with the institute's name in Clay-ink;
+    - an 80px serif headline, "Lectures you can *ask questions of.*";
+    - the tagline;
+    - **Sign in** as the page's one Terracotta action (`xl`), and a
+      secondary **Try the demo** (demo mode only), which opens the demo
+      picker in a Dialog without the "or with email" divider.
+    - From 768px, a picture on the right: a Paper video card with a raised
+      assistant answer and its Clay time chip.
+  - Section heads: a mono eyebrow over a 48px serif h2 (36px on phones)
+    with an italic ending.
+  - "What students get": five flat Paper cards (`rounded-card`, 16px
+    padding), each with an Oat drawing (`components/landing/illustrations.tsx`)
+    above an 18px/600 title and a 14px muted line. The assistant card
+    spans two columns.
+    - The drawings are the app's own patterns in HTML: the transcript's
+      Butter line, the Clay time chip, the flashcard and mastery bars, the
+      note card. Each is `role="img"` with a label.
+  - Courses: catalog-style tiles, not links (120px tint cover, 24px serif
+    title, three-line summary, 13px meta "Instructor · 12 lessons · 3h 40m").
+  - How to join: a Paper card with the eyebrow, the h2, the contact links
+    and three numbered steps (an Oat 40px circle with a mono number).
+  - Footer on Cream above a Line rule: the logo and one line about the
+    institute, "Contact the office", then Privacy, Terms and Sign in.
+  - Privacy and terms: a 760px column with a serif h1, a muted lead and
+    one h2 per topic above a Line rule.
+  - **Contrast:** Terracotta text on Oat is 4.3:1 and on Clay 4.0:1, both
+    below AA for body text. Put links on Paper or Cream, and use Terracotta
+    on Clay only for large text (the hero's italic).
 - **Mobile:**
   - A single column with padding `56px 20px 20px` and `gap-[22px]`.
   - Contents, top to bottom:
@@ -568,6 +741,7 @@ Desktop frames are 1440×960. The mobile frame is 390×844.
 | 05 | Lesson player        | Next lesson                 |
 | 06 | Instructor dashboard | New course                  |
 | 07 | Mobile home          | Resume                      |
+| —  | Landing (feature 34, no wireframe) | Sign in       |
 
 Student nav: Home, Explore, My courses, Calendar, Discussions, Progress.
 

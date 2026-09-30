@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderAnswerMarkdown } from "@/lib/markdown";
 import {
   bestMoment,
   citationChipsHtml,
@@ -103,15 +103,34 @@ describe("bestMoment", () => {
 describe("rendering citations", () => {
   const cite = (label: string, startSec: number | null) => ({ chunkId: label, lessonId: "l1", startSec, page: null, label });
 
+  const render = (content: string, citations: ReturnType<typeof cite>[]) =>
+    renderAnswerMarkdown(content, (src, keep) => citationChipsHtml(src, citations, keep));
+
   it("turns markers into sanitized chips and a made-up [S9] into nothing", () => {
-    const html = renderMarkdown(citationChipsHtml("Span is every combination [S1]. Made up [S9].", [cite("Lecture 2 · 08:17", 497)]));
+    const html = render("Span is every combination [S1]. Made up [S9].", [cite("Lecture 2 · 08:17", 497)]);
     expect(html).toContain('<button type="button" class="cite-chip" data-cite="0" aria-label="Lecture 2 · 08:17">08:17</button>');
     expect(html).not.toContain("S9");
     expect(html.match(/data-cite/g)).toHaveLength(1);
   });
 
+  // Feature 24 (S7): a poisoned source can't make the answer draw over the page.
+  it("shows the model's raw HTML as text, while chips and maths still render", () => {
+    const html = render(
+      'Span is every combination [S1] of $\\vec v$. <a style="position:fixed;inset:0" href="https://evil.example/login">Sign in again</a>',
+      [cite("Lecture 2 · 08:17", 497)],
+    );
+    expect(html).not.toMatch(/<a[^>]*style/);
+    expect(html).not.toContain('<a style="position:fixed');
+    expect(html).toContain("&lt;a style=");
+    expect(html).toContain('class="cite-chip"');
+    expect(html).toContain('class="katex"');
+    // Only KaTeX keeps inline styles.
+    const outsideMath = html.replace(/<span class="katex">[\s\S]*<\/span>/, "");
+    expect(outsideMath).not.toMatch(/<[a-z][^>]*\sstyle=/);
+  });
+
   it("escapes labels, so a lesson title can't inject markup", () => {
-    const html = renderMarkdown(citationChipsHtml("x [S1]", [cite('Lecture 1 "><img src=x onerror=alert(1)>', null)]));
+    const html = render("x [S1]", [cite('Lecture 1 "><img src=x onerror=alert(1)>', null)]);
     // The whole label stays inside the quoted aria-label value.
     const outsideAttributes = html.replace(/"[^"]*"/g, '""');
     expect(outsideAttributes).not.toContain("<img");

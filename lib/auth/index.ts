@@ -18,6 +18,19 @@ export { syncUserFromClerk };
 
 const RESYNC_AFTER_MS = 10 * 60 * 1000;
 
+/* Without the session-token claim, a role changed in the Clerk dashboard
+   reaches the app only by webhook (which can't reach localhost) or by the
+   10-minute re-sync. Said once per server, so the missing setting is found. */
+let warnedNoRoleClaim = false;
+function warnNoRoleClaim() {
+  if (warnedNoRoleClaim) return;
+  warnedNoRoleClaim = true;
+  console.warn(
+    '[auth] The Clerk session token has no "metadata" claim, so a role changed in Clerk can take up to 10 minutes to apply. ' +
+      'Fix: Clerk dashboard → Sessions → Customize session token → {"metadata": "{{user.public_metadata}}"}.',
+  );
+}
+
 /* The signed-in user's Neon row, or null when signed out. Memoized per
    request. Role changes made in Clerk are picked up from the session claims
    when the session token is customized (see feature 02), otherwise by a
@@ -28,6 +41,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
 
   const [row] = await db.select().from(users).where(eq(users.clerkId, userId)).limit(1);
   const claimRole = sessionClaims?.metadata?.role;
+  if (sessionClaims && !("metadata" in sessionClaims)) warnNoRoleClaim();
 
   if (row && !row.deletedAt) {
     if (isRole(claimRole)) {
@@ -44,8 +58,21 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
 
   const clerkUser = await currentUser();
   if (!clerkUser) return null;
-  return syncUserFromClerk(clerkUser);
+  const synced = await syncUserFromClerk(clerkUser);
+  // A deleted user stays deleted (feature 24): the sync never clears it.
+  return synced.deletedAt ? null : synced;
 });
+
+/* The signed-in Clerk id, for an error's log line (feature 30). No
+   database read, and it never throws: it runs while another error is
+   being handled, often one from the database. */
+export async function currentClerkId(): Promise<string | null> {
+  try {
+    return (await auth()).userId;
+  } catch {
+    return null;
+  }
+}
 
 export async function requireUser(): Promise<User> {
   const user = await getCurrentUser();

@@ -10,11 +10,12 @@ import { staffAnnouncements } from "@/lib/db/announcements";
 import { listCoursesForStaff } from "@/lib/db/courses";
 import { listDiscussions, unansweredQuestions } from "@/lib/db/discussions";
 
-export const metadata = { title: "Messages · Studyhall" };
+export const metadata = { title: "Questions · Studyhall" };
 
 type Show = "unanswered" | "all";
 
-/* Messages (feature 21): students' questions in the courses this viewer
+/* Questions (feature 21; "Messages" until feature 28, since it's the
+   course Q&A): students' questions in the courses this viewer
    teaches (unanswered first, the longest waiting at the top, or every
    thread) and the announcements posted to them. Course staff checks are
    in the queries. */
@@ -33,7 +34,7 @@ export default async function MessagesPage({ searchParams }: PageProps<"/instruc
 
   return (
     <>
-      <PageHeader eyebrow="Teaching" title="Messages" actions={<PostAnnouncementDialog courses={courses} />} />
+      <PageHeader eyebrow="Teaching" title="Questions" actions={<PostAnnouncementDialog courses={courses} />} />
 
       <section aria-labelledby="questions" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

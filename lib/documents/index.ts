@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, eq, type SQL } from "drizzle-orm";
-import { db } from "@/lib/db/client";
-import { lessonDocuments, type DocumentSummary } from "@/lib/db/documents";
+import { and, eq, sql, type SQL } from "drizzle-orm";
+import { db, type BatchRows } from "@/lib/db/client";
+import { lessonDocumentsQuery, toDocumentSummaries, type DocumentSummary } from "@/lib/db/documents";
 import { documents, type DocumentRow, type Job } from "@/lib/db/schema";
-import { getJobAccessToken, latestJobFor, startJob } from "@/lib/jobs";
+import { getJobAccessToken, latestJobPerEntityQuery, reconcileJob, startJob } from "@/lib/jobs";
 import { TERMINAL_JOB_STATES } from "@/lib/jobs/stages";
 
 /* Lesson documents, web side (feature 18). The browser uploads files
@@ -31,13 +31,26 @@ export async function startDocumentIngest(input: {
 
 /* The same for a student's own upload (feature 19): only their own
    document moves on, and its run goes in their own copy of the queue. */
+/* True when this file is the note's own: just attached, or attached
+   already by the other of the two calls (Blob's callback and the confirm
+   action). False for anything else, e.g. a second file for a note that
+   has one, or a file for a note deleted meanwhile: recordUpload deletes
+   that blob (feature 24, S5). */
 export async function startPrivateDocumentIngest(input: {
   documentId: string;
   userId: string;
   blob: { url: string; pathname: string; size?: number };
-}): Promise<void> {
-  if (!(await markUploaded(input.documentId, eq(documents.ownerId, input.userId), input.blob))) return;
+}): Promise<boolean> {
+  if (!(await markUploaded(input.documentId, eq(documents.ownerId, input.userId), input.blob))) {
+    const [doc] = await db
+      .select({ pathname: documents.pathname })
+      .from(documents)
+      .where(and(eq(documents.id, input.documentId), eq(documents.ownerId, input.userId)))
+      .limit(1);
+    return doc?.pathname === input.blob.pathname;
+  }
   await startIngestRun(input.documentId, input.userId, "ingest", input.userId);
+  return true;
 }
 
 async function markUploaded(documentId: string, scope: SQL, blob: { url: string; pathname: string; size?: number }): Promise<boolean> {
@@ -55,15 +68,19 @@ export async function startLinkIngest(doc: DocumentRow, userId: string): Promise
 }
 
 /* A fresh run for a document whose ingest failed. Extraction is skipped
-   if it had already finished; drafting and indexing run again. */
-export async function retryDocumentIngest(doc: DocumentRow, userId: string): Promise<void> {
+   if it had already finished; drafting and indexing run again. False when
+   the run couldn't be queued: the document is failed again, with
+   START_FAILED as its message (feature 30). */
+export async function retryDocumentIngest(doc: DocumentRow, userId: string): Promise<boolean> {
   if (doc.status === "failed") await db.update(documents).set({ status: "processing", error: null }).where(eq(documents.id, doc.id));
-  await startIngestRun(doc.id, userId, `retry:${Date.now()}`, doc.ownerId);
+  return startIngestRun(doc.id, userId, `retry:${Date.now()}`, doc.ownerId);
 }
+
+export const START_FAILED = "Reading this document couldn't be started. Try again in a minute.";
 
 /* `ownerId` is set for a student's own upload (feature 19): its run is
    keyed to them, so one student can't hold up the queue for everyone. */
-async function startIngestRun(documentId: string, userId: string, key: string, ownerId: string | null): Promise<void> {
+async function startIngestRun(documentId: string, userId: string, key: string, ownerId: string | null): Promise<boolean> {
   try {
     await startJob({
       kind: "ingest-document",
@@ -73,12 +90,11 @@ async function startIngestRun(documentId: string, userId: string, key: string, o
       idempotencyKey: `document:${documentId}:${key}`,
       concurrencyKey: ownerId ?? undefined,
     });
+    return true;
   } catch (err) {
     console.error(`[ingest-document] couldn't start document ${documentId}`, err);
-    await db
-      .update(documents)
-      .set({ status: "failed", error: "Reading this document couldn't be started. Try again in a minute." })
-      .where(eq(documents.id, documentId));
+    await db.update(documents).set({ status: "failed", error: START_FAILED }).where(eq(documents.id, documentId));
+    return false;
   }
 }
 
@@ -88,12 +104,25 @@ export interface EditorDocument extends DocumentSummary {
   job: { job: Job; token: string } | null;
 }
 
-/* The lesson editor's documents list, each with its live run. */
+/* The lesson editor's documents list, each with its live run: two
+   statements for the editor's batch (feature 29), then resolved. */
+export function editorDocumentsQueries(lessonId: string) {
+  return [
+    lessonDocumentsQuery(lessonId, { readyOnly: false }),
+    latestJobPerEntityQuery("document", "ingest-document", sql`(select d.id::text from documents d where d.lesson_id = ${lessonId})`),
+  ] as const;
+}
+
 export async function documentsForEditor(lessonId: string): Promise<EditorDocument[]> {
-  const docs = await lessonDocuments(lessonId, { readyOnly: false });
+  return resolveEditorDocuments(await db.batch(editorDocumentsQueries(lessonId)));
+}
+
+export async function resolveEditorDocuments([docRows, jobRows]: BatchRows<ReturnType<typeof editorDocumentsQueries>>): Promise<EditorDocument[]> {
+  const jobByDoc = new Map(jobRows.map((j) => [j.entityId, j]));
   return Promise.all(
-    docs.map(async (doc) => {
-      const latest = await latestJobFor(documentEntity(doc.id), "ingest-document");
+    toDocumentSummaries(docRows).map(async (doc) => {
+      const row = jobByDoc.get(doc.id);
+      const latest = row ? await reconcileJob(row) : null;
       const active = latest && !TERMINAL_JOB_STATES.includes(latest.status);
       const failedLater = latest?.status === "failed" && doc.status === "ready";
       // A run that died before its task started never marked the document failed.

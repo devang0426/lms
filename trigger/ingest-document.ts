@@ -79,7 +79,8 @@ export const ingestDocumentTask = schemaTask({
     }
 
     await reportProgress(runId, { stage: "index", progress: 99, message: "Indexing for the assistant…" });
-    const indexed = await indexLesson.triggerAndWait({ lessonId });
+    // Charged to whoever added the document (feature 25), like its reading.
+    const indexed = await indexLesson.triggerAndWait({ lessonId, requestedBy: doc.createdBy ?? undefined });
     if (!indexed.ok) throw new JobError("The document is ready, but indexing it for the assistant failed. Publish the lesson again to retry.");
     await reportProgress(runId, {
       stage: "index",

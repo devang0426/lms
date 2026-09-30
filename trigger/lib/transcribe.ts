@@ -4,6 +4,7 @@ import { getEngine } from "@/lib/ai/engine/server";
 import { withUsage } from "@/lib/ai/usage";
 import type { CaptionSegment } from "@/lib/video/vtt";
 import { durationOf, ffmpeg } from "./ffmpeg";
+import { JobError } from "./job-progress";
 import { removeDir, workDir } from "./video-files";
 
 /* Audio → Whisper → timed segments (features 10 and 18). `input` is
@@ -12,7 +13,11 @@ import { removeDir, workDir } from "./video-files";
    mono MP3 pieces of 10 minutes (~2.4 MB, under the ~4 MB upload limit),
    so the engine never needs its browser-only chunker. Each piece's
    segments are shifted by the piece's real start time: timestamps are
-   kept end to end (invariant 7). */
+   kept end to end (invariant 7).
+
+   `maxSec` (documents, feature 25): the caller checks the length first,
+   but ffprobe can't always tell. So a source that cuts into more pieces
+   than that length allows is refused here, before any Whisper call. */
 
 const PIECE_SECONDS = 600;
 const MIN_PIECE_SECONDS = 1;
@@ -21,7 +26,7 @@ export type TranscribeReport = (stage: "audio" | "transcribe", fraction: number,
 
 export async function transcribeAudio(
   input: string,
-  opts: { label: string; userId: string | null; durationSec?: number | null; report?: TranscribeReport },
+  opts: { label: string; userId: string | null; durationSec?: number | null; maxSec?: number; report?: TranscribeReport },
 ): Promise<CaptionSegment[]> {
   const dir = await workDir(`audio-${opts.label}`);
   try {
@@ -34,6 +39,9 @@ export async function transcribeAudio(
     ]);
     const pieces = (await readdir(dir)).filter((f) => f.startsWith("piece-")).sort();
     if (pieces.length === 0) throw new Error("No audio could be extracted from this file.");
+    if (opts.maxSec && pieces.length > Math.ceil(opts.maxSec / PIECE_SECONDS)) {
+      throw new JobError(`This is over ${Math.round(opts.maxSec / 60)} minutes long, the longest we can take. Trim it, or split it into parts.`);
+    }
 
     const engine = getEngine();
     const out: CaptionSegment[] = [];

@@ -1,73 +1,78 @@
-import { ArrowLeft, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AssignmentForm } from "@/components/coursework/assignment-form";
 import { StatusBadge } from "@/components/course-builder/status-badge";
 import { DocumentManager, type EditorDocumentView } from "@/components/documents/document-manager";
 import { JobProgress } from "@/components/jobs/job-progress";
+import { RetryNotice } from "@/components/jobs/retry-notice";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button, Card, CardHeader, Eyebrow, Icon } from "@/components/ui";
 import { VideoUploader } from "@/components/video/video-uploader";
-import { requireCourseStaff } from "@/lib/auth";
-import { getAssignment, submissionCounts } from "@/lib/db/assignments";
+import { requireUser } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
-import { documentsForEditor, type EditorDocument } from "@/lib/documents";
-import { contentCounts } from "@/lib/db/lesson-content";
-import { gradedQuizzesForStaff } from "@/lib/db/quizzes";
+import { loadLessonEditor } from "@/lib/db/lesson-editor";
+import type { EditorDocument } from "@/lib/documents";
 import { getJobAccessToken } from "@/lib/jobs";
 import { VIDEO_STAGES } from "@/lib/jobs/stages";
 import { formatClock } from "@/lib/utils/format";
-import { getLessonVideoState } from "@/lib/video/lessons";
+import { PROCESSING_STOPPED, videoEditorControls } from "@/lib/video/recovery";
 import { retryVideo } from "./actions";
 
 /* Lesson editor (feature 10): upload a lecture, watch it process, preview
    the result. Feature 18 adds documents on every lesson (a reading
    lesson's documents are its source). Feature 16 adds the lesson's graded quizzes;
    feature 20 an assignment lesson's instructions, due date and points. Progress survives closing the tab — the run lives on
-   Trigger.dev and its state is read back here on every visit. */
+   Trigger.dev and its state is read back here on every visit.
+   Feature 29: getLessonForUser is the only access check (course staff
+   only), then one batch (loadLessonEditor) reads the rest. */
 export default async function LessonEditorPage({ params }: PageProps<"/instructor/courses/[courseId]/lessons/[lessonId]">) {
   const { courseId, lessonId } = await params;
-  const user = await requireCourseStaff(courseId);
+  const user = await requireUser();
   const found = await getLessonForUser(lessonId, user);
-  if (!found || found.course.id !== courseId) notFound();
+  if (!found || found.course.id !== courseId || found.access !== "staff") notFound();
   const { lesson, module, course } = found;
+  const editor = await loadLessonEditor(lesson);
+  const { counts } = editor;
 
+  // Course › Module › Lesson (feature 28).
   const backLink = (
-    <Link href={`/instructor/courses/${courseId}`} className="flex items-center gap-2 text-small text-ink-soft no-underline hover:text-ink">
-      <Icon icon={ArrowLeft} size={16} />
-      {course.code} · Curriculum
-    </Link>
+    <Breadcrumbs items={[{ label: course.code, href: `/instructor/courses/${courseId}` }, { label: module.title }, { label: lesson.title }]} />
   );
-  const header = (
+  // The video branch passes the status its recovery restored (feature 26).
+  const header = (status = lesson.status) => (
     <PageHeader
       eyebrow={`${module.title} · ${lesson.kind}`}
       title={lesson.title}
       actions={
         <>
-          <StatusBadge status={lesson.status} size="lg" />
-          <Button asChild variant="secondary" size="sm" leading={<Icon icon={Eye} size={16} />}>
-            <Link href={`/courses/${courseId}/lessons/${lessonId}`}>Preview as student</Link>
+          <StatusBadge status={status} size="lg" />
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`/courses/${courseId}/lessons/${lessonId}`}>
+              <Icon icon={Eye} size={16} />
+              Preview as student
+            </Link>
           </Button>
         </>
       }
     />
   );
 
-  const docs = await documentsForEditor(lessonId);
+  const docs = editor.documents;
   const documentsCard = (
     <Card className="gap-4">
       <CardHeader title={lesson.kind === "reading" ? "Reading material" : "Documents and resources"} />
-      <DocumentManager lessonId={lessonId} reading={lesson.kind === "reading"} documents={docs.map(toDocumentView)} />
+      <DocumentManager lessonId={lessonId} reading={lesson.kind === "reading"} video={lesson.kind === "video"} documents={docs.map(toDocumentView)} />
     </Card>
   );
 
   if (lesson.kind === "assignment") {
-    const assignment = await getAssignment(lessonId);
-    const handedIn = assignment ? await submissionCounts(assignment.id) : null;
+    const { assignment, handedIn } = editor;
     return (
       <>
         {backLink}
-        {header}
+        {header()}
         <Card className="gap-4">
           <CardHeader title="Assignment" />
           <AssignmentForm
@@ -109,18 +114,17 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
   }
 
   if (lesson.kind !== "video") {
-    const counts = await contentCounts(lessonId);
     const drafted = counts.notes + counts.cards + counts.questions > 0;
     return (
       <>
         {backLink}
-        {header}
+        {header()}
         {lesson.kind === "reading" && (drafted || docs.some((d) => d.status === "ready")) && (
           <Card className="gap-3">
             <CardHeader
               title="AI drafts"
               action={
-                <Button asChild variant="secondary" size="sm">
+                <Button asChild size="sm">
                   <Link href={`/instructor/courses/${courseId}/lessons/${lessonId}/review`}>Review and publish</Link>
                 </Button>
               }
@@ -137,19 +141,16 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
     );
   }
 
-  const [{ latest, live, job, segmentCount }, counts, graded] = await Promise.all([
-    getLessonVideoState(lessonId),
-    contentCounts(lessonId),
-    gradedQuizzesForStaff(lessonId),
-  ]);
-  const token = job ? await getJobAccessToken(job) : null;
+  const { graded } = editor;
+  const { latest, live, job, segmentCount, lessonStatus } = editor.video ?? { latest: null, live: null, job: null, segmentCount: 0, lessonStatus: null };
+  const controls = videoEditorControls(latest, job);
+  const token = job && controls.progress ? await getJobAccessToken(job) : null;
   const processing = latest?.status === "processing";
-  const showJob = job && token && latest && (processing || latest.status === "failed" || (latest.status === "ready" && job.status !== "completed"));
 
   return (
     <>
       {backLink}
-      {header}
+      {header(lessonStatus ?? lesson.status)}
 
       {live && (
         <Card className="gap-4">
@@ -178,7 +179,7 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
           <CardHeader
             title="AI drafts"
             action={
-              <Button asChild variant="secondary" size="sm">
+              <Button asChild size="sm">
                 <Link href={`/instructor/courses/${courseId}/lessons/${lessonId}/review`}>Review and publish</Link>
               </Button>
             }
@@ -226,7 +227,7 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
         </Card>
       )}
 
-      {showJob && (
+      {job && token && (
         <JobProgress
           key={job.id}
           runId={job.triggerRunId}
@@ -234,8 +235,14 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
           stages={VIDEO_STAGES}
           title="Processing the video"
           initial={{ status: job.status, stage: job.stage, progress: job.progress, message: job.message, error: job.error }}
-          retry={latest.status === "failed" ? retryVideo.bind(null, latest.id) : undefined}
         />
+      )}
+
+      {controls.retry && latest && (
+        <Card className="gap-4">
+          <CardHeader title="Processing the video" />
+          <RetryNotice message={latest.error ?? PROCESSING_STOPPED} retry={retryVideo.bind(null, latest.id)} />
+        </Card>
       )}
 
       {latest?.status === "rejected" && (
@@ -244,7 +251,7 @@ export default async function LessonEditorPage({ params }: PageProps<"/instructo
         </p>
       )}
 
-      {!processing && (
+      {controls.uploader && (
         <Card className="gap-4">
           <CardHeader title={live ? "Replace the video" : "Upload video"} />
           {latest?.status === "uploading" && (

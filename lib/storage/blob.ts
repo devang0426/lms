@@ -1,18 +1,19 @@
 import "server-only";
 
-import { BlobNotFoundError, del, head, put, type HeadBlobResult, type PutBlobResult } from "@vercel/blob";
-import { and, count, eq, gte } from "drizzle-orm";
+import { BlobNotFoundError, del, head, list, put, type HeadBlobResult, type PutBlobResult } from "@vercel/blob";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
 import { canSubmitTo } from "@/lib/db/assignments";
 import { courseIdForLesson, getCourseAccess } from "@/lib/db/courses";
 import { auditLog, documents } from "@/lib/db/schema";
 import { startDocumentIngest, startPrivateDocumentIngest } from "@/lib/documents";
+import { ok, type ActionResult } from "@/lib/utils/action-result";
 import { startVideoProcessing } from "@/lib/video/lessons";
-import type { TokenPayload, UploadDeps } from "./authorize";
+import { uploadRecordKey, type TokenPayload, type UploadDeps } from "./authorize";
 import { isDemoLectureUrl } from "./upload-kinds";
 
-export { blobPaths, safeFileName, UPLOAD_KINDS, type UploadKind } from "./upload-kinds";
+export { blobPaths, exportFolder, privateFolder, safeFileName, UPLOAD_KINDS, type UploadKind } from "./upload-kinds";
 
 /* Vercel Blob helpers (feature 09). The store is PUBLIC: Blob access mode
    is fixed per store, and this one was created public (a private put is
@@ -47,6 +48,19 @@ export async function deleteBlobs(urls: string[]): Promise<void> {
   if (deletable.length > 0) await del(deletable);
 }
 
+/* Every file under a folder (`private/{userId}/`), for deleting a whole
+   person's files (feature 33) including any the rows no longer list. */
+export async function listBlobUrls(prefix: string): Promise<string[]> {
+  const urls: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix, cursor, limit: 1000 });
+    urls.push(...page.blobs.map((b) => b.url));
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return urls;
+}
+
 /* Metadata for a blob in our store, or null if it doesn't exist. */
 export async function headBlob(url: string): Promise<HeadBlobResult | null> {
   try {
@@ -60,18 +74,28 @@ export async function headBlob(url: string): Promise<HeadBlobResult | null> {
 /* Called when a browser upload finishes: by Blob's onUploadCompleted
    callback, and by the confirm action as the local-dev fallback (the
    callback can't reach localhost). Both may run, so it is idempotent.
-   Kind-specific records (the videos row, feature 10) hook in here. */
+   Kind-specific records (the videos row, feature 10) hook in here. A
+   video whose processing couldn't be queued comes back as an error for
+   the uploader (feature 26); the file itself is kept, for Retry. */
 export async function recordUpload(
   token: TokenPayload,
   blob: { url: string; pathname: string; contentType?: string; size?: number },
-): Promise<void> {
-  // A private upload (feature 19) is logged by its document id, without its
-  // file name or URL: admins read the audit log, and the URL opens the file.
-  const entityId = token.payload.kind === "private-document" ? token.payload.documentId : blob.pathname;
+): Promise<ActionResult> {
+  // One row per file (feature 24): the hourly upload limit counts these.
+  // A private upload (feature 19) is logged by its document id and a hash
+  // of its path, without its file name or URL: admins read the audit log,
+  // and the URL opens the file.
+  const { entityId, file } = uploadRecordKey(token.payload, blob.pathname);
   const [seen] = await db
     .select({ id: auditLog.id })
     .from(auditLog)
-    .where(and(eq(auditLog.action, "blob.upload"), eq(auditLog.entityId, entityId)))
+    .where(
+      and(
+        eq(auditLog.action, "blob.upload"),
+        eq(auditLog.entityId, entityId),
+        file ? sql`${auditLog.data}->>'file' = ${file}` : undefined,
+      ),
+    )
     .limit(1);
   if (!seen) {
     const details = { contentType: blob.contentType ?? null, size: blob.size ?? null };
@@ -80,7 +104,7 @@ export async function recordUpload(
       action: "blob.upload",
       entityType: token.kind,
       entityId,
-      data: token.payload.kind === "private-document" ? details : { url: blob.url, ...details },
+      data: file ? { file, ...details } : { url: blob.url, ...details },
     });
   }
 
@@ -88,8 +112,7 @@ export async function recordUpload(
   switch (p.kind) {
     case "lesson-video":
       // Idempotent: only an `uploading` row starts a run.
-      await startVideoProcessing({ videoId: p.videoId, lessonId: p.lessonId, userId: token.userId, blob });
-      break;
+      return startVideoProcessing({ videoId: p.videoId, lessonId: p.lessonId, userId: token.userId, blob });
     case "lesson-document":
       // Idempotent: only an `uploading` row starts a run.
       await startDocumentIngest({ documentId: p.documentId, lessonId: p.lessonId, userId: token.userId, blob });
@@ -98,8 +121,12 @@ export async function recordUpload(
       // Nothing to start: the file joins a submission when the student hands in.
       break;
     case "private-document":
-      // Idempotent: only the owner's `uploading` row starts a run.
-      await startPrivateDocumentIngest({ documentId: p.documentId, userId: token.userId, blob });
+      // Idempotent: only the owner's `uploading` row takes the file and
+      // starts a run. A note has one file (feature 24, S5): any other file
+      // uploaded for it is deleted, so it can't become free hosting.
+      if (!(await startPrivateDocumentIngest({ documentId: p.documentId, userId: token.userId, blob }))) {
+        await deleteBlobs([blob.url]);
+      }
       break;
     case "dev-test":
       break;
@@ -108,6 +135,7 @@ export async function recordUpload(
       throw new Error(`Unhandled upload kind ${JSON.stringify(never)}`);
     }
   }
+  return ok();
 }
 
 /* Completed uploads by this person in the last `minutes` (the upload rate
@@ -127,12 +155,13 @@ export const uploadDeps: UploadDeps = {
     return courseId !== null && (await getCourseAccess(courseId, viewer)) === "staff";
   },
   canSubmitTo,
-  ownsDocument: async (documentId, viewer) => {
+  // The owner in the query; authorizeUpload decides whether it still waits for its file.
+  privateDocument: async (documentId, viewer) => {
     const [row] = await db
-      .select({ id: documents.id })
+      .select({ status: documents.status, blobUrl: documents.blobUrl })
       .from(documents)
       .where(and(eq(documents.id, documentId), eq(documents.ownerId, viewer.id)))
       .limit(1);
-    return Boolean(row);
+    return row ? { status: row.status, hasFile: row.blobUrl !== null } : null;
   },
 };

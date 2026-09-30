@@ -27,6 +27,8 @@ export type Report = (progress: number, message: string) => Promise<void>;
 export interface StepOptions {
   force?: boolean;
   report?: Report;
+  /* Charged for the AI calls instead of the source's uploader (a regenerate). */
+  requestedBy?: string;
 }
 export type StepResult = { skipped: boolean; count: number };
 
@@ -62,7 +64,7 @@ export async function draftChapters(lessonId: string, opts: StepOptions = {}): P
   if (src.mode === "document") return { skipped: true, count: 0 };
   if (!opts.force && (await hasContentFor("chapters", lessonId, src.videoId))) return { skipped: true, count: 0 };
   await opts.report?.(0, "Finding where each topic starts…");
-  const drafts = await withUsage("lesson-chapters", src.createdBy, () =>
+  const drafts = await withUsage("lesson-chapters", opts.requestedBy ?? src.createdBy, () =>
     generateChapters(getEngine(), src.segments, { durationSec: src.durationSec }),
   );
   await replaceChapters(lessonId, src.videoId, drafts);
@@ -75,10 +77,10 @@ export async function draftNotes(lessonId: string, opts: StepOptions = {}): Prom
   let blocks;
   if (src.mode === "document") {
     await opts.report?.(0, `Writing notes from ${src.documents.length === 1 ? "the document" : `${src.documents.length} documents`}…`);
-    blocks = await withUsage("lesson-notes", src.createdBy, () => generateDocumentNotes(getEngine(), src.documents));
+    blocks = await withUsage("lesson-notes", opts.requestedBy ?? src.createdBy, () => generateDocumentNotes(getEngine(), src.documents));
   } else {
     const chapters = await currentChapters(lessonId);
-    blocks = await withUsage("lesson-notes", src.createdBy, () =>
+    blocks = await withUsage("lesson-notes", opts.requestedBy ?? src.createdBy, () =>
       generateLectureNotes(getEngine(), src.segments, chapters, {
         onSection: (done, total) => opts.report?.(done / (total + 1), `Writing notes: chapter ${done} of ${total}…`),
       }),
@@ -93,7 +95,7 @@ export async function draftCards(lessonId: string, opts: StepOptions = {}): Prom
   if (!opts.force && (await hasContentFor("cards", lessonId, src.videoId))) return { skipped: true, count: 0 };
   const notes = await currentNotes(src);
   await opts.report?.(0, "Writing flashcards…");
-  const cards = await withUsage("lesson-cards", src.createdBy, () =>
+  const cards = await withUsage("lesson-cards", opts.requestedBy ?? src.createdBy, () =>
     src.mode === "document" ? generateDocumentCards(getEngine(), notes) : generateLessonCards(getEngine(), notes.text, notes.chapters),
   );
   await replaceCards(lessonId, src.videoId, notes.noteId, cards);
@@ -111,7 +113,7 @@ export async function draftQuiz(lessonId: string, opts: StepOptions = {}): Promi
     notes ??= await currentNotes(src);
     const n = notes;
     await opts.report?.(i / QUIZ_LEVELS.length, `Writing ${level} quiz questions…`);
-    const questions = await withUsage("lesson-quiz", src.createdBy, () =>
+    const questions = await withUsage("lesson-quiz", opts.requestedBy ?? src.createdBy, () =>
       src.mode === "document" ? generateDocumentQuiz(getEngine(), n, level) : generateLessonQuiz(getEngine(), n.text, n.chapters, level),
     );
     await replaceQuizLevel(lessonId, src.videoId, n.noteId, level, questions);

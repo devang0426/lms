@@ -9,7 +9,7 @@ import "server-only";
 
 import { z } from "zod";
 import type { Block, BlockType } from "@/lib/ai/types";
-import { markdownToBlocks, plainText, stripFence } from "@/lib/markdown";
+import { markdownToBlocks, plainText, stripFence } from "@/lib/markdown-blocks";
 import type { Engine } from "../engine/types";
 import {
   lectureOverviewSystem,

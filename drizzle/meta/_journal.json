@@ -127,6 +127,27 @@
       "when": 1790674389549,
       "tag": "0017_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790748545378,
+      "tag": "0018_ai_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790756840558,
+      "tag": "0019_draft_ready_and_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790765413430,
+      "tag": "0020_data_export_deletion",
+      "breakpoints": true
     }
   ]
 }

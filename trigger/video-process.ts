@@ -1,9 +1,12 @@
-import { schemaTask } from "@trigger.dev/sdk";
+import { logger, schemaTask } from "@trigger.dev/sdk";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db/client";
+import { notifyDraftsReady } from "@/lib/db/notifications";
 import { lessons, videos } from "@/lib/db/schema";
+import { failProcessingVideo, restoreLessonStatus } from "@/lib/db/videos";
 import { deleteBlobs } from "@/lib/storage/blob";
+import { PROCESSING_STOPPED } from "@/lib/video/recovery";
 import { jobHooks, JobError, reportProgress } from "./lib/job-progress";
 import { loadVideo, updateVideo } from "./lib/video-db";
 import { generateCardsTask, generateChaptersTask, generateNotesTask, generateQuizTask } from "./generate-lesson-content";
@@ -30,6 +33,18 @@ export const videoProcess = schemaTask({
   retry: { maxAttempts: 1 }, // the subtasks retry; a failed parent is retried by the instructor
   maxDuration: 7200,
   ...jobHooks,
+  /* A failed step marks the video itself (fail() below). Anything else
+     that ends the run (a throw outside the steps, a timeout) would leave
+     it `processing`, with no Retry and Publish refused: mark it failed and
+     put the lesson back (feature 26). A crash or out-of-memory skips these
+     hooks; the lesson editor reconciles those (lib/video/lessons). */
+  onFailure: async ({ ctx, error, payload }) => {
+    await jobHooks.onFailure({ ctx, error });
+    await failProcessingVideo(payload.videoId, PROCESSING_STOPPED);
+  },
+  onCancel: async ({ payload }) => {
+    await failProcessingVideo(payload.videoId, PROCESSING_STOPPED);
+  },
   run: async ({ videoId }, { ctx }) => {
     const runId = ctx.run.id;
     const [row] = await db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
@@ -72,6 +87,12 @@ export const videoProcess = schemaTask({
 
     // New chapters mean new chunk boundaries and titles.
     await reindexIfPublished(video.lessonId);
+    // Step 12: the uploader gets a "Drafts ready" notice with a link to the
+    // review screen (feature 30). A notice that can't be written doesn't
+    // fail a pipeline that has finished.
+    await notifyDraftsReady(videoId).catch((err: unknown) =>
+      logger.warn("Drafts-ready notice not sent", { videoId, error: err instanceof Error ? err.message : String(err) }),
+    );
     await reportProgress(runId, { stage: "quiz", progress: 100, message: "Drafts ready to review." });
     return { skipped: false };
   },
@@ -106,18 +127,6 @@ function stageLabel(stage: string): string {
     { probe: "checking the file", faststart: "preparing it for streaming", poster: "making the poster", audio: "transcribing" }[stage] ??
     "processing"
   );
-}
-
-async function restoreLessonStatus(lessonId: string): Promise<void> {
-  const [ready] = await db
-    .select({ id: videos.id })
-    .from(videos)
-    .where(and(eq(videos.lessonId, lessonId), eq(videos.status, "ready")))
-    .limit(1);
-  await db
-    .update(lessons)
-    .set({ status: ready ? "ready" : "draft" })
-    .where(and(eq(lessons.id, lessonId), eq(lessons.status, "processing")));
 }
 
 /* Mark ready, update the lesson, and remove older uploads for the lesson

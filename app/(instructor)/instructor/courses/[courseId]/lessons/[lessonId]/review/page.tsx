@@ -1,4 +1,4 @@
-import { ArrowLeft, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/course-builder/status-badge";
@@ -8,41 +8,40 @@ import { ChaptersEditor } from "@/components/lesson-review/chapters-editor";
 import { NotesEditor } from "@/components/lesson-review/notes-editor";
 import { QuizEditor } from "@/components/lesson-review/quiz-editor";
 import { PublishButton, RegenerateButton, type ContentKind } from "@/components/lesson-review/shared";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button, Card, EmptyState, Icon, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { requireCourseStaff } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getLessonForUser } from "@/lib/db/courses";
-import { contentCounts, getLessonContent, loadDraftSource } from "@/lib/db/lesson-content";
+import { loadLessonReview } from "@/lib/db/lesson-review";
 import type { Job } from "@/lib/db/schema";
-import { getJobAccessToken, latestJobFor } from "@/lib/jobs";
+import { getJobAccessToken } from "@/lib/jobs";
 import { JOB_STAGES, TERMINAL_JOB_STATES } from "@/lib/jobs/stages";
 import { blocksToMarkdown } from "@/lib/markdown";
 
 /* Review AI lesson content (feature 12): chapters, notes, flashcards and
    quiz, each editable in place and regenerable per tab. Publish puts the
-   lesson and every item live together; until then students see nothing. */
+   lesson and every item live together; until then students see nothing.
+   Feature 29: getLessonForUser is the only access check (course staff
+   only), then one batch (loadLessonReview) reads the rest. */
 export default async function LessonReviewPage({
   params,
 }: PageProps<"/instructor/courses/[courseId]/lessons/[lessonId]/review">) {
   const { courseId, lessonId } = await params;
-  const user = await requireCourseStaff(courseId);
+  const user = await requireUser();
   const found = await getLessonForUser(lessonId, user);
-  if (!found || found.course.id !== courseId) notFound();
-  const { lesson, module } = found;
+  if (!found || found.course.id !== courseId || found.access !== "staff") notFound();
+  const { lesson, module, course } = found;
 
-  const [source, content, counts, jobs] = await Promise.all([
-    loadDraftSource(lessonId),
-    getLessonContent(lessonId, { publishedOnly: false }),
-    contentCounts(lessonId),
-    Promise.all(
-      (["chapters", "notes", "cards", "quiz"] as const).map(async (kind) => {
-        const job = await latestJobFor({ type: "lesson", id: lessonId }, `generate-${kind}`);
-        const active = job && !TERMINAL_JOB_STATES.includes(job.status);
-        const failed = job?.status === "failed";
-        return [kind, active || failed ? { job, token: await getJobAccessToken(job) } : null] as const;
-      }),
-    ),
-  ]);
+  const { source, content, counts, jobs: latest } = await loadLessonReview(lessonId);
+  const jobs = await Promise.all(
+    (["chapters", "notes", "cards", "quiz"] as const).map(async (kind) => {
+      const job = latest[kind];
+      const active = job && !TERMINAL_JOB_STATES.includes(job.status);
+      const failed = job?.status === "failed";
+      return [kind, job && (active || failed) ? { job, token: await getJobAccessToken(job) } : null] as const;
+    }),
+  );
   const running = Object.fromEntries(jobs) as Record<ContentKind, { job: Job; token: string } | null>;
 
   const editorHref = `/instructor/courses/${courseId}/lessons/${lessonId}`;
@@ -51,10 +50,14 @@ export default async function LessonReviewPage({
 
   const header = (
     <>
-      <Link href={editorHref} className="flex items-center gap-2 text-small text-ink-soft no-underline hover:text-ink">
-        <Icon icon={ArrowLeft} size={16} />
-        {lesson.title} · {lesson.kind === "reading" ? "Reading material" : "Video"}
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: course.code, href: `/instructor/courses/${courseId}` },
+          { label: module.title },
+          { label: lesson.title, href: editorHref },
+          { label: "Review" },
+        ]}
+      />
       <PageHeader
         eyebrow={`${module.title} · Review AI drafts`}
         title={lesson.title}
@@ -218,6 +221,6 @@ const tabLabels: Record<ContentKind, string> = { chapters: "Chapters", notes: "N
 const tabHints: Record<ContentKind, string> = {
   chapters: "Where each topic starts. Students jump between chapters from the player and the scrubber.",
   notes: "Study notes, one section per chapter. Headings with a time link into the video.",
-  cards: "Flashcards for review. Students study them in a later update.",
+  cards: "Flashcards for review. Students study them with spaced repetition: each card comes back just before it's forgotten.",
   quiz: "Eight questions at each level. Mark any you want in the graded bank.",
 };

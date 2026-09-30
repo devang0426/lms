@@ -9,6 +9,7 @@ import { courseIdForLesson, getCourseAccess } from "@/lib/db/courses";
 import { gradedQuizEventStatement } from "@/lib/db/events";
 import { createGradedQuizStatements } from "@/lib/db/quizzes";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Create a graded quiz from the lesson's question bank (feature 16).
    zod → course staff → the quiz, the move of its questions to the graded
@@ -24,7 +25,7 @@ const input = z.object({
   questionIds: z.array(z.uuid()).min(1, "Pick at least one question.").max(50, "Fifty questions at most."),
 });
 
-export async function createGradedQuiz(raw: z.input<typeof input>): Promise<ActionResult<{ id: string }>> {
+export const createGradedQuiz = safeAction("createGradedQuiz", async (raw: z.input<typeof input>): Promise<ActionResult<{ id: string }>> => {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the form and try again.");
   const { lessonId, title, maxAttempts, points } = parsed.data;
@@ -58,4 +59,4 @@ export async function createGradedQuiz(raw: z.input<typeof input>): Promise<Acti
   revalidatePath("/calendar");
   revalidatePath("/");
   return ok({ id: created.id });
-}
+});

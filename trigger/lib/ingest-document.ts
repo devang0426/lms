@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ingestDocx } from "@/lib/ai/ingest/docx";
@@ -8,11 +8,12 @@ import { canonicalYoutubeUrl, youtubeFailureMessage } from "@/lib/ai/ingest/yout
 import { extractYoutube } from "@/lib/ai/ingest/youtube/ytdlp.mjs";
 import type { DocPart } from "@/lib/ai/types";
 import type { DocumentRow } from "@/lib/db/schema";
+import { documentMaxSec, tooLongMessage } from "@/lib/documents/length";
 import { SafeFetchError } from "@/lib/net/safe-fetch";
 import { durationOf } from "./ffmpeg";
 import { JobError } from "./job-progress";
 import { transcribeAudio } from "./transcribe";
-import { removeDir, workDir } from "./video-files";
+import { downloadTo, removeDir, workDir } from "./video-files";
 
 /* Step 1 of ingest-document (feature 18): turn one document into text and
    citable parts. PDF: one part per page (unpdf). DOCX: one per heading
@@ -20,7 +21,10 @@ import { removeDir, workDir } from "./video-files";
    Readability, one part per section. Recording: the same Whisper step as
    video, one part per transcript segment. YouTube: yt-dlp captions, or its
    audio through Whisper; YouTube often blocks servers, which ends in a
-   message saying to upload the file instead. */
+   message saying to upload the file instead. Recordings and YouTube
+   videos over DOCUMENT_MAX_MINUTES are refused before anything is
+   transcribed (feature 25, S2): a recording by ffprobe, a YouTube video by
+   yt-dlp's metadata, before it downloads anything. */
 
 export interface Extracted {
   title?: string;
@@ -38,7 +42,7 @@ export async function extractDocument(doc: DocumentRow, report: ExtractReport = 
   switch (doc.kind) {
     case "pdf": {
       await report("read", 0, "Reading the PDF page by page…");
-      const result = await readable(() => download(doc).then(ingestPdf));
+      const result = await readable(() => fromDisk(doc, ingestPdf));
       if (result.text.length < MIN_TEXT) {
         throw new JobError("This PDF has almost no text we can read. It's probably scanned: export it with text recognition (OCR) and upload it again.");
       }
@@ -46,7 +50,7 @@ export async function extractDocument(doc: DocumentRow, report: ExtractReport = 
     }
     case "docx": {
       await report("read", 0, "Reading the Word document…");
-      const result = await readable(() => download(doc).then(ingestDocx));
+      const result = await readable(() => fromDisk(doc, ingestDocx));
       if (result.text.length < MIN_TEXT) throw new JobError("This document has almost no text in it.");
       return { text: result.text, parts: result.parts ?? [] };
     }
@@ -58,8 +62,10 @@ export async function extractDocument(doc: DocumentRow, report: ExtractReport = 
     }
     case "audio": {
       if (!doc.blobUrl) throw new JobError("The recording didn't finish uploading. Upload it again.");
+      const maxSec = documentMaxSec();
       const durationSec = await durationOf(doc.blobUrl);
-      const segments = await transcribeAudio(doc.blobUrl, { label: doc.id, userId: doc.createdBy, durationSec, report: stageReport(report) });
+      refuseTooLong("audio", durationSec, maxSec);
+      const segments = await transcribeAudio(doc.blobUrl, { label: doc.id, userId: doc.createdBy, durationSec, maxSec, report: stageReport(report) });
       return timed(segments, durationSec);
     }
     case "youtube":
@@ -75,29 +81,40 @@ async function extractYoutubeDoc(doc: DocumentRow, report: ExtractReport): Promi
   const url = doc.url ? canonicalYoutubeUrl(doc.url) : null;
   if (!url) throw new JobError("That doesn't look like a YouTube link.");
   await report("read", 0, "Asking YouTube for captions…");
+  const maxSec = documentMaxSec();
   const dir = await workDir(`youtube-${doc.id}`);
   try {
     let got: Awaited<ReturnType<typeof extractYoutube>>;
     try {
       const binDir = join(tmpdir(), "studyhall-bin");
       await mkdir(binDir, { recursive: true });
-      got = await extractYoutube(url, binDir, { audioDir: dir });
+      got = await extractYoutube(url, binDir, { audioDir: dir, maxDurationSec: maxSec });
     } catch (err) {
       console.warn("[ingest-document] yt-dlp failed", err);
       throw new JobError(youtubeFailureMessage(err));
     }
+    // The length from YouTube's metadata, checked before any download.
+    if (got.tooLong) refuseTooLong("youtube", got.durationSec ?? 0, maxSec);
     const title = got.title ?? undefined;
     if (got.cues?.length) {
       const segments = got.cues.map((c: { start: number; end: number; text: string }) => ({ startSec: c.start, endSec: c.end, text: c.text }));
+      // YouTube didn't say how long it is: the captions do.
+      refuseTooLong("youtube", segments.at(-1)?.endSec ?? 0, maxSec);
       return { ...timed(segments, segments.at(-1)?.endSec ?? null), title };
     }
     if (!got.audioPath) throw new JobError(youtubeFailureMessage("no captions or audio"));
     const durationSec = await durationOf(got.audioPath);
-    const segments = await transcribeAudio(got.audioPath, { label: doc.id, userId: doc.createdBy, durationSec, report: stageReport(report) });
+    refuseTooLong("youtube", durationSec, maxSec);
+    const segments = await transcribeAudio(got.audioPath, { label: doc.id, userId: doc.createdBy, durationSec, maxSec, report: stageReport(report) });
     return { ...timed(segments, durationSec), title };
   } finally {
     await removeDir(dir);
   }
+}
+
+function refuseTooLong(kind: "audio" | "youtube", durationSec: number, maxSec: number): void {
+  const message = tooLongMessage(kind, durationSec, maxSec);
+  if (message) throw new JobError(message);
 }
 
 function timed(segments: { startSec: number; endSec: number; text: string }[], durationSec: number | null): Extracted {
@@ -111,11 +128,28 @@ const stageReport =
   (stage: "audio" | "transcribe", fraction: number, message: string) =>
     report(stage === "audio" ? "read" : "transcribe", fraction, message);
 
-async function download(doc: DocumentRow): Promise<Blob> {
+/* PDF and Word files stream to a temp file instead of into memory
+   (feature 26): res.blob(), its arrayBuffer() and pdf.js each held a copy
+   of the file, and a 200 MB PDF could crash the default machine. The file
+   is then read in one allocation of its exact size and handed over as a
+   plain Uint8Array, which pdf.js uses without copying. */
+async function fromDisk<T>(doc: DocumentRow, extract: (bytes: Uint8Array) => Promise<T>): Promise<T> {
   if (!doc.blobUrl) throw new JobError("The file didn't finish uploading. Upload it again.");
-  const res = await fetch(doc.blobUrl);
-  if (!res.ok) throw new Error(`Couldn't download the file (${res.status}).`);
-  return res.blob();
+  const dir = await workDir(`doc-${doc.id}`);
+  try {
+    const file = join(dir, "source");
+    try {
+      await downloadTo(doc.blobUrl, file);
+    } catch (err) {
+      console.warn("[ingest-document] download failed", err);
+      throw new Error("Couldn't download the file. Upload it again.");
+    }
+    const bytes = await readFile(file);
+    // pdf.js copies a Buffer, but not a Uint8Array that spans its whole ArrayBuffer.
+    return await extract(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+  } finally {
+    await removeDir(dir);
+  }
 }
 
 /* Extractors throw plain Errors written for people ("Couldn't read that

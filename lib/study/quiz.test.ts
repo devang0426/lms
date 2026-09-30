@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { correctAnswerText, isCorrect, normalizeAnswer, parseNumber, sameAnswer } from "./quiz";
+import {
+  answersRevealed,
+  correctAnswerText,
+  GRADED_GRACE_MS,
+  gradedFeedback,
+  isCorrect,
+  normalizeAnswer,
+  parseNumber,
+  sameAnswer,
+  submitDeadline,
+  submitOpen,
+} from "./quiz";
 
 describe("isCorrect", () => {
   const mcq = { type: "mcq" as const, options: ["a", "b", "c", "d"], correctIndex: 2 };
@@ -53,5 +64,60 @@ describe("fill-in-the-blank comparison", () => {
     expect(parseNumber("1,00")).toBeNull();
     expect(parseNumber("two")).toBeNull();
     expect(parseNumber(".")).toBeNull();
+  });
+});
+
+describe("graded quizzes: deadline and reveal (feature 24)", () => {
+  const due = Date.UTC(2026, 9, 5, 17, 0);
+  const min = 60_000;
+
+  it("takes submits until the due date plus 10 minutes, then refuses", () => {
+    expect(GRADED_GRACE_MS).toBe(10 * min);
+    expect(submitDeadline(due)).toBe(due + 10 * min);
+    expect(submitOpen(due, due - 3 * 24 * 60 * min)).toBe(true);
+    expect(submitOpen(due, due + 9 * min)).toBe(true);
+    expect(submitOpen(due, due + 10 * min)).toBe(false);
+    // An attempt started early can't be handed in days later.
+    expect(submitOpen(due, due + 2 * 24 * 60 * min)).toBe(false);
+  });
+
+  it("reveals answers exactly when submitting closes, never while it's open", () => {
+    for (const t of [due - min, due, due + 9 * min, due + 10 * min, due + 60 * min]) {
+      expect(answersRevealed(due, t)).toBe(!submitOpen(due, t));
+    }
+    expect(answersRevealed(due, due)).toBe(false);
+    expect(answersRevealed(due, due + 10 * min)).toBe(true);
+  });
+
+  const q = (id: string, correctIndex: number) => ({
+    id,
+    type: "mcq" as const,
+    options: ["a", "b", "c"],
+    correctIndex,
+    explanation: `why ${id}`,
+    startSec: 30,
+  });
+  const scored = [
+    { q: q("q2", 1), answer: "0", correct: false },
+    { q: q("q1", 2), answer: "2", correct: true },
+  ];
+
+  it("before the reveal: score and right/wrong only, in the quiz's order", () => {
+    const hidden = gradedFeedback(scored, ["q1", "q2"], false);
+    expect(hidden.map((f) => [f.questionId, f.correct])).toEqual([
+      ["q1", true],
+      ["q2", false],
+    ]);
+    for (const f of hidden) {
+      expect(f.correctAnswer).toBeNull();
+      expect(f.explanation).toBeNull();
+    }
+    // The student's own answer and the video moment are theirs to see.
+    expect(hidden[1]).toMatchObject({ answer: "0", startSec: 30 });
+  });
+
+  it("after the reveal: the correct answers and explanations too", () => {
+    const shown = gradedFeedback(scored, ["q1", "q2"], true);
+    expect(shown[1]).toMatchObject({ questionId: "q2", correct: false, correctAnswer: "b", explanation: "why q2" });
   });
 });

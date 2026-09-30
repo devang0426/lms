@@ -24,13 +24,36 @@ interface UsageContext {
 
 const context = new AsyncLocalStorage<UsageContext>();
 
+/* Where writes go inside backgroundUsageWrites().run(): started, not awaited. */
+const background = new AsyncLocalStorage<Promise<void>[]>();
+
 export async function withUsage<T>(feature: string, userId: string | null, fn: () => Promise<T>): Promise<T> {
   const ctx: UsageContext = { feature, userId, events: [] };
   try {
     return await context.run(ctx, fn);
   } finally {
-    await writeRows(ctx.feature, ctx.userId, ctx.events);
+    const write = writeRows(ctx.feature, ctx.userId, ctx.events);
+    const pending = background.getStore();
+    if (pending) pending.push(write);
+    else await write;
   }
+}
+
+/* For a request handler that streams (feature 29): inside run(), each
+   withUsage() block starts its insert and carries on without waiting, so
+   the assistant's search doesn't wait ~300 ms for the embedding's row and
+   its answer doesn't wait for the model's. Pass settled() to Next's
+   after(), which keeps the function alive until the rows are written.
+   The rows land a moment later than before; the daily limit (a safety
+   limit, lib/ai/budget.ts) can lag by that moment. */
+export function backgroundUsageWrites() {
+  const pending: Promise<void>[] = [];
+  return {
+    run: <T>(fn: () => T): T => background.run(pending, fn),
+    settled: async (): Promise<void> => {
+      await Promise.all(pending);
+    },
+  };
 }
 
 /* The engine's onUsage hook. A call made outside withUsage() is still

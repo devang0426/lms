@@ -31,8 +31,9 @@ export interface AnswerFeedback {
   questionId: string;
   answer: string;
   correct: boolean;
-  correctAnswer: string;
-  explanation: string;
+  /* null on a graded attempt until its answers are revealed (feature 24). */
+  correctAnswer: string | null;
+  explanation: string | null;
   startSec: number | null;
 }
 
@@ -59,6 +60,50 @@ export interface GradedQuizSummary {
   best: number | null;
   /* An attempt started and not yet submitted: "Continue" resumes it. */
   openAttemptId: string | null;
+}
+
+/* ---- Graded quizzes: the deadline and the reveal (feature 24, S4) ------------
+   An attempt may be submitted until the due date plus a short grace
+   period, so one started just before the deadline can still be handed in.
+   Correct answers and explanations are revealed only when that window has
+   closed for everyone. Before then a submit returns the score and which
+   answers were wrong, nothing more: otherwise a blank first attempt would
+   give away the answers for the next one, and for classmates. */
+
+export const GRADED_GRACE_MS = 10 * 60 * 1000;
+
+export function submitDeadline(dueAt: number): number {
+  return dueAt + GRADED_GRACE_MS;
+}
+
+export function submitOpen(dueAt: number, now: number): boolean {
+  return now < submitDeadline(dueAt);
+}
+
+export function answersRevealed(dueAt: number, now: number): boolean {
+  return !submitOpen(dueAt, now);
+}
+
+type Scored = {
+  q: Checkable & { id: string; explanation: string; startSec: number | null };
+  answer: string;
+  correct: boolean;
+};
+
+/* A graded attempt's feedback, in the quiz's order. Right or wrong per
+   question always; the correct answer and explanation only once revealed. */
+export function gradedFeedback(scored: Scored[], questionIds: string[], revealed: boolean): AnswerFeedback[] {
+  const order = new Map(questionIds.map((id, i) => [id, i]));
+  return [...scored]
+    .sort((a, b) => (order.get(a.q.id) ?? 0) - (order.get(b.q.id) ?? 0))
+    .map((s) => ({
+      questionId: s.q.id,
+      answer: s.answer,
+      correct: s.correct,
+      correctAnswer: revealed ? correctAnswerText(s.q) : null,
+      explanation: revealed ? s.q.explanation : null,
+      startSec: s.q.startSec,
+    }));
 }
 
 type Checkable = { type: QuizQuestionType; options: string[]; correctIndex: number };

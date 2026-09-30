@@ -1,15 +1,17 @@
 import "server-only";
 
 import { cache } from "react";
+import { checkBudget } from "@/lib/ai/budget";
 import { updateDocument } from "@/lib/db/documents";
 import type { DocumentKind, Job, User } from "@/lib/db/schema";
 import { deleteOwnedNote, getOwnedNote, getOwnedNoteDocument, listOwnedNotes, type OwnedNote } from "@/lib/db/space";
-import { documentEntity, retryDocumentIngest } from "@/lib/documents";
+import { documentEntity, retryDocumentIngest, START_FAILED } from "@/lib/documents";
 import { documentMeta } from "@/lib/documents/view";
 import { cancelJob, getJobAccessToken, latestJobFor, latestJobsFor } from "@/lib/jobs";
 import { TERMINAL_JOB_STATES } from "@/lib/jobs/stages";
 import { deleteBlobs } from "@/lib/storage/blob";
-import { notePhase, type NotePhase } from "./view";
+import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { canRetryNote, notePhase, type NotePhase } from "./view";
 
 /* The private space, web side (feature 19): what the dashboard and the
    note page show, and retrying or deleting a note. Everything goes through
@@ -78,14 +80,17 @@ export async function noteState(note: OwnedNote): Promise<NoteState> {
 
 /* A fresh run for a note whose source couldn't be read or whose drafts
    stopped: reading is skipped if it finished, and each draft that was
-   saved is kept. Not while a run is still going. */
-export async function retryNoteRun(noteId: string, user: Pick<User, "id">): Promise<boolean> {
+   saved is kept. Only after a failure (canRetryNote), and within the
+   person's daily AI limit (feature 25). */
+export async function retryNoteRun(noteId: string, user: Pick<User, "id" | "role">): Promise<ActionResult> {
   const doc = await getOwnedNoteDocument(noteId, user.id);
-  if (!doc || doc.status === "uploading") return false;
+  if (!doc) return fail("not_found", "That note isn't available.");
   const latest = await latestJobFor(documentEntity(doc.id), "ingest-document");
-  if (latest && !TERMINAL_JOB_STATES.includes(latest.status)) return false;
-  await retryDocumentIngest(doc, user.id);
-  return true;
+  if (!canRetryNote(doc, latest?.status ?? null)) return fail("conflict", "Only a note that stopped with an error can be tried again.");
+  const budget = await checkBudget(user, { feature: "space-retry", entityType: "note", entityId: noteId });
+  if (!budget.ok) return fail("conflict", budget.message);
+  if (!(await retryDocumentIngest(doc, user.id))) return fail("conflict", START_FAILED);
+  return ok();
 }
 
 /* The note goes with everything made from it; any run still working on

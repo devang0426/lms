@@ -1,12 +1,12 @@
 import "server-only";
 
-import { headers } from "next/headers";
-
 /* Where an invitation's sign-up link lands (feature 22): this site's
-   /sign-up, whose Clerk <SignUp /> accepts the invitation ticket. Read
-   from the request, so it's right on localhost, previews and production. */
-export async function signUpUrl(): Promise<string> {
-  const h = await headers();
-  const origin = h.get("origin") ?? `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
-  return `${origin}/sign-up`;
+   /sign-up, whose Clerk <SignUp /> accepts the invitation ticket. Built
+   from the configured NEXT_PUBLIC_APP_URL (feature 24, S10), never from
+   request headers, which a client can set. lib/env.ts checks the URL at
+   startup. */
+export function signUpUrl(): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  if (!base) throw new Error("NEXT_PUBLIC_APP_URL is not set.");
+  return new URL("/sign-up", base).toString();
 }

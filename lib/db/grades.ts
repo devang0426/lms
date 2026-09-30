@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, ne, sql, type SQL } from "drizzle-orm";
 import type { GradebookItem, GradebookStudent, WorkFact } from "@/lib/coursework/gradebook";
-import { db } from "./client";
+import { db, type BatchRows } from "./client";
 import { enrolledPredicate, staffPredicate, type Viewer } from "./courses";
 import {
   assignments,
@@ -155,16 +155,21 @@ export interface GradebookData {
   weightRows: { category: AssignmentCategory; weight: number }[];
 }
 
-/* Everything the gradebook needs for one course, in one round trip.
-   Items follow the curriculum order (module, lesson), then due date. */
-export async function gradebookData(courseId: string): Promise<GradebookData> {
-  const [students, assignmentRows, quizRows, submissionRows, quizBest, weightRows] = await db.batch([
+/* The gradebook's statements for a page's batch (feature 29). For
+   feature 31's student report: `student` narrows it to one student's row,
+   `guard` is the access check for statements batched beside it, and
+   `publishedOnly` keeps to work on published lessons (what the student can
+   see and hand in). Take the rows with toGradebookData(). */
+export function gradebookQueries(courseId: string, opts: { student?: string; guard?: SQL; publishedOnly?: boolean } = {}) {
+  const { student, guard } = opts;
+  const shown = opts.publishedOnly ? and(eq(modules.status, "published"), eq(lessons.status, "published")) : undefined;
+  return [
     db
       .selectDistinct({ id: users.id, name: users.name, email: users.email })
       .from(enrollments)
       .innerJoin(sections, eq(sections.id, enrollments.sectionId))
       .innerJoin(users, eq(users.id, enrollments.userId))
-      .where(and(eq(sections.courseId, courseId), eq(enrollments.status, "active")))
+      .where(and(eq(sections.courseId, courseId), eq(enrollments.status, "active"), student ? eq(users.id, student) : undefined, guard))
       .orderBy(asc(users.name), asc(users.id)),
     db
       .select({
@@ -179,7 +184,7 @@ export async function gradebookData(courseId: string): Promise<GradebookData> {
       .from(assignments)
       .innerJoin(lessons, eq(lessons.id, assignments.lessonId))
       .innerJoin(modules, eq(modules.id, lessons.moduleId))
-      .where(eq(modules.courseId, courseId)),
+      .where(and(eq(modules.courseId, courseId), shown, guard)),
     db
       .select({
         id: gradedQuizzes.id,
@@ -192,7 +197,7 @@ export async function gradebookData(courseId: string): Promise<GradebookData> {
       .from(gradedQuizzes)
       .innerJoin(lessons, eq(lessons.id, gradedQuizzes.lessonId))
       .innerJoin(modules, eq(modules.id, lessons.moduleId))
-      .where(eq(modules.courseId, courseId)),
+      .where(and(eq(modules.courseId, courseId), shown, guard)),
     db
       .select({
         userId: submissions.userId,
@@ -208,7 +213,7 @@ export async function gradebookData(courseId: string): Promise<GradebookData> {
       .innerJoin(lessons, eq(lessons.id, assignments.lessonId))
       .innerJoin(modules, eq(modules.id, lessons.moduleId))
       .leftJoin(grades, eq(grades.submissionId, submissions.id))
-      .where(eq(modules.courseId, courseId)),
+      .where(and(eq(modules.courseId, courseId), shown, student ? eq(submissions.userId, student) : undefined, guard)),
     db
       .select({
         userId: quizAttempts.userId,
@@ -220,11 +225,23 @@ export async function gradebookData(courseId: string): Promise<GradebookData> {
       .innerJoin(gradedQuizzes, eq(gradedQuizzes.id, quizAttempts.gradedQuizId))
       .innerJoin(lessons, eq(lessons.id, gradedQuizzes.lessonId))
       .innerJoin(modules, eq(modules.id, lessons.moduleId))
-      .where(and(eq(modules.courseId, courseId), isNotNull(quizAttempts.submittedAt)))
+      .where(and(eq(modules.courseId, courseId), shown, isNotNull(quizAttempts.submittedAt), student ? eq(quizAttempts.userId, student) : undefined, guard))
       .groupBy(quizAttempts.userId, gradedQuizzes.id, gradedQuizzes.points),
-    db.select({ category: gradeCategories.category, weight: gradeCategories.weight }).from(gradeCategories).where(eq(gradeCategories.courseId, courseId)),
-  ]);
+    db
+      .select({ category: gradeCategories.category, weight: gradeCategories.weight })
+      .from(gradeCategories)
+      .where(and(eq(gradeCategories.courseId, courseId), guard)),
+  ] as const;
+}
 
+export function toGradebookData([
+  students,
+  assignmentRows,
+  quizRows,
+  submissionRows,
+  quizBest,
+  weightRows,
+]: BatchRows<ReturnType<typeof gradebookQueries>>): GradebookData {
   const ordered = [
     ...assignmentRows.map((a) => ({ ...a, kind: "assignment" as const })),
     ...quizRows.map((q) => ({ ...q, kind: "quiz" as const, category: "quiz" as const })),
@@ -247,6 +264,12 @@ export async function gradebookData(courseId: string): Promise<GradebookData> {
     ],
     weightRows,
   };
+}
+
+/* Everything the gradebook needs for one course, in one round trip.
+   Items follow the curriculum order (module, lesson), then due date. */
+export async function gradebookData(courseId: string): Promise<GradebookData> {
+  return toGradebookData(await db.batch(gradebookQueries(courseId)));
 }
 
 /* ---- A student's own grades --------------------------------------------------- */
@@ -282,9 +305,10 @@ function visibleTo(viewer: Viewer) {
 
 /* Every assignment and graded quiz the student can see, across their
    courses, with only what's theirs to see: a draft grade reads as
-   "handed in", never as a score. */
-export async function studentGradeRows(viewer: Viewer): Promise<StudentGradeRow[]> {
-  const [assignmentRows, quizRows] = await db.batch([
+   "handed in", never as a score. As statements for a page's batch
+   (feature 31's /progress); take them with toStudentGradeRows(). */
+export function studentGradeQueries(viewer: Viewer) {
+  return [
     db
       .select({
         courseId: courses.id,
@@ -326,8 +350,10 @@ export async function studentGradeRows(viewer: Viewer): Promise<StudentGradeRow[
       .innerJoin(modules, eq(modules.id, lessons.moduleId))
       .innerJoin(courses, eq(courses.id, modules.courseId))
       .where(visibleTo(viewer)),
-  ]);
+  ] as const;
+}
 
+export function toStudentGradeRows([assignmentRows, quizRows]: BatchRows<ReturnType<typeof studentGradeQueries>>): StudentGradeRow[] {
   const rows: StudentGradeRow[] = [
     ...assignmentRows.map((a) => ({
       ...a,
@@ -350,6 +376,18 @@ export async function studentGradeRows(viewer: Viewer): Promise<StudentGradeRow[
     }),
   ];
   return rows.sort((a, b) => a.modulePos - b.modulePos || a.lessonPos - b.lessonPos || a.dueAt.getTime() - b.dueAt.getTime());
+}
+
+export async function studentGradeRows(viewer: Viewer): Promise<StudentGradeRow[]> {
+  return toStudentGradeRows(await db.batch(studentGradeQueries(viewer)));
+}
+
+/* Weight rows for the courses in a subquery of course ids, for a batch. */
+export function weightRowsQuery(courseIds: SQL) {
+  return db
+    .select({ courseId: gradeCategories.courseId, category: gradeCategories.category, weight: gradeCategories.weight })
+    .from(gradeCategories)
+    .where(sql`${gradeCategories.courseId} in ${courseIds}`);
 }
 
 /* Weight rows for the student's courses. */

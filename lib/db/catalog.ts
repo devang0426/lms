@@ -91,16 +91,62 @@ export async function catalogFacets(): Promise<{ subjects: string[]; levels: str
   return { subjects: uniq(rows.map((r) => r.subject)), levels: uniq(rows.map((r) => r.level)) };
 }
 
+/* The landing page's course list (feature 34), for signed-out visitors:
+   published courses in the current term, with only the catalog fields
+   the spec allows (title, summary, instructor, lesson count, length) and
+   the cover tint. No id, code, outcomes or anything below the course
+   leaves the database: the page is static HTML anyone can read. */
+export const PUBLIC_CATALOG_LIMIT = 12;
+
+export interface PublicCourse {
+  title: string;
+  summary: string;
+  coverTint: Course["coverTint"];
+  instructorName: string | null;
+  lessonCount: number;
+  durationSec: number;
+}
+
+export async function listPublicCatalog(limit = PUBLIC_CATALOG_LIMIT): Promise<{ courses: PublicCourse[]; total: number }> {
+  const rows = await db
+    .select({
+      title: courses.title,
+      summary: courses.summary,
+      coverTint: courses.coverTint,
+      instructorName,
+      lessonCount,
+      durationSec,
+      total: sql<number>`count(*) over ()`.mapWith(Number),
+    })
+    .from(courses)
+    .innerJoin(terms, eq(terms.id, courses.termId))
+    .where(inCatalog)
+    .orderBy(asc(courses.title))
+    .limit(limit);
+  return { courses: rows.map(({ total: _total, ...course }) => course), total: rows[0]?.total ?? 0 };
+}
+
 /* One catalog entry (course detail for a student who isn't enrolled). */
-export async function getCatalogCourse(courseId: string, viewer: Viewer): Promise<CourseSummary | null> {
-  if (!isUuid(courseId)) return null;
-  const [row] = await db
+export function catalogCourseQuery(courseId: string, viewer: Viewer) {
+  return db
     .select(summaryFields(viewer))
     .from(courses)
     .innerJoin(terms, eq(terms.id, courses.termId))
     .where(and(eq(courses.id, courseId), inCatalog))
     .limit(1);
+}
+
+export async function getCatalogCourse(courseId: string, viewer: Viewer): Promise<CourseSummary | null> {
+  if (!isUuid(courseId)) return null;
+  const [row] = await catalogCourseQuery(courseId, viewer);
   return row ?? null;
+}
+
+/* The course's catalog fields are visible to every signed-in user (for a
+   statement batched before any check, see canSeeCourse). */
+export function inCatalogCourse(courseId: string): SQL {
+  return sql`exists (select 1 from courses c join terms t on t.id = c.term_id
+    where c.id = ${courseId} and c.status = 'published' and t.is_current)`;
 }
 
 export interface NextLesson {
@@ -113,7 +159,7 @@ export interface NextLesson {
 }
 
 /* Enrolled, published courses for the student home and My courses. */
-export async function listEnrolledSummaries(viewer: Viewer): Promise<CourseSummary[]> {
+export function enrolledSummariesQuery(viewer: Viewer) {
   return db
     .select(summaryFields(viewer))
     .from(courses)
@@ -121,13 +167,13 @@ export async function listEnrolledSummaries(viewer: Viewer): Promise<CourseSumma
     .orderBy(asc(courses.title));
 }
 
-/* Instructors of a course, for the course detail Instructor tab. Only call
-   after the viewer has been shown the course. */
-export async function listCourseInstructors(courseId: string) {
+/* Instructors of a course, for the course detail Instructor tab: only
+   when `visible` (the viewer may be shown the course). */
+export function courseInstructorsQuery(courseId: string, visible: SQL) {
   return db
     .select({ name: users.name, imageUrl: users.imageUrl, role: courseStaff.role })
     .from(courseStaff)
     .innerJoin(users, eq(users.id, courseStaff.userId))
-    .where(eq(courseStaff.courseId, courseId))
+    .where(and(eq(courseStaff.courseId, courseId), visible))
     .orderBy(asc(courseStaff.role), asc(courseStaff.createdAt));
 }

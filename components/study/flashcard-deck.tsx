@@ -8,10 +8,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { rateCard } from "@/app/(student)/(sidebar)/study/actions";
 import { useOptionalPlayer } from "@/components/player/player-context";
 import { Button, EmptyState, Eyebrow, Icon, ProgressBar, toast } from "@/components/ui";
-import { renderRichInline } from "@/lib/markdown";
-import { formatInterval, nextIntervals, rateCurrent, RATINGS, type StudyCard } from "@/lib/study/cards";
+import { formatInterval, nextIntervals, rateCurrent, RATINGS, type RenderedCard } from "@/lib/study/cards";
 import type { Rating } from "@/lib/study/fsrs";
 import { formatTime } from "@/lib/time";
+import { settle } from "@/lib/utils/action-result";
 import { cn } from "@/lib/utils/cn";
 
 /* Flashcard review (feature 15). Space flips the card; 1–4 rate it Again,
@@ -32,7 +32,8 @@ export function FlashcardDeck({
   showSource = false,
   emptyText = "There are no flashcards here yet. They appear once your instructor publishes them.",
 }: {
-  cards: StudyCard[];
+  /* Rendered on the server: renderCards() (components/study/render-cards.ts). */
+  cards: RenderedCard[];
   /* All live cards in scope, for the empty state. */
   total: number;
   nextDueAt: number | null;
@@ -68,8 +69,9 @@ export function FlashcardDeck({
     setCounts((c) => ({ ...c, [rating]: c[rating] + 1 }));
     if (!record) return;
     const cardId = current.id;
+    // A failed save says so and the session carries on (feature 30).
     startSaving(async () => {
-      const result = await rateCard({ cardId, rating });
+      const result = await settle(rateCard({ cardId, rating }));
       if (!result.ok) toast.error(result.error.message);
     });
   };
@@ -192,7 +194,7 @@ export function FlashcardDeck({
         </div>
         <p
           className="m-0 text-center font-serif text-[26px] leading-[1.25] md:text-[30px]"
-          dangerouslySetInnerHTML={{ __html: renderRichInline(current.front) }}
+          dangerouslySetInnerHTML={{ __html: current.frontHtml }}
         />
         <div aria-live="polite" className="flex flex-col gap-5">
           {flipped && (
@@ -200,7 +202,7 @@ export function FlashcardDeck({
               <hr className="m-0 border-0 border-t border-line" />
               <p
                 className="m-0 text-center text-[17px] leading-[1.6]"
-                dangerouslySetInnerHTML={{ __html: renderRichInline(current.back) }}
+                dangerouslySetInnerHTML={{ __html: current.backHtml }}
               />
             </>
           )}

@@ -1,12 +1,18 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { getJobForViewer, startJob } from "@/lib/jobs";
 
-/* /dev/jobs check page (feature 09). Admin only. */
+/* /dev/jobs check page (feature 09). Admin only, and like the page, only
+   in `next dev` (feature 24). */
+
+function devOnly() {
+  if (process.env.NODE_ENV !== "development") notFound();
+}
 
 export async function startHello(formData: FormData): Promise<void> {
+  devOnly();
   const user = await requireRole("admin");
   const withAi = formData.get("withAi") === "on";
   const job = await startJob({
@@ -21,6 +27,7 @@ export async function startHello(formData: FormData): Promise<void> {
 }
 
 export async function retryHello(jobId: string): Promise<void> {
+  devOnly();
   const user = await requireRole("admin");
   const previous = await getJobForViewer(jobId, user);
   if (!previous) redirect("/dev/jobs");

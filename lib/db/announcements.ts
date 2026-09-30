@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { clip } from "@/lib/notifications/view";
 import { db } from "./client";
 import { staffPredicate, type Viewer } from "./courses";
@@ -36,8 +36,9 @@ export function postAnnouncementStatements(input: { id: string; courseId: string
   ] as const;
 }
 
-/* A course's announcements, newest first. Call once the viewer is in. */
-export async function courseAnnouncements(courseId: string, limit = 20): Promise<AnnouncementView[]> {
+/* A course's announcements, newest first, only when `visible` (the
+   viewer is in the course: canSeeCourse). */
+export function courseAnnouncementsQuery(courseId: string, visible: SQL, limit = 20) {
   return db
     .select({
       id: announcements.id,
@@ -49,7 +50,7 @@ export async function courseAnnouncements(courseId: string, limit = 20): Promise
     })
     .from(announcements)
     .innerJoin(users, eq(users.id, announcements.authorId))
-    .where(eq(announcements.courseId, courseId))
+    .where(and(eq(announcements.courseId, courseId), visible))
     .orderBy(desc(announcements.createdAt), desc(announcements.id))
     .limit(limit);
 }

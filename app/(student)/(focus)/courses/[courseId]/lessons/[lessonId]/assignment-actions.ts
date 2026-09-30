@@ -9,6 +9,7 @@ import { getAssignment } from "@/lib/db/assignments";
 import { getLessonForUser } from "@/lib/db/courses";
 import { MAX_SUBMISSION_FILES } from "@/lib/storage/upload-kinds";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Hand in an assignment (feature 20). zod → the lesson must be visible to
    this user as a student (getLessonForUser, in SQL) → the upsert, which
@@ -34,7 +35,7 @@ const MESSAGES = {
   bad_files: "One of the files didn't upload properly. Remove it and add it again.",
 } as const;
 
-export async function handInAssignment(raw: z.input<typeof input>): Promise<ActionResult<{ late: boolean }>> {
+export const handInAssignment = safeAction("handInAssignment", async (raw: z.input<typeof input>): Promise<ActionResult<{ late: boolean }>> => {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "That work couldn't be handed in.");
   const { lessonId, assignmentId, text, keep, files } = parsed.data;
@@ -55,4 +56,4 @@ export async function handInAssignment(raw: z.input<typeof input>): Promise<Acti
   revalidatePath("/grades");
   revalidatePath("/instructor/grading");
   return ok({ late: result.late });
-}
+});

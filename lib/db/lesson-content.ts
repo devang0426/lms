@@ -5,7 +5,7 @@ import { PROMPTS_VERSION } from "@/lib/ai/prompts";
 import type { Block } from "@/lib/ai/types";
 import type { DraftChapter } from "@/lib/ai/generation/chapters";
 import type { DraftCard, DraftQuestion, QuizLevel } from "@/lib/ai/generation/lesson";
-import { db } from "./client";
+import { db, type BatchRows } from "./client";
 import {
   chapters,
   documents,
@@ -92,6 +92,19 @@ export async function loadDraftSource(lessonId: string): Promise<DraftSource | n
   };
 }
 
+/* Which source the lesson's drafts would come from, without loading it
+   (the review page only needs to know; feature 29): "video" when the live
+   video has transcript lines, "document" for a reading lesson with a ready
+   document that has text, else null. Mirrors loadDraftSource. */
+export function draftSourceModeQuery(lessonId: string) {
+  return db.execute<{ mode: DraftSource["mode"] | null }>(sql`select case
+    when exists (select 1 from transcript_segments ts where ts.video_id = (select v.id from videos v
+      where v.lesson_id = ${lessonId} and v.status = 'ready' order by v.created_at desc limit 1)) then 'video'
+    when exists (select 1 from lessons l where l.id = ${lessonId} and l.kind = 'reading')
+      and exists (select 1 from documents d where d.lesson_id = ${lessonId} and d.status = 'ready' and d.text ~ '\\S') then 'document'
+    end as mode`);
+}
+
 /* ---- Idempotency: was this kind already drafted from this video? ----------
    Document drafts have no video (videoId null); they are redrafted with
    `force` whenever a document is added. */
@@ -176,10 +189,10 @@ const LEVEL_ORDER = sql`case ${quizQuestions.difficulty} when 'basic' then 0 whe
 
 /* Everything for the review screen (staff: drafts included), or only what
    students may see (`publishedOnly`). */
-export async function getLessonContent(lessonId: string, opts: { publishedOnly: boolean }): Promise<LessonContent> {
+export function lessonContentQueries(lessonId: string, opts: { publishedOnly: boolean }) {
   const published = <T extends typeof notes | typeof flashcards | typeof quizQuestions>(t: T) =>
     opts.publishedOnly ? eq(t.status, "published") : undefined;
-  const [chapterRows, noteRows, cardRows, questionRows] = await db.batch([
+  return [
     db.select().from(chapters).where(eq(chapters.lessonId, lessonId)).orderBy(asc(chapters.startSec), asc(chapters.position)),
     db.select().from(notes).where(and(eq(notes.lessonId, lessonId), published(notes))).limit(1),
     db.select().from(flashcards).where(and(eq(flashcards.lessonId, lessonId), published(flashcards))).orderBy(asc(flashcards.position)),
@@ -188,27 +201,42 @@ export async function getLessonContent(lessonId: string, opts: { publishedOnly: 
       .from(quizQuestions)
       .where(and(eq(quizQuestions.lessonId, lessonId), published(quizQuestions)))
       .orderBy(LEVEL_ORDER, asc(quizQuestions.position)),
-  ]);
-  return { chapters: chapterRows, note: noteRows[0] ?? null, cards: cardRows, questions: questionRows };
+  ] as const;
 }
 
-/* The lesson note for the player: published only, unless staff preview. */
-export async function getPlayerNote(lessonId: string, opts: { publishedOnly: boolean }): Promise<Block[] | null> {
-  const [row] = await db
+export function toLessonContent([chapterRows, noteRows, cardRows, questionRows]: BatchRows<ReturnType<typeof lessonContentQueries>>): LessonContent {
+  return { chapters: [...chapterRows], note: noteRows[0] ?? null, cards: [...cardRows], questions: [...questionRows] };
+}
+
+export async function getLessonContent(lessonId: string, opts: { publishedOnly: boolean }): Promise<LessonContent> {
+  return toLessonContent(await db.batch(lessonContentQueries(lessonId, opts)));
+}
+
+/* The lesson note for the player: published only, unless staff preview.
+   A statement for the player's batch; toPlayerNote() takes its rows. */
+export function playerNoteQuery(lessonId: string, opts: { publishedOnly: boolean }) {
+  return db
     .select({ blocks: notes.blocks })
     .from(notes)
     .where(and(eq(notes.lessonId, lessonId), opts.publishedOnly ? eq(notes.status, "published") : undefined))
     .limit(1);
+}
+
+export function toPlayerNote([row]: readonly { blocks: Block[] }[]): Block[] | null {
   return row && row.blocks.length > 0 ? row.blocks : null;
 }
 
 /* Chapters for the player; they follow the lesson's own visibility. */
-export async function listChapters(lessonId: string): Promise<Pick<Chapter, "title" | "startSec">[]> {
+export function chaptersQuery(lessonId: string) {
   return db
     .select({ title: chapters.title, startSec: chapters.startSec })
     .from(chapters)
     .where(eq(chapters.lessonId, lessonId))
     .orderBy(asc(chapters.startSec));
+}
+
+export async function listChapters(lessonId: string): Promise<Pick<Chapter, "title" | "startSec">[]> {
+  return chaptersQuery(lessonId);
 }
 
 /* ---- Instructor edits (review screen). Each is scoped to the lesson, so an
@@ -325,8 +353,8 @@ export function publishLessonStatements(lessonId: string) {
 }
 
 /* Counts per kind for the lesson editor's "Review" card. */
-export async function contentCounts(lessonId: string) {
-  const [row] = await db
+export function contentCountsQuery(lessonId: string) {
+  return db
     .select({
       chapters: sql<number>`(select count(*) from chapters where lesson_id = ${lessonId})`.mapWith(Number),
       notes: sql<number>`(select count(*) from notes where lesson_id = ${lessonId})`.mapWith(Number),
@@ -337,5 +365,9 @@ export async function contentCounts(lessonId: string) {
         + (select count(*) from quiz_questions where lesson_id = ${lessonId} and status = 'draft')`.mapWith(Number),
     })
     .from(sql`(select 1) as one`);
+}
+
+export async function contentCounts(lessonId: string) {
+  const [row] = await contentCountsQuery(lessonId);
   return row;
 }

@@ -10,7 +10,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Block, PodcastLine } from "@/lib/ai/types";
-import { blocksToMarkdown } from "@/lib/markdown";
+import { blocksToMarkdown } from "@/lib/markdown-blocks";
 import type { Engine } from "../engine/types";
 import { podcastSchema, podcastSystem } from "../prompts";
 import { STRUCTURED_MAX_TOKENS } from "./chapters";
@@ -47,7 +47,7 @@ export function isDevanagariScript(lines: readonly { spoken: string; text: strin
 }
 
 /* What the podcast is made from, and its fingerprint. The hash is stored
-   with the audio: while it and PROMPTS_VERSION match, the podcast is never
+   with the audio: while it and PODCAST_PROMPTS_VERSION match, the podcast is never
    made again. */
 export function podcastSource(blocks: readonly Block[]): { text: string; hash: string } | null {
   const text = capTokens(blocksToMarkdown([...blocks]).trim(), PODCAST_SOURCE_TOKENS);

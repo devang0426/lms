@@ -8,6 +8,7 @@ import { db } from "@/lib/db/client";
 import { getCourseAccess } from "@/lib/db/courses";
 import { addEventStatement, deleteEventStatement, manualEvent, MANUAL_EVENT_KINDS } from "@/lib/db/events";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Calendar events staff add by hand (feature 21): a live session (a link
    to the meeting, which runs elsewhere) or any other dated event. Due
@@ -38,7 +39,7 @@ const addInput = z
   })
   .refine((v) => v.kind !== "live" || v.url !== null, { message: "A live session needs its meeting link.", path: ["url"] });
 
-export async function addCourseEvent(raw: z.input<typeof addInput>): Promise<ActionResult<{ id: string }>> {
+export const addCourseEvent = safeAction("addCourseEvent", async (raw: z.input<typeof addInput>): Promise<ActionResult<{ id: string }>> => {
   const parsed = addInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the event and try again.");
   const { courseId, kind, title, url } = parsed.data;
@@ -57,11 +58,11 @@ export async function addCourseEvent(raw: z.input<typeof addInput>): Promise<Act
   revalidatePath("/calendar");
   revalidatePath("/");
   return ok({ id });
-}
+});
 
 const deleteInput = z.object({ courseId: z.uuid(), eventId: z.uuid() });
 
-export async function deleteCourseEvent(raw: z.input<typeof deleteInput>): Promise<ActionResult> {
+export const deleteCourseEvent = safeAction("deleteCourseEvent", async (raw: z.input<typeof deleteInput>): Promise<ActionResult> => {
   const parsed = deleteInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", "That event can't be found.");
   const { courseId, eventId } = parsed.data;
@@ -79,4 +80,4 @@ export async function deleteCourseEvent(raw: z.input<typeof deleteInput>): Promi
   revalidatePath("/calendar");
   revalidatePath("/");
   return ok();
-}
+});

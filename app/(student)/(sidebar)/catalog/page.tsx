@@ -81,7 +81,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
             name="q"
             defaultValue={params.q}
             placeholder="What do you want to learn?"
-            aria-label="Search the catalog"
+            aria-label="Search courses"
           />
         </form>
       </div>
@@ -122,7 +122,7 @@ export default async function CatalogPage({ searchParams }: PageProps<"/catalog"
 
       {courses.length === 0 ? (
         <EmptyState
-          title={filtered ? "Nothing matches that" : "The catalog is empty"}
+          title={filtered ? "Nothing matches that" : "Nothing to explore yet"}
           description={
             filtered
               ? "Try another word, or clear the filters to see every course."

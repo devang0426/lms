@@ -24,19 +24,21 @@ function retryable(e: unknown): boolean {
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(new EngineError("Cancelled", "network"));
+    if (signal?.aborted) return reject(signal.reason ?? new EngineError("Cancelled", "network"));
     const t = setTimeout(resolve, ms);
     signal?.addEventListener(
       "abort",
       () => {
         clearTimeout(t);
-        reject(new EngineError("Cancelled", "network"));
+        reject(signal.reason ?? new EngineError("Cancelled", "network"));
       },
       { once: true },
     );
   });
 }
 
+/* Once the caller's signal has fired (its time limit, feature 30), the
+   call ends with its reason: no more waiting and retrying. */
 async function withBackoff<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   let last: unknown;
   for (let attempt = 0; attempt <= DELAYS_MS.length; attempt++) {
@@ -44,6 +46,7 @@ async function withBackoff<T>(fn: () => Promise<T>, signal?: AbortSignal): Promi
       return await fn();
     } catch (e) {
       last = e;
+      if (signal?.aborted) throw signal.reason ?? e;
       if (!retryable(e) || attempt === DELAYS_MS.length) throw e;
       await sleep(DELAYS_MS[attempt], signal);
     }

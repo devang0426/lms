@@ -1,20 +1,10 @@
 import { DemoAccountPicker } from "@/components/auth/demo-account-picker";
-import { DEMO_ACCOUNTS, demoPassword, isDemoMode } from "@/lib/demo/accounts";
+import { demoPickerProps } from "@/components/auth/demo-picker-props";
 
 /* Server wrapper: renders the demo picker only when DEMO_MODE=true, so the
-   demo credentials never reach the page otherwise. */
+   demo credentials never reach the page otherwise. Behind a passcode
+   (feature 24) the password isn't shown either: see demoPickerProps. */
 export function DemoPickerSlot() {
-  if (!isDemoMode()) return null;
-
-  const password = demoPassword();
-  const accounts = DEMO_ACCOUNTS.map((a) => ({
-    key: a.key,
-    name: `${a.key === "admin" ? "Prof. " : ""}${a.firstName} ${a.lastName}`,
-    label: a.label,
-    shows: a.shows,
-    email: a.email,
-    password,
-  }));
-
-  return <DemoAccountPicker accounts={accounts} />;
+  const props = demoPickerProps();
+  return props ? <DemoAccountPicker {...props} /> : null;
 }

@@ -4,8 +4,10 @@ import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm"
 import type { QuizAttempt, QuizQuestion } from "@/lib/ai/types";
 import { masteryByTopic, masteryColor } from "@/lib/study/mastery";
 import {
-  correctAnswerText,
+  answersRevealed,
+  gradedFeedback,
   isCorrect,
+  submitOpen,
   type AnswerFeedback,
   type PracticeQuestion,
   type QuestionView,
@@ -13,15 +15,17 @@ import {
   type GradedQuizSummary,
   type TopicMasteryView,
 } from "@/lib/study/quiz";
-import { db } from "./client";
+import { db, type BatchRows } from "./client";
 import { gradedQuizzes, quizAnswers, quizAttempts, quizQuestions, type GradedQuiz } from "./schema";
 
 /* Quizzes and mastery (feature 16). Callers check the lesson first
    (getLessonForUser for students, course staff for instructors); every
    attempt query here is also scoped to its user. Answers are always
    scored here, from the stored questions — never trusted from the client.
-   A graded quiz's correct answers leave the server only after its
-   attempt is submitted. A private note's quiz (feature 19) is practice
+   A graded quiz's correct answers leave the server only once its submit
+   window has closed (due date + grace, feature 24: lib/study/quiz.ts);
+   until then a submit returns the score and right/wrong per question.
+   A private note's quiz (feature 19) is practice
    only, and its owner is checked inside every query that reads it. */
 
 export interface SubmittedAnswer {
@@ -79,15 +83,22 @@ export async function practiceLevelCounts(lessonId: string, publishedOnly: boole
   return levelCountsIn({ lessonId, publishedOnly });
 }
 
-async function levelCountsIn(bank: Bank): Promise<Record<QuizLevel, number>> {
-  const rows = await db
+function levelCountsQuery(bank: Bank) {
+  return db
     .select({ level: quizQuestions.difficulty, n: sql<number>`count(*)`.mapWith(Number) })
     .from(quizQuestions)
     .where(practiceBank(bank))
     .groupBy(quizQuestions.difficulty);
+}
+
+function toLevelCounts(rows: readonly { level: QuizLevel; n: number }[]): Record<QuizLevel, number> {
   const counts: Record<QuizLevel, number> = { basic: 0, intermediate: 0, exam: 0 };
   for (const r of rows) counts[r.level] = r.n;
   return counts;
+}
+
+async function levelCountsIn(bank: Bank): Promise<Record<QuizLevel, number>> {
+  return toLevelCounts(await levelCountsQuery(bank));
 }
 
 /* Save a finished practice set: one attempt with its answers, scored here. */
@@ -129,8 +140,8 @@ async function saveAttempt(
 
 /* ---- Graded ---------------------------------------------------------------- */
 
-export async function gradedQuizzesForStudent(userId: string, lessonId: string): Promise<GradedQuizSummary[]> {
-  const rows = await db
+function gradedForStudentQuery(userId: string, lessonId: string) {
+  return db
     .select({
       quiz: gradedQuizzes,
       attemptsUsed: sql<number>`(select count(*) from quiz_attempts a
@@ -144,6 +155,9 @@ export async function gradedQuizzesForStudent(userId: string, lessonId: string):
     .from(gradedQuizzes)
     .where(eq(gradedQuizzes.lessonId, lessonId))
     .orderBy(asc(gradedQuizzes.dueAt));
+}
+
+function toGradedSummaries(rows: Awaited<ReturnType<typeof gradedForStudentQuery>>): GradedQuizSummary[] {
   return rows.map(({ quiz, attemptsUsed, best, openAttemptId }) => ({
     id: quiz.id,
     title: quiz.title,
@@ -155,6 +169,10 @@ export async function gradedQuizzesForStudent(userId: string, lessonId: string):
     best: best === null ? null : Number(best),
     openAttemptId,
   }));
+}
+
+export async function gradedQuizzesForStudent(userId: string, lessonId: string): Promise<GradedQuizSummary[]> {
+  return toGradedSummaries(await gradedForStudentQuery(userId, lessonId));
 }
 
 /* The questions a student sees for a graded attempt: no answers. */
@@ -220,19 +238,35 @@ export type SubmitResult =
   | { ok: true; score: number; feedback: AnswerFeedback[] }
   | { ok: false; reason: "not_found" | "submitted" | "closed" };
 
-/* Score and close the student's open attempt. Only now do the correct
-   answers and explanations go back. */
-export async function submitGradedAttempt(userId: string, attemptId: string, answers: SubmittedAnswer[]): Promise<SubmitResult> {
+/* Score and close the student's open attempt, up to the due date plus the
+   grace period (feature 24). The feedback says which answers were right;
+   the correct answers stay hidden while the quiz can still be submitted. */
+export async function submitGradedAttempt(
+  userId: string,
+  lessonId: string,
+  attemptId: string,
+  answers: SubmittedAnswer[],
+  now = Date.now(),
+): Promise<SubmitResult> {
   const [row] = await db
     .select({ attempt: quizAttempts, quiz: gradedQuizzes })
     .from(quizAttempts)
     .innerJoin(gradedQuizzes, eq(gradedQuizzes.id, quizAttempts.gradedQuizId))
-    .where(and(eq(quizAttempts.id, attemptId), eq(quizAttempts.userId, userId), eq(quizAttempts.mode, "graded")))
+    .where(
+      and(
+        eq(quizAttempts.id, attemptId),
+        eq(quizAttempts.userId, userId),
+        eq(quizAttempts.lessonId, lessonId),
+        eq(quizAttempts.mode, "graded"),
+      ),
+    )
     .limit(1);
   if (!row) return { ok: false, reason: "not_found" };
   if (row.attempt.submittedAt) return { ok: false, reason: "submitted" };
   // Started before the due date (checked when it began); a late start can't exist.
   if (row.attempt.startedAt.getTime() >= row.quiz.dueAt.getTime()) return { ok: false, reason: "closed" };
+  // Handed in by the due date plus grace: an early start can't be submitted days later.
+  if (!submitOpen(row.quiz.dueAt.getTime(), now)) return { ok: false, reason: "closed" };
 
   const questions = await db
     .select()
@@ -260,18 +294,53 @@ export async function submitGradedAttempt(userId: string, attemptId: string, ans
   ]);
   if (closed.length === 0) return { ok: false, reason: "submitted" };
 
-  const order = new Map(row.quiz.questionIds.map((id, i) => [id, i]));
-  const feedback = scored
-    .sort((a, b) => order.get(a.q.id)! - order.get(b.q.id)!)
-    .map((s) => ({
-      questionId: s.q.id,
-      answer: s.answer,
-      correct: s.correct,
-      correctAnswer: correctAnswerText(s.q),
-      explanation: s.q.explanation,
-      startSec: s.q.startSec,
-    }));
-  return { ok: true, score, feedback };
+  // The window is still open (checked above), so nothing is revealed.
+  return { ok: true, score, feedback: gradedFeedback(scored, row.quiz.questionIds, answersRevealed(row.quiz.dueAt.getTime(), now)) };
+}
+
+export type ReviewResult =
+  | { ok: true; score: number; questions: QuestionView[]; feedback: AnswerFeedback[] }
+  | { ok: false; reason: "not_found" | "not_yet" | "no_attempt" };
+
+/* After the reveal (feature 24): the student's best submitted attempt (the
+   one that counts; the later one on a tie), with the correct answers and
+   explanations. Only their own attempt is read. */
+export async function reviewGradedAttempt(userId: string, lessonId: string, quizId: string, now = Date.now()): Promise<ReviewResult> {
+  const [quiz] = await db
+    .select()
+    .from(gradedQuizzes)
+    .where(and(eq(gradedQuizzes.id, quizId), eq(gradedQuizzes.lessonId, lessonId)))
+    .limit(1);
+  if (!quiz) return { ok: false, reason: "not_found" };
+  if (!answersRevealed(quiz.dueAt.getTime(), now)) return { ok: false, reason: "not_yet" };
+
+  const [attempt] = await db
+    .select({ id: quizAttempts.id, score: quizAttempts.score })
+    .from(quizAttempts)
+    .where(and(eq(quizAttempts.gradedQuizId, quiz.id), eq(quizAttempts.userId, userId), sql`${quizAttempts.submittedAt} is not null`))
+    .orderBy(sql`${quizAttempts.score} desc nulls last`, desc(quizAttempts.submittedAt))
+    .limit(1);
+  if (!attempt) return { ok: false, reason: "no_attempt" };
+
+  const [questions, given, views] = await Promise.all([
+    db
+      .select()
+      .from(quizQuestions)
+      .where(and(eq(quizQuestions.lessonId, quiz.lessonId), inArray(quizQuestions.id, quiz.questionIds))),
+    db
+      .select({ questionId: quizAnswers.questionId, answer: quizAnswers.answer, correct: quizAnswers.correct })
+      .from(quizAnswers)
+      .where(eq(quizAnswers.attemptId, attempt.id)),
+    questionViews(quiz),
+  ]);
+  const byQuestion = new Map(given.map((a) => [a.questionId, a]));
+  const scored = questions.map((q) => ({ q, answer: byQuestion.get(q.id)?.answer ?? "", correct: byQuestion.get(q.id)?.correct ?? false }));
+  return {
+    ok: true,
+    score: Number(attempt.score ?? 0),
+    questions: views,
+    feedback: gradedFeedback(scored, quiz.questionIds, true),
+  };
 }
 
 /* ---- Mastery --------------------------------------------------------------- */
@@ -280,11 +349,15 @@ export type { TopicMasteryView };
 
 /* Mastery per topic over everything the student has submitted for this
    lesson (practice and graded), via lib/study/mastery.ts. */
-export async function lessonMastery(userId: string, lessonId: string): Promise<TopicMasteryView[]> {
-  return masteryOf(
+function lessonMasteryQueries(userId: string, lessonId: string) {
+  return masteryQueries(
     and(eq(quizQuestions.lessonId, lessonId), eq(quizQuestions.status, "published")),
     and(eq(quizAttempts.userId, userId), eq(quizAttempts.lessonId, lessonId), sql`${quizAttempts.submittedAt} is not null`),
   );
+}
+
+export async function lessonMastery(userId: string, lessonId: string): Promise<TopicMasteryView[]> {
+  return toMastery(await db.batch(lessonMasteryQueries(userId, lessonId)));
 }
 
 /* The same over a private note's practice (feature 19), for its owner. */
@@ -296,7 +369,11 @@ export async function noteMastery(ownerId: string, noteId: string): Promise<Topi
 }
 
 async function masteryOf(questionsWhere: SQL | undefined, attemptsWhere: SQL | undefined): Promise<TopicMasteryView[]> {
-  const [questions, answers] = await db.batch([
+  return toMastery(await db.batch(masteryQueries(questionsWhere, attemptsWhere)));
+}
+
+function masteryQueries(questionsWhere: SQL | undefined, attemptsWhere: SQL | undefined) {
+  return [
     db
       .select({ id: quizQuestions.id, topic: quizQuestions.topic, startSec: quizQuestions.startSec, difficulty: quizQuestions.difficulty })
       .from(quizQuestions)
@@ -306,7 +383,10 @@ async function masteryOf(questionsWhere: SQL | undefined, attemptsWhere: SQL | u
       .from(quizAnswers)
       .innerJoin(quizAttempts, eq(quizAttempts.id, quizAnswers.attemptId))
       .where(attemptsWhere),
-  ]);
+  ] as const;
+}
+
+function toMastery([questions, answers]: BatchRows<ReturnType<typeof masteryQueries>>): TopicMasteryView[] {
   const named = questions.map((q) => ({ ...q, topic: q.topic.trim() || "General" }));
   const topicOf = new Map(named.map((q) => [q.id, q.topic]));
   const asQuestions: QuizQuestion[] = named.map((q) => ({
@@ -353,7 +433,7 @@ export async function questionBank(lessonId: string) {
     .orderBy(sql`case ${quizQuestions.difficulty} when 'basic' then 0 when 'intermediate' then 1 else 2 end`, asc(quizQuestions.position));
 }
 
-export async function gradedQuizzesForStaff(lessonId: string) {
+export function gradedQuizzesForStaff(lessonId: string) {
   return db
     .select({
       quiz: gradedQuizzes,
@@ -406,27 +486,25 @@ export interface QuizTabData {
 /* Everything the tab shows before a quiz starts, in parallel. No question
    text or answers: those load when a quiz starts. Staff preview sees the
    graded list without attempts, and no mastery. */
+/* The Quiz tab as statements for the lesson player's panel batch
+   (feature 29). A staff preview sees every practice question and the
+   graded quizzes as a student would before starting one (no attempts);
+   it has no mastery. */
+export function quizTabQueries(userId: string, lessonId: string, preview: boolean) {
+  return [levelCountsQuery({ lessonId, publishedOnly: !preview }), gradedForStudentQuery(userId, lessonId), ...lessonMasteryQueries(userId, lessonId)] as const;
+}
+
+export function toQuizTabData([levels, graded, questions, answers]: BatchRows<ReturnType<typeof quizTabQueries>>, preview: boolean): QuizTabData {
+  const summaries = toGradedSummaries(graded);
+  return {
+    levelCounts: toLevelCounts(levels),
+    graded: preview ? summaries.map((g) => ({ ...g, attemptsUsed: 0, best: null, openAttemptId: null })) : summaries,
+    mastery: preview ? [] : toMastery([questions, answers]),
+  };
+}
+
 export async function quizTabData(userId: string, lessonId: string, preview: boolean): Promise<QuizTabData> {
-  const [levelCounts, graded, mastery] = await Promise.all([
-    practiceLevelCounts(lessonId, !preview),
-    preview
-      ? gradedQuizzesForStaff(lessonId).then((rows) =>
-          rows.map(({ quiz }) => ({
-            id: quiz.id,
-            title: quiz.title,
-            dueAt: quiz.dueAt.getTime(),
-            points: quiz.points,
-            maxAttempts: quiz.maxAttempts,
-            questionCount: quiz.questionIds.length,
-            attemptsUsed: 0,
-            best: null,
-            openAttemptId: null,
-          })),
-        )
-      : gradedQuizzesForStudent(userId, lessonId),
-    preview ? Promise.resolve([]) : lessonMastery(userId, lessonId),
-  ]);
-  return { levelCounts, graded, mastery };
+  return toQuizTabData(await db.batch(quizTabQueries(userId, lessonId, preview)), preview);
 }
 
 /* A private note's Quiz tab (feature 19): practice and mastery, no graded quizzes. */

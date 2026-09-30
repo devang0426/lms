@@ -19,7 +19,7 @@ export {
 export { Icon } from "./icon";
 export { Avatar, Eyebrow, Logo, Person } from "./identity";
 export { Field, Input, Label, SearchField, Select, Textarea } from "./input";
-export { NavItem, TabBar } from "./nav";
+export { NavItem, TabBar, TabBarButton } from "./nav";
 export {
   Dialog,
   DialogClose,
@@ -36,3 +36,4 @@ export {
 } from "./overlay";
 export { ProgressBar, ProgressRing, StepIndicator, type StepState } from "./progress";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
+export { Skeleton, SkeletonCard, SkeletonRegion, SkeletonText } from "./skeleton";

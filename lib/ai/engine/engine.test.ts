@@ -330,6 +330,24 @@ describe("OpenRouter engine", () => {
     expect(fetchMock.mock.calls.map(([, init]) => modelOf(init))).toEqual([first, second, third]);
   });
 
+  it("stops the chain once the caller's time limit has fired (feature 30)", async () => {
+    const deadline = new AbortController();
+    const reason = new DOMException("That took too long.", "TimeoutError");
+    const fetchMock = mockFetch(async () => {
+      // The limit fires while the first model is failing: no second model.
+      deadline.abort(reason);
+      return jsonResponse({ error: { message: "down" } }, 503);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const engine = createEngine({ mode: "cloud", provider: "openrouter", apiKey: "sk-or-v1-x" });
+    await expect(
+      engine.complete({ messages: [{ role: "user", content: "hi" }], tier: "fast", signal: deadline.signal }),
+    ).rejects.toBe(reason);
+    await expect(engine.embed(["hi"], deadline.signal)).rejects.toBe(reason);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("structured() moves on when a model returns broken JSON, and accepts fenced JSON", async () => {
     const fetchMock = mockFetch(async (_url, init) =>
       jsonResponse({

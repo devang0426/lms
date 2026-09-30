@@ -1,20 +1,25 @@
 "use client";
 
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
-import { RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useTransition } from "react";
-import { Badge, Button, Icon, ProgressBar, StepIndicator, type BadgeTone, type StepState } from "@/components/ui";
+import { useEffect, useRef, useState } from "react";
+import { Badge, ProgressBar, StepIndicator, type BadgeTone, type StepState } from "@/components/ui";
 import type { JobStatus } from "@/lib/db/schema";
 import { jobStateFromRun, TERMINAL_JOB_STATES, type JobStage } from "@/lib/jobs/stages";
+import type { ActionResult } from "@/lib/utils/action-result";
 import { cn } from "@/lib/utils/cn";
+import { RetryNotice } from "./retry-notice";
 
 /* Live progress for one background job (feature 09). The server passes the
    jobs row as `initial`, so a reload shows the last known state at once;
    while the run is active, Trigger.dev Realtime streams the task's
    metadata (stage, progress, message) with a token that can read only this
    run. When the run ends the page refreshes once to pick up the final row
-   (the server reconciles the row with the run, see lib/jobs). */
+   (the server reconciles the row with the run, see lib/jobs). A run still
+   queued after 3 minutes gets a "worker may be offline" hint (feature 26);
+   it expires after its TTL (lib/jobs) and can then be retried. */
+
+const QUEUED_HINT_AFTER_MS = 3 * 60_000;
 
 export interface JobSnapshot {
   status: JobStatus;
@@ -45,11 +50,11 @@ export function JobProgress({
   stages: readonly JobStage[];
   initial: JobSnapshot;
   title: string;
-  /* A server action that starts a fresh run (and navigates to it). */
-  retry?: () => Promise<void>;
+  /* A server action that starts a fresh run (and navigates to it). If it
+     returns a refusal (e.g. the daily AI limit), its message is shown. */
+  retry?: () => Promise<void | ActionResult>;
 }) {
   const router = useRouter();
-  const [retrying, startRetry] = useTransition();
   const live = !TERMINAL_JOB_STATES.includes(initial.status);
   const refreshed = useRef(false);
 
@@ -69,6 +74,16 @@ export function JobProgress({
   const progress = status === "completed" ? 100 : (meta.progress ?? initial.progress);
   const message = meta.message ?? initial.message;
   const current = stages.findIndex((s) => s.key === stage);
+
+  // Re-render once the run has sat in the queue long enough for the hint.
+  const queuedSince = status === "queued" && run ? new Date(run.createdAt).getTime() : null;
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (queuedSince === null) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, queuedSince + QUEUED_HINT_AFTER_MS - Date.now()));
+    return () => clearTimeout(timer);
+  }, [queuedSince]);
+  const stalled = queuedSince !== null && now !== null && now - queuedSince >= QUEUED_HINT_AFTER_MS;
 
   function stepState(i: number): StepState {
     if (status === "completed" || i < current) return "done";
@@ -106,24 +121,19 @@ export function JobProgress({
         </p>
       )}
 
-      {status === "failed" && (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-clay px-4 py-3">
-          <span className="text-small text-clay-ink">
-            {initial.error ?? "This job didn't finish. It's safe to try again."}
-          </span>
-          {retry && (
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={retrying}
-              leading={<Icon icon={RotateCcw} size={16} />}
-              onClick={() => startRetry(() => retry())}
-            >
-              Try again
-            </Button>
+      {stalled && (
+        <p role="status" className="m-0 rounded-xl bg-butter-tint px-4 py-3 text-small text-butter-ink">
+          Processing hasn&apos;t started. The background worker may be offline.
+          {process.env.NODE_ENV === "development" && (
+            <>
+              {" "}
+              Run <code className="font-mono">npm run dev:all</code>.
+            </>
           )}
-        </div>
+        </p>
       )}
+
+      {status === "failed" && <RetryNotice message={initial.error ?? "This job didn't finish. It's safe to try again."} retry={retry} />}
 
       {streamError && live && (
         <p className="m-0 text-meta text-ink-soft">Live updates paused. Reload the page to check on it.</p>

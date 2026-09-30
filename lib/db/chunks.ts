@@ -130,6 +130,9 @@ export interface ChunkHit {
   endSec: number | null;
   page: number | null;
   documentId: string | null;
+  /* The document's title, joined in by the search (feature 29) so a
+     citation label needs no second query. */
+  documentTitle: string | null;
   section: string | null;
   model: string;
   /* Cosine similarity to the query, 0–1 in practice. */
@@ -177,15 +180,20 @@ function inScope(scope: ChunkScope): SQL {
    signal, which the assistant's relevance gate relies on (an OR query
    would let "plane tickets" through on the word "plane"). Paraphrases are
    the vector search's job. */
-const hitColumns = (vector: string, query: string) => sql`
+const hitColumns = (query: string) => sql`
   c.id, c.course_id, c.lesson_id, c.note_id, c.owner_id, c.kind, c.text,
   c.start_sec, c.end_sec, c.page, c.document_id, c.section, c.model,
-  1 - (c.embedding <=> ${vector}::vector) as similarity,
+  (select d.title from documents d where d.id = c.document_id) as document_title,
   case when c.tsv @@ websearch_to_tsquery('english', ${query})
     then ts_rank_cd(c.tsv, websearch_to_tsquery('english', ${query})) end as fts_rank`;
 
 /* Vector top-k and full-text top-k in one round trip. Both lists carry
-   both scores, so fusion can use either copy of a chunk. */
+   both scores, so fusion can use either copy of a chunk.
+   The query vector is ~30 KB of JSON, and the upload is most of this
+   request's time from India (feature 29), so each statement names it
+   once: the vector list orders by its `distance` column (the same
+   `embedding <=> vector` expression, so the HNSW index still serves it)
+   and derives the similarity from it. */
 export async function searchChunkCandidates(input: {
   userId: string;
   scope: ChunkScope;
@@ -199,11 +207,13 @@ export async function searchChunkCandidates(input: {
     // The HNSW index returns its nearest neighbours before the access
     // filter runs; iterative scan keeps searching until k rows pass it.
     db.execute(sql`select set_config('hnsw.iterative_scan', 'strict_order', true)`),
-    db.execute(sql`select ${hitColumns(vector, input.query)} from content_chunks c
-      where ${where}
-      order by c.embedding <=> ${vector}::vector
-      limit ${input.k}`),
-    db.execute(sql`select ${hitColumns(vector, input.query)} from content_chunks c
+    db.execute(sql`select x.*, 1 - x.distance as similarity from (
+        select ${hitColumns(input.query)}, c.embedding <=> ${vector}::vector as distance from content_chunks c
+        where ${where}
+        order by distance
+        limit ${input.k}
+      ) x order by x.distance`),
+    db.execute(sql`select ${hitColumns(input.query)}, 1 - (c.embedding <=> ${vector}::vector) as similarity from content_chunks c
       where c.tsv @@ websearch_to_tsquery('english', ${input.query}) and ${where}
       order by fts_rank desc, c.id
       limit ${input.k}`),
@@ -226,6 +236,7 @@ function toHit(row: Record<string, unknown>): ChunkHit {
     endSec: num(row.end_sec),
     page: num(row.page),
     documentId: (row.document_id as string | null) ?? null,
+    documentTitle: (row.document_title as string | null) ?? null,
     section: (row.section as string | null) ?? null,
     model: String(row.model),
     similarity: Number(row.similarity),

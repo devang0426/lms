@@ -1,9 +1,11 @@
 import "server-only";
 
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { CourseFacts } from "@/lib/dashboard/stats";
-import { db } from "./client";
+import { db, type BatchRows } from "./client";
+import { courseSetupFactsQuery } from "./course-builder";
 import { staffPredicate, type Viewer } from "./courses";
+import { toDiscussionSummaries, unansweredQuestionsQuery } from "./discussions";
 import { courses, discussions, type Course } from "./schema";
 
 /* The instructor dashboard (feature 22): the courses this viewer teaches
@@ -31,31 +33,29 @@ const enrolledIn = (courseCol: string) =>
   `exists (select 1 from enrollments e join sections s on s.id = e.section_id
     where s.course_id = ${courseCol} and e.user_id = x.user_id and e.status = 'active')`;
 
-export async function dashboardData(viewer: Viewer, since: Date): Promise<DashboardData> {
-  const courseRows = await db
-    .select({
-      course: { id: courses.id, code: courses.code, title: courses.title, status: courses.status },
-      learners: sql<number>`(select count(distinct e.user_id) from enrollments e join sections s on s.id = e.section_id
-        where s.course_id = courses.id and e.status = 'active')`.mapWith(Number),
-      lessons: sql<number>`(select count(*) from lessons l join modules m on m.id = l.module_id
-        where m.course_id = courses.id and m.status = 'published' and l.status = 'published')`.mapWith(Number),
-      completions: sql<number>`(select count(*) from watch_progress wp
-        join lessons l on l.id = wp.lesson_id join modules m on m.id = l.module_id
-        where m.course_id = courses.id and m.status = 'published' and l.status = 'published' and wp.completed_at is not null
-          and exists (select 1 from enrollments e join sections s on s.id = e.section_id
-            where s.course_id = courses.id and e.user_id = wp.user_id and e.status = 'active'))`.mapWith(Number),
-    })
-    .from(courses)
-    .where(staffPredicate(viewer))
-    .orderBy(asc(courses.code));
-  const ids = courseRows.map((c) => c.course.id);
-  if (ids.length === 0) return { courses: [], learners: 0, active: 0, unanswered: 0 };
+/* The courses this viewer teaches, as a subquery, so every read below
+   shares one batch instead of waiting for the list of ids (feature 29). */
+const staffCourses = (viewer: Viewer) => sql`(select courses.id from courses where ${staffPredicate(viewer)})`;
 
-  const idList = sql.join(
-    ids.map((id) => sql`${id}::uuid`),
-    sql`, `,
-  );
-  const [pairs, allLearners, [open]] = await db.batch([
+function dashboardQueries(viewer: Viewer, since: Date) {
+  const taught = staffCourses(viewer);
+  return [
+    db
+      .select({
+        course: { id: courses.id, code: courses.code, title: courses.title, status: courses.status },
+        learners: sql<number>`(select count(distinct e.user_id) from enrollments e join sections s on s.id = e.section_id
+          where s.course_id = courses.id and e.status = 'active')`.mapWith(Number),
+        lessons: sql<number>`(select count(*) from lessons l join modules m on m.id = l.module_id
+          where m.course_id = courses.id and m.status = 'published' and l.status = 'published')`.mapWith(Number),
+        completions: sql<number>`(select count(*) from watch_progress wp
+          join lessons l on l.id = wp.lesson_id join modules m on m.id = l.module_id
+          where m.course_id = courses.id and m.status = 'published' and l.status = 'published' and wp.completed_at is not null
+            and exists (select 1 from enrollments e join sections s on s.id = e.section_id
+              where s.course_id = courses.id and e.user_id = wp.user_id and e.status = 'active'))`.mapWith(Number),
+      })
+      .from(courses)
+      .where(staffPredicate(viewer))
+      .orderBy(asc(courses.code)),
     // (course, student) pairs with activity since `since`, enrolled students only.
     db.execute<{ course_id: string; user_id: string }>(sql`
       select distinct x.course_id, x.user_id from (
@@ -83,12 +83,16 @@ export async function dashboardData(viewer: Viewer, since: Date): Promise<Dashbo
         select d.course_id, r.author_id from discussion_replies r join discussions d on d.id = r.discussion_id
           where r.created_at >= ${since.toISOString()}::timestamptz
       ) as x(course_id, user_id)
-      where x.course_id in (${idList}) and ${sql.raw(enrolledIn("x.course_id"))}`),
+      where x.course_id in ${taught} and ${sql.raw(enrolledIn("x.course_id"))}`),
     db.execute<{ n: number }>(sql`
       select count(distinct e.user_id)::int as n from enrollments e join sections s on s.id = e.section_id
-      where e.status = 'active' and s.course_id in (${idList})`),
-    db.select({ n: count() }).from(discussions).where(and(eq(discussions.status, "open"), inArray(discussions.courseId, ids))),
-  ]);
+      where e.status = 'active' and s.course_id in ${taught}`),
+    db.select({ n: count() }).from(discussions).where(and(eq(discussions.status, "open"), sql`${discussions.courseId} in ${taught}`)),
+  ] as const;
+}
+
+function toDashboardData([courseRows, pairs, allLearners, [open]]: BatchRows<ReturnType<typeof dashboardQueries>>): DashboardData {
+  if (courseRows.length === 0) return { courses: [], learners: 0, active: 0, unanswered: 0 };
 
   const activeByCourse = new Map<string, number>();
   for (const p of pairs.rows) activeByCourse.set(p.course_id, (activeByCourse.get(p.course_id) ?? 0) + 1);
@@ -97,5 +101,25 @@ export async function dashboardData(viewer: Viewer, since: Date): Promise<Dashbo
     learners: Number(allLearners.rows[0]?.n ?? 0),
     active: new Set(pairs.rows.map((p) => p.user_id)).size,
     unanswered: open?.n ?? 0,
+  };
+}
+
+export async function dashboardData(viewer: Viewer, since: Date): Promise<DashboardData> {
+  return toDashboardData(await db.batch(dashboardQueries(viewer, since)));
+}
+
+/* The overview page's reads in one batch: the stats, the oldest
+   unanswered questions and the "Get your course live" facts. The grading
+   list streams in after it (feature 29). */
+export async function loadDashboard(viewer: Viewer, since: Date, questions: number) {
+  const [courseRows, pairs, learners, open, unanswered, setups] = await db.batch([
+    ...dashboardQueries(viewer, since),
+    unansweredQuestionsQuery(viewer, questions),
+    courseSetupFactsQuery({ staffUserId: viewer.id }),
+  ]);
+  return {
+    data: toDashboardData([courseRows, pairs, learners, open]),
+    questions: toDiscussionSummaries(unanswered),
+    setups,
   };
 }

@@ -8,8 +8,9 @@ import type { NextConfig } from "next";
      clerk.<domain> in production), img.clerk.com, its telemetry, and
      Cloudflare's bot check in the sign-up form.
    - Vercel Blob: videos, posters, captions, podcasts and documents are
-     read from *.public.blob.vercel-storage.com; browser uploads talk to
-     vercel.com/api/blob.
+     read from this app's own store only, BLOB_PUBLIC_HOST (feature 24,
+     S8; lib/env.ts checks it at startup), not from every Blob store.
+     Browser uploads talk to vercel.com/api/blob.
    - Trigger.dev: Realtime job progress from api.trigger.dev.
    Scripts need 'unsafe-inline' because this policy has no per-request
    nonce (Next.js inlines its bootstrap scripts). A nonce-based policy set
@@ -25,16 +26,23 @@ function clerkFrontendApi(): string | null {
   return /^[a-z0-9.-]+$/i.test(host) ? `https://${host}` : null;
 }
 
+/* Same pattern as lib/env.ts (this file can't import app modules). A bad
+   value adds no host, so Blob media fails loudly; lib/env.ts names it. */
+function blobStore(): string[] {
+  const host = process.env.BLOB_PUBLIC_HOST?.trim();
+  return host && /^[a-z0-9]+\.public\.blob\.vercel-storage\.com$/.test(host) ? [`https://${host}`] : [];
+}
+
 const isDev = process.env.NODE_ENV === "development";
 const clerk = clerkFrontendApi();
-const blobRead = "https://*.public.blob.vercel-storage.com";
+const blobRead = blobStore();
 
 const csp: Record<string, string[]> = {
   "default-src": ["'self'"],
   "script-src": ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), ...(clerk ? [clerk] : []), "https://challenges.cloudflare.com"],
   "style-src": ["'self'", "'unsafe-inline'"],
-  "img-src": ["'self'", "data:", "blob:", "https://img.clerk.com", blobRead],
-  "media-src": ["'self'", "blob:", blobRead],
+  "img-src": ["'self'", "data:", "blob:", "https://img.clerk.com", ...blobRead],
+  "media-src": ["'self'", "blob:", ...blobRead],
   "font-src": ["'self'", "data:"],
   "connect-src": [
     "'self'",
@@ -43,8 +51,7 @@ const csp: Record<string, string[]> = {
     "https://*.clerk-telemetry.com",
     "https://api.trigger.dev",
     "https://vercel.com",
-    "https://*.blob.vercel-storage.com",
-    blobRead,
+    ...blobRead,
   ],
   "frame-src": ["'self'", "https://challenges.cloudflare.com", ...(clerk ? [clerk] : [])],
   "worker-src": ["'self'", "blob:"],

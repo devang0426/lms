@@ -29,6 +29,13 @@ export interface StudyCard {
   state: Flashcard["state"];
 }
 
+/* A card with its front and back already rendered to sanitized HTML on
+   the server (feature 29), so the deck ships no Markdown or KaTeX code. */
+export interface RenderedCard extends StudyCard {
+  frontHtml: string;
+  backHtml: string;
+}
+
 /* fsrs.ts works on NitroAI's Flashcard shape; only the schedule matters. */
 export function asFsrsCard(c: StudyCard): Flashcard {
   return {
@@ -53,8 +60,9 @@ export function nextIntervals(card: StudyCard, nowMs: number): Record<Rating, nu
   return Object.fromEntries(RATINGS.map((r) => [r, reviewCard(fsrs, r, nowMs).due - nowMs])) as Record<Rating, number>;
 }
 
-/* The card after a rating, keeping its course and lesson fields. */
-export function applyRating(card: StudyCard, rating: Rating, nowMs: number): StudyCard {
+/* The card after a rating, keeping its course and lesson fields (and
+   anything else it carries, like its rendered HTML). */
+export function applyRating<C extends StudyCard>(card: C, rating: Rating, nowMs: number): C {
   const next = reviewCard(asFsrsCard(card), rating, nowMs);
   return { ...card, due: next.due, stability: next.stability, difficulty: next.difficulty, reps: next.reps, lapses: next.lapses, lastReview: nowMs, state: next.state };
 }
@@ -78,13 +86,13 @@ export function formatInterval(ms: number): string {
    with its new schedule, so it comes back in this same session (the
    stored schedule also brings it back in 10 minutes). */
 
-export interface SessionStep {
-  queue: StudyCard[];
+export interface SessionStep<C extends StudyCard = StudyCard> {
+  queue: C[];
   /* The rated card with its new schedule. */
-  rated: StudyCard;
+  rated: C;
 }
 
-export function rateCurrent(queue: StudyCard[], rating: Rating, nowMs: number): SessionStep {
+export function rateCurrent<C extends StudyCard>(queue: C[], rating: Rating, nowMs: number): SessionStep<C> {
   const [current, ...rest] = queue;
   if (!current) throw new Error("rateCurrent: the session is empty.");
   const rated = applyRating(current, rating, nowMs);

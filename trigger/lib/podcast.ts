@@ -1,7 +1,7 @@
 import { getEngine } from "@/lib/ai/engine/server";
 import { generatePodcastScript, PODCAST_VOICES_BY_LANGUAGE, synthesizePodcastLines } from "@/lib/ai/generation/podcast";
 import { withUsage } from "@/lib/ai/usage";
-import { PROMPTS_VERSION } from "@/lib/ai/prompts";
+import { PODCAST_PROMPTS_VERSION } from "@/lib/ai/prompts";
 import { loadPodcastJob, markPodcastReady, savePodcastEpisode } from "@/lib/db/podcasts";
 import { blobPaths, deleteBlobs, putBlob } from "@/lib/storage/blob";
 import { JobError } from "./job-progress";
@@ -30,7 +30,7 @@ export async function makePodcast(podcastId: string, report: PodcastReport = asy
   }
   const { podcast, source, ownerId } = job;
   // Up to date already (e.g. a duplicate run): never make it again.
-  if (podcast.audioUrl && podcast.sourceHash === source.hash && podcast.promptsVersion === PROMPTS_VERSION) {
+  if (podcast.audioUrl && podcast.sourceHash === source.hash && podcast.promptsVersion === PODCAST_PROMPTS_VERSION) {
     await markPodcastReady(podcastId);
     return { skipped: true, lines: podcast.script.length };
   }

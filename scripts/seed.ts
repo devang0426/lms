@@ -7,7 +7,7 @@
    seedCommunication() (21). */
 
 import { createClerkClient } from "@clerk/backend";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { indexLessonChunks } from "@/lib/ai/retrieval/index-lesson";
@@ -98,25 +98,28 @@ const DEMO_COURSE = {
 type SeedLesson = { title: string; kind: LessonKind; durationSec: number | null; status: LessonStatus };
 type SeedModule = { title: string; status: PublishStatus; lessons: SeedLesson[] };
 
-/* Placeholder lessons. Feature 12 replaces one with a processed lecture.
-   Module 3 and the practice quiz stay drafts to show what students can't see. */
+/* Placeholder lessons. Feature 12 puts the processed lecture into one
+   (seedLecture publishes it). A video lesson goes live only with a ready
+   video (feature 27), so the others stay drafts, and so does the Matrices
+   module, which has nothing published yet. Quiz is no longer a lesson type
+   teachers can add, so the practice set is a reading lesson. */
 const DEMO_CURRICULUM: SeedModule[] = [
   {
     title: "Vectors and spaces",
     status: "published",
     lessons: [
-      { title: "What is a vector?", kind: "video", durationSec: 720, status: "published" },
-      { title: "Linear combinations and span", kind: "video", durationSec: 900, status: "published" },
+      { title: "What is a vector?", kind: "video", durationSec: 720, status: "draft" },
+      { title: "Linear combinations and span", kind: "video", durationSec: 900, status: "draft" },
       { title: "Notation guide", kind: "reading", durationSec: 300, status: "published" },
     ],
   },
   {
     title: "Matrices",
-    status: "published",
+    status: "draft",
     lessons: [
-      { title: "Matrix multiplication", kind: "video", durationSec: 840, status: "published" },
-      { title: "Inverses and determinants", kind: "video", durationSec: 960, status: "published" },
-      { title: "Practice set", kind: "quiz", durationSec: null, status: "draft" },
+      { title: "Matrix multiplication", kind: "video", durationSec: 840, status: "draft" },
+      { title: "Inverses and determinants", kind: "video", durationSec: 960, status: "draft" },
+      { title: "Practice set", kind: "reading", durationSec: null, status: "draft" },
     ],
   },
   {
@@ -281,6 +284,46 @@ async function seedLecture(courseId: string) {
   await seedLectureIndex(target.id, !loaded);
 }
 
+/* Feature 27 (V4): a video lesson is published only with a ready video.
+   Seeds before it published three placeholder video lessons with none, and
+   the curriculum is kept between runs, so every run puts any such lesson
+   in the demo course back to draft. A module left with nothing published
+   goes back to draft with them, so students don't see an empty module. */
+async function draftVideoLessonsWithoutVideo(courseId: string) {
+  const drafted = await db
+    .update(lessons)
+    .set({ status: "draft", publishedAt: null })
+    .where(
+      and(
+        eq(lessons.kind, "video"),
+        eq(lessons.status, "published"),
+        inArray(lessons.moduleId, db.select({ id: modules.id }).from(modules).where(eq(modules.courseId, courseId))),
+        sql`not exists (select 1 from videos v where v.lesson_id = lessons.id and v.status = 'ready')`,
+      ),
+    )
+    .returning({ title: lessons.title, moduleId: lessons.moduleId });
+  const touched = [...new Set(drafted.map((l) => l.moduleId))];
+  const emptied = touched.length
+    ? await db
+        .update(modules)
+        .set({ status: "draft" })
+        .where(
+          and(
+            inArray(modules.id, touched),
+            eq(modules.status, "published"),
+            sql`not exists (select 1 from lessons l where l.module_id = modules.id and l.status = 'published')`,
+          ),
+        )
+        .returning({ title: modules.title })
+    : [];
+  console.log(
+    drafted.length
+      ? `  ✓ Video lessons        ${drafted.map((l) => `"${l.title}"`).join(", ")} back to draft (no video)` +
+          (emptied.length ? `; module ${emptied.map((m) => `"${m.title}"`).join(", ")} too` : "")
+      : "  ✓ Video lessons        every published one has a video",
+  );
+}
+
 /* The assistant's index for the lecture (feature 13). Publish normally
    queues the index-lesson task; the seed publishes directly, so it runs the
    same step here. It embeds only when the lecture was just loaded or has no
@@ -330,6 +373,7 @@ async function main() {
   const termId = await seedTerm();
   const courseId = await seedCourse(termId);
   await seedLecture(courseId);
+  await draftVideoLessonsWithoutVideo(courseId);
   await seedAssignment(courseId);
   await seedCommunication(courseId);
   console.log("Done. Demo password = DEMO_ACCOUNT_PASSWORD in .env.local");

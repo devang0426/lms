@@ -1,7 +1,7 @@
 import "server-only";
 
 import { auth, runs, tasks } from "@trigger.dev/sdk";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { courseIdForLesson, getCourseAccess, getLessonForUser } from "@/lib/db/courses";
 import { documents, jobs, notes, podcasts, videos, type Job, type User } from "@/lib/db/schema";
@@ -23,13 +23,20 @@ export interface StartJobInput {
      queue: one student's uploads wait behind each other, not in front of
      everyone else's. */
   concurrencyKey?: string;
+  /* How long the run may wait for a worker before it expires (feature 26).
+     An expired run is reconciled like a failed one, so whatever it was
+     making can be retried instead of waiting forever. */
+  ttl?: string;
 }
+
+export const DEFAULT_JOB_TTL = "30m";
 
 export async function startJob(input: StartJobInput): Promise<Job> {
   const handle = await tasks.trigger(input.kind, input.payload, {
     idempotencyKey: input.idempotencyKey,
     tags: [`${input.entity.type}_${input.entity.id}`.slice(0, 128)],
     concurrencyKey: input.concurrencyKey,
+    ttl: input.ttl ?? DEFAULT_JOB_TTL,
   });
 
   // A deduped trigger returns the existing run, which already has a row.
@@ -60,8 +67,10 @@ export async function getJobForViewer(jobId: string, viewer: Pick<User, "id" | "
    jobs of their lessons and their lessons' videos. A lesson podcast is
    shared, so anyone who can open the lesson may watch it being made. The
    jobs of a student's private note (its upload and its podcast, feature
-   19) are the owner's alone: no admin or staff override. */
+   19) are the owner's alone: no admin or staff override. So is a data
+   export's run (feature 33): only the person who asked for it. */
 async function canViewJob(job: Job, viewer: Pick<User, "id" | "role">): Promise<boolean> {
+  if (job.entityType === "export") return job.createdBy === viewer.id;
   if (job.entityType === "podcast") {
     const [row] = await db
       .select({ lessonId: podcasts.lessonId, ownerId: notes.ownerId })
@@ -93,12 +102,20 @@ async function canViewJob(job: Job, viewer: Pick<User, "id" | "role">): Promise<
   return courseId !== null && (await getCourseAccess(courseId, viewer)) === "staff";
 }
 
+/* How long a job row may go untouched before a page asks Trigger.dev
+   about its run (feature 29). The task writes the row at every stage, and
+   the page's Realtime subscription shows fresh progress (and a crash) by
+   itself, so asking sooner only slows the page by one API call. */
+export const RECONCILE_AFTER_MS = 3 * 60 * 1000;
+
 /* The task's hooks keep the row current, but they never run when a run
    dies before the task starts (bad payload, crash, expiry), or when the
-   hook's own write fails. So an unfinished row is checked against the
-   run's real status before it is shown, and corrected if the run ended. */
-export async function reconcileJob(job: Job): Promise<Job> {
+   hook's own write fails. So an unfinished row that has gone quiet is
+   checked against the run's real status before it is shown, and corrected
+   if the run ended. */
+export async function reconcileJob(job: Job, now = Date.now()): Promise<Job> {
   if (TERMINAL_JOB_STATES.includes(job.status)) return job;
+  if (now - job.updatedAt.getTime() < RECONCILE_AFTER_MS) return job;
   let status: JobState;
   try {
     status = jobStateFromRun((await runs.retrieve(job.triggerRunId)).status);
@@ -127,6 +144,27 @@ export async function latestJobFor(entity: { type: string; id: string }, kind?: 
   return row ? reconcileJob(row) : null;
 }
 
+/* Statements for a page's batch (feature 29); reconcile what they return
+   with reconcileJob. The newest job of `kind` for each entity that `ids`
+   selects (a subquery of text ids), e.g. a lesson's documents. */
+export function latestJobPerEntityQuery(entityType: string, kind: JobKind, ids: SQL) {
+  return db
+    .selectDistinctOn([jobs.entityId])
+    .from(jobs)
+    .where(and(eq(jobs.entityType, entityType), eq(jobs.kind, kind), sql`${jobs.entityId} in ${ids}`))
+    .orderBy(jobs.entityId, desc(jobs.createdAt));
+}
+
+/* The newest job of each of `kinds` for one entity (the review page's four
+   generate-* jobs), one row per kind. */
+export function latestJobPerKindQuery(entity: { type: string; id: string }, kinds: JobKind[]) {
+  return db
+    .selectDistinctOn([jobs.kind])
+    .from(jobs)
+    .where(and(eq(jobs.entityType, entity.type), eq(jobs.entityId, entity.id), inArray(jobs.kind, kinds)))
+    .orderBy(jobs.kind, desc(jobs.createdAt));
+}
+
 /* latestJobFor for many entities of one type, in one query (a list page). */
 export async function latestJobsFor(entityType: string, ids: string[], kind: JobKind): Promise<Map<string, Job>> {
   if (ids.length === 0) return new Map();
@@ -135,7 +173,7 @@ export async function latestJobsFor(entityType: string, ids: string[], kind: Job
     .from(jobs)
     .where(and(eq(jobs.entityType, entityType), eq(jobs.kind, kind), inArray(jobs.entityId, ids)))
     .orderBy(jobs.entityId, desc(jobs.createdAt));
-  const reconciled = await Promise.all(rows.map(reconcileJob));
+  const reconciled = await Promise.all(rows.map((job) => reconcileJob(job)));
   return new Map(reconciled.map((job) => [job.entityId, job]));
 }
 

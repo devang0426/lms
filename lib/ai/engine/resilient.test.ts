@@ -71,4 +71,27 @@ describe("resilient engine", () => {
     expect(n).toBe(5); // initial try + 4 backoffs
     vi.useRealTimers();
   });
+
+  it("stops retrying once the caller's time limit has fired (feature 30)", async () => {
+    vi.useFakeTimers();
+    const deadline = new AbortController();
+    const reason = new DOMException("That took too long.", "TimeoutError");
+    let n = 0;
+    const eng = resilient(
+      base({
+        complete: async () => {
+          n++;
+          throw new EngineError("429", "rate_limit");
+        },
+      }),
+    );
+    const p = eng.complete({ messages: [], signal: deadline.signal }).then(() => null, (e: unknown) => e);
+    // The first retry is waiting when the limit fires.
+    await vi.advanceTimersByTimeAsync(1000);
+    deadline.abort(reason);
+    await vi.runAllTimersAsync();
+    expect(await p).toBe(reason);
+    expect(n).toBe(1);
+    vi.useRealTimers();
+  });
 });

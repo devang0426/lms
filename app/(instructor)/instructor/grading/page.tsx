@@ -2,7 +2,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { LocalDate } from "@/components/coursework/local-date";
 import { PageHeader } from "@/components/shell/page-header";
-import { Badge, Card, EmptyState, Icon } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Icon } from "@/components/ui";
 import { requireAreaRole } from "@/lib/auth";
 import { gradingQueue } from "@/lib/db/grades";
 
@@ -29,7 +29,15 @@ export default async function GradingQueuePage() {
       />
       {queue.length === 0 ? (
         <Card padded={false} className="border-dashed">
-          <EmptyState title="Nothing to grade" description="Handed-in work shows up here, oldest first. Enjoy the quiet." />
+          <EmptyState
+            title="Nothing to grade"
+            description="Handed-in work shows up here, oldest first. Set an assignment: add an Assignment lesson to a course."
+            action={
+              <Button asChild variant="secondary" size="md">
+                <Link href="/instructor/courses">Your courses</Link>
+              </Button>
+            }
+          />
         </Card>
       ) : (
         <Card padded={false} className="overflow-hidden">

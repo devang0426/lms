@@ -9,6 +9,7 @@ import { Badge, Button, Card, ChipGroup, EmptyState, Eyebrow, Icon } from "@/com
 import { PODCAST_STAGES } from "@/lib/jobs/stages";
 import { PODCAST_LANGUAGES, SPEAKER_LABELS, type PodcastEpisodes, type PodcastEpisodeView, type PodcastLanguage } from "@/lib/study/podcast";
 import { formatTime } from "@/lib/time";
+import { settle } from "@/lib/utils/action-result";
 import { cn } from "@/lib/utils/cn";
 
 /* The lesson player's Podcast tab (feature 17). Nothing is made until
@@ -92,8 +93,8 @@ function Episode({
         setActionError(null);
         const res =
           "noteId" in target
-            ? await generateNotePodcast({ noteId: target.noteId, length: "short", language })
-            : await generatePodcast({ lessonId: target.lessonId, length: "short", language });
+            ? await settle(generateNotePodcast({ noteId: target.noteId, length: "short", language }))
+            : await settle(generatePodcast({ lessonId: target.lessonId, length: "short", language }));
         if (!res.ok) setActionError(res.error.message);
         resolve();
       }),

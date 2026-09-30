@@ -1,6 +1,5 @@
 import { ArrowRight, BookOpen, Calendar, Compass, House, MessageCircle, Play, Plus, TrendingUp, User } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   Accordion,
@@ -28,12 +27,15 @@ import {
   ProgressBar,
   ProgressRing,
   SearchField,
+  Skeleton,
+  SkeletonCard,
+  SkeletonRegion,
+  SkeletonText,
   StatCard,
   StepIndicator,
   TabBar,
   Textarea,
 } from "@/components/ui";
-import { isDemoMode } from "@/lib/demo/accounts";
 import { InteractiveDemos } from "./interactive";
 
 export const metadata = { title: "UI kit · Studyhall" };
@@ -58,9 +60,8 @@ const courseRows: CourseRow[] = [
   { id: "3", title: "Colour for Screens", status: "Scheduled", learners: "—", completion: null, note: "Opens 6 Oct" },
 ];
 
+/* Development only: app/dev/layout.tsx answers 404 in a production build. */
 export default function UiKitPage() {
-  if (process.env.NODE_ENV === "production" && !isDemoMode()) notFound();
-
   return (
     <main className="mx-auto flex max-w-[1200px] flex-col gap-12 px-4 py-12 sm:px-12">
       <header className="flex flex-wrap items-end justify-between gap-6">
@@ -309,6 +310,25 @@ export default function UiKitPage() {
             action={<Button variant="secondary" size="md">Browse courses</Button>}
           />
         </Card>
+      </Section>
+
+      <Section title="Loading" note="Oat shapes with a gentle pulse, still under reduced motion · each loading.tsx composes them">
+        <SkeletonRegion className="grid gap-6 md:grid-cols-3">
+          <div className="flex flex-col gap-3">
+            <Eyebrow>Blocks</Eyebrow>
+            <Skeleton className="h-10 w-3/4" />
+            <Skeleton className="aspect-video w-full rounded-card" />
+            <Skeleton className="size-10 rounded-full" />
+          </div>
+          <div className="flex flex-col gap-3">
+            <Eyebrow>Text lines</Eyebrow>
+            <SkeletonText lines={4} />
+          </div>
+          <div className="flex flex-col gap-3">
+            <Eyebrow>Card</Eyebrow>
+            <SkeletonCard lines={3} />
+          </div>
+        </SkeletonRegion>
       </Section>
 
       <Section title="Interactive" note="Chip group · Tabs · Dialog · Menu · Toast">

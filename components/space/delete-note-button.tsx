@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteNote } from "@/app/(student)/(sidebar)/space/[noteId]/actions";
 import { Button, Dialog, DialogClose, DialogContent, DialogTrigger, Icon } from "@/components/ui";
+import { settle } from "@/lib/utils/action-result";
 
 /* Delete a private note (feature 19), after a confirm: the note goes with
    its cards, quiz, chat, podcast and uploaded file. */
@@ -40,7 +41,7 @@ export function DeleteNoteButton({ noteId, title }: { noteId: string; title: str
             onClick={() =>
               start(async () => {
                 setError(null);
-                const res = await deleteNote({ noteId });
+                const res = await settle(deleteNote({ noteId }));
                 if (!res.ok) return setError(res.error.message);
                 router.push("/space");
               })

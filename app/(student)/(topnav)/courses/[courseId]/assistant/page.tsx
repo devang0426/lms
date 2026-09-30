@@ -1,28 +1,36 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AssistantChat } from "@/components/assistant/assistant-chat";
 import { Button, Eyebrow, Icon } from "@/components/ui";
 import { toTurnView } from "@/lib/ai/assistant";
 import { requireAreaRole } from "@/lib/auth";
-import { chapterTitles, latestThread } from "@/lib/db/chat";
-import { getCourseForUser } from "@/lib/db/courses";
+import { chapterTitlesQuery, latestThreadQueries, toChapterTitles, toLatestThread } from "@/lib/db/chat";
+import { db } from "@/lib/db/client";
+import { courseDetailFor } from "@/lib/db/course-page";
 
 /* The course assistant, course-wide (feature 14). Same gate as course
    detail: enrolled students (published lessons only) and staff; anyone
-   else gets a 404. Chips open the cited lesson at the moment. */
+   else gets a 404. Chips open the cited lesson at the moment.
+   Feature 29: the course comes from the batch the layout's breadcrumb
+   already reads (courseDetailFor), then one batch for the thread and the
+   suggestions. */
 export default async function CourseAssistantPage({ params }: PageProps<"/courses/[courseId]/assistant">) {
   const { courseId } = await params;
-  const user = await requireAreaRole("student", "admin");
-  const full = await getCourseForUser(courseId, user);
+  const user = await requireAreaRole("student", "admin", "instructor");
+  const full = (await courseDetailFor(courseId, user))?.full ?? null;
+  // Instructors get in only to the courses they teach (feature 28).
+  if (user.role === "instructor" && full?.access !== "staff") redirect("/instructor");
   if (!full) notFound();
   const { course } = full;
   const lessonIds = full.modules.flatMap((m) => m.lessons.map((l) => l.id));
 
-  const [thread, suggestions] = await Promise.all([
-    latestThread({ userId: user.id, courseId, lessonId: null }),
-    chapterTitles(lessonIds, 4),
+  const [threadRow, turns, titles] = await db.batch([
+    ...latestThreadQueries({ userId: user.id, courseId, lessonId: null }),
+    chapterTitlesQuery(lessonIds, 4),
   ]);
+  const thread = toLatestThread([threadRow, turns]);
+  const suggestions = toChapterTitles(titles, 4);
 
   return (
     <div className="mx-auto flex w-full max-w-[820px] flex-col gap-6">

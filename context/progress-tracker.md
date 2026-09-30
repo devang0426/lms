@@ -21,13 +21,156 @@ Update this file after every meaningful implementation change.
   work is done and verified: Playwright, security headers, rate limits,
   accessibility, mobile, performance, CI config and the runbook. Still to
   do are the steps on the owner's accounts: the deployment (Vercel, a Neon
-  `demo` branch, the Trigger.dev prod deploy, the Blob region), the run
-  against the deployed URL, two rehearsals, and pushing for CI.
-- Open: the app feels slow. Measured 2026-09-28: each Neon query is
-  ~310 ms from here (us-east-2), 1–2.4 s after idle, and pages make
-  several in sequence (pages took 1.9–3.5 s on the production server).
-  `.trigger/tmp` holds 5.6 GB of old dev-worker bundles. Fixes proposed,
-  not started (see Session Notes).
+  `demo` branch, the Trigger.dev prod deploy, the Blob region), a
+  walk-through on the deployed URL, two rehearsals, and pushing for CI.
+- **Production-readiness audit (2026-09-29).** The full report is
+  `report.md` at the repo root. Its findings became features 24–33 (see
+  Next Up → Phase 7).
+  - These features are software-only. The owner decided that nothing
+    changes infrastructure or plans while the app is on free tiers.
+  - Infrastructure items are under "Deferred until paid plans".
+- **Feature 24 (security lockdown) is done (2026-09-30).** It covers demo
+  mode behind a passcode, graded quizzes that don't give away answers, the
+  private-upload loophole, answers rendered without raw HTML, the startup
+  config check and `security-architecture.md`.
+  - The app now needs `BLOB_PUBLIC_HOST` to start, and `demo:reset` needs
+    `DEMO_DB_HOSTS`. Both were added to `.env.local`; the deployment needs
+    them too (see the runbook).
+- **Feature 26 (job recovery and clean-up) is done (2026-09-30).**
+  - A video whose run can't be queued, crashes, is cancelled or expires
+    no longer stays "processing": the editor offers Retry and the
+    uploader, and the lesson goes back to its previous status.
+  - Runs expire after 30 minutes in the queue, with a "worker may be
+    offline" hint after 3.
+  - Deleting a lesson or module cancels its runs and deletes its files.
+  - Tasks run on Node 22.
+  - Document downloads go to disk.
+  - Still to do, with the dev worker stopped: `trigger deploy --dry-run`,
+    then `npm run trigger:deploy` (Open Questions).
+- **Feature 25 (AI spend guardrails) is done (2026-09-30).** The three P0
+  features (24–26) are all done.
+  - There's now a daily AI limit per person, on calls and cost.
+    Students get 150 calls and $0.25 a day, staff 1,000 and $3.
+  - Recordings and YouTube videos are capped at 90 minutes.
+  - "Try again" works only after a failure.
+  - The limits on questions, new notes and discussion posts can't be
+    beaten by sending requests in parallel.
+  - The scope changed from "log only". The owner asked for the feature as
+    specified, so the suggested limits are the defaults, each set in the
+    environment.
+  - Deployed tasks need `npm run trigger:deploy`: the regenerate, index
+    and ingest payloads changed.
+- **Feature 27 (course-building flow) is done (2026-09-30).** It's the
+  first P1 feature.
+  - Each module has **Upload lecture**: an upload is running 3 clicks
+    from the course page.
+  - A new lesson opens its editor.
+  - The row's Publish and the review screen's Publish are one path, and a
+    video lesson needs a ready video.
+  - Quiz is gone from the lesson types, and an empty lesson can change
+    type.
+  - "Get your course live" shows on the overview and the course page.
+  - The review screen has a breadcrumb.
+  - The MP4 check is the same in the browser and on the server.
+  - The seed follows the new rules. The demo branch needs one
+    `npm run db:seed` (see the runbook).
+- **Feature 28 (navigation and wayfinding) is done (2026-09-30).**
+  - Staff can "View as student": a course's instructors open its student
+    pages under a Student view banner, and every back link lands on a page
+    they can open.
+  - Admins get a Teaching / Admin switch.
+  - The course page has a breadcrumb and quick links.
+  - Staff pages have breadcrumbs.
+  - One name per page: My courses, Explore, Flashcards, and Questions for
+    the teacher's Q&A.
+  - Phones get Home, My courses, Flashcards and More.
+  - The player's header has the bell and the account menu.
+  - Learners and Progress were out of the nav until feature 31 brought
+    them back.
+- **Feature 30 (error handling and resilience) is done (2026-09-30).**
+  - A server action that hits a database error now answers in place with
+    "Something went wrong. Try again. (ref ab12cd)". The page, the typed
+    text and a flashcard session stay.
+  - Every shell has an error page that keeps its navigation, with "Try
+    again" and a way home, and there's a `global-error.tsx`.
+  - Assistant and space-chat answers stop at 240 s with "That took too
+    long. Try again." (the routes' `maxDuration` is 300).
+  - Every server error is one JSON log line with its route, digest or
+    ref, and user.
+  - A lecture upload ends with a "Drafts ready" notice for the teacher.
+  - Read notifications and old finished jobs are pruned daily after 90
+    days.
+  - The demo branch needs `npm run db:migrate` (0019), and the tasks need
+    `npm run trigger:deploy` (see the runbook).
+- **Feature 35 (course deletion) is done (2026-09-30).** The owner asked
+  why a course couldn't be deleted; no spec had covered it.
+  - A course with no active student, no handed-in work and no pending
+    invitation can be deleted from its Details tab, after typing its
+    code. It goes with everything in it, including its files.
+  - Any other course is refused with the reason and "Unpublish it
+    instead".
+  - No migration or task deploy needed.
+- **Feature 33 (data export and account deletion) is done (2026-09-30).**
+  Both decisions were taken as recommended.
+  - **Export:** the Profile page has "Download my data". A background task
+    builds one JSON file of everything Studyhall keeps about the person,
+    and its link works for 7 days, at most 3 a day.
+  - **Delete:** an account deleted in Clerk, or by an admin's new
+    **Delete user**, is erased. Private data and files go, and the row
+    becomes "Deleted user".
+  - **Kept:** submissions, grades, graded attempts and discussion posts.
+  - **Deploy:** the demo branch needs `npm run db:migrate` (0020), the
+    tasks need `npm run trigger:deploy`, and the Trigger.dev prod env
+    needs `NEXT_PUBLIC_APP_URL` (see the runbook). Follow-ups are under
+    Open Questions.
+- **Feature 31 (Learners and Progress pages) is done (2026-09-30).**
+  - Teachers get `/instructor/learners` and a Students tab on each
+    course. Each course has a table: section, last activity, lessons
+    completed of those published, average quiz score, and assignments
+    handed in, graded and missing. It has a CSV export, and each name
+    opens a report on that student.
+  - Students get `/progress`. Per course it shows completion, each
+    lesson, quiz mastery per topic and grades so far. One "Next up" card
+    sits above the courses.
+  - Both are back in the nav. No schema change, migration or task
+    deploy.
+- **Feature 29 (performance, software only) is done (2026-09-30).**
+  - Every page in the spec's table meets its target, counted with
+    `DB_LOG=1` on a production build: course page 2 round trips, course
+    builder 2, lesson editor 3, review 3, lesson player 3 (2 requests
+    before it renders; the closed tabs stream in after), student home 2,
+    teacher dashboard 2.
+  - The assistant: 3 round trips before retrieval. It reaches the model
+    1.2 s sooner (median of 8 runs each, same script both times).
+  - Every section has a skeleton `loading.tsx`, and a Terracotta pending
+    bar answers every link click.
+  - Lesson page LCP: **not beaten on today's network.**
+    - The same e2e test, in the same session, ran against the build from
+      before this feature (commit 168019a, in a temporary worktree) and
+      this one, alternating: medians ~4.5 s before and ~5.4 s after, over
+      7 pairs. A timeline script had the new build ahead in 2 of 3 runs.
+    - The network was a phone hotspot, where even the old build measured
+      4.1–7.0 s, so neither number compares with feature 23's 4.1 s.
+    - The first byte fell from 4–6 s to 0.33 s: the skeleton shows at
+      once, and the content streams in behind it.
+  - **What's still slow is the connection, not the round trips.** A Neon
+    request on a warm keep-alive connection takes ~310 ms. A new
+    connection (after ~4 s idle, or a second request at the same moment)
+    takes ~1.4 s: the TLS handshake to us-east-2 costs ~1.1 s. See Open
+    Questions for the proposed fix (HTTP/2 with one long-lived
+    connection).
+- **Feature 34 (public landing page) is done (2026-09-30).**
+  - A signed-out visitor on `/` now lands on `/welcome`: the institute,
+    what students get, this term's courses (catalog fields only), how to
+    join, contact details, and privacy and terms pages.
+  - "Try the demo" opens the demo picker in a dialog.
+  - The page is static (hourly regeneration for the course list), with
+    no database call per request. LCP is ~0.5 s locally.
+  - Deep links still go to sign-in and come back, the demo picker's
+    included.
+  - **Your action:** the institute's details are placeholders in
+    `.env.local` (`INSTITUTE_*`). Set the real ones, locally and on the
+    deployment, before the build (see Open Questions).
 - Blocking the demo's real content: the demo lecture still has to be
   recorded (see Open Questions). The seeded lecture is the looped test
   video.
@@ -1233,6 +1376,1239 @@ Update this file after every meaningful implementation change.
       sign-up with the invitation ticket. The enrollment step after it was
       tested; the Clerk ticket flow wasn't.
 
+- **Feature 24: security lockdown (2026-09-30).** It fixes audit findings
+  S1, S4, S5, S7, S8, S10, S11, S13 and the reset guard from R10. The
+  whole security model is now written down in
+  `context/security-architecture.md`.
+  - **Config checked at startup:**
+    - `lib/env.ts` holds a zod rule for every variable the app reads,
+      each marked required or optional, plus the rules across variables
+      (the demo passcode, the Blob host matching the token).
+    - `instrumentation.ts → register()` runs it once when a server
+      starts. A bad config prints one message naming every problem and
+      exits. Throwing instead left `next start` running and answering
+      500s.
+    - `next build` doesn't run it (Next skips `register` in the build
+      phase), so CI is unaffected.
+  - **Demo mode (S1, S13):**
+    - `example.env` ships `DEMO_MODE=false`.
+    - On a production deployment, demo mode needs `DEMO_PASSCODE` (at
+      least 8 characters) or the app won't start.
+    - With a passcode set, the picker asks for it and shows no password.
+      Before, the password was printed on the page, so a passcode would
+      have been pointless.
+    - `startDemoSession` checks the passcode in constant time (hashes,
+      then `timingSafeEqual`) before minting a ticket, and before signing
+      anyone out.
+    - While demo mode is on, `changeRole`, `inviteUser` and
+      `importRoster` refuse with "Turned off in demo mode.". Withdrawing
+      an invitation and roster Check file still work. The Users and
+      Roster pages say so.
+    - `/dev/*` answers 404 outside `next dev` (`app/dev/layout.tsx`), and
+      the `/dev/jobs` actions check the same.
+    - The Playwright suite runs only against a server without a
+      passcode (a local build); `signInAs` says so if it meets one.
+  - **Graded quizzes (S4):**
+    - A submit returns the score and right/wrong per question only.
+      `AnswerFeedback.correctAnswer` and `explanation` are null until the
+      reveal.
+    - Submits are accepted until the due date + 10 minutes, then refused
+      as `closed`. The attempt must also belong to the lesson in the URL.
+    - The reveal is at that same deadline (the owner's decision, "after
+      the due date"). "Review answers" on the Quiz tab then shows the
+      best attempt with the correct answers and explanations
+      (`reviewGradedAttempt`, action `reviewGraded`).
+    - The results screen says "Answers are shown after the due date."
+  - **Private uploads (S5):**
+    - `authorizeUpload` gives a private-note token only while the note is
+      `uploading` with no file. The dependency is now `privateDocument`,
+      which returns the state; the rule is pure and unit tested. The
+      local-dev confirm re-check passes `stage: "confirm"`, since Blob's
+      callback may already have attached the file.
+    - `recordUpload` deletes any other file uploaded for the note (a
+      second file, or one for a deleted note): `startPrivateDocumentIngest`
+      now says whether the file is the note's own.
+    - One `blob.upload` audit row per file path, so every upload counts
+      toward the hourly limit. A private upload's row has the document id
+      and a hash of the path, no file name (`uploadRecordKey`).
+  - **Assistant answers (S7):**
+    - `renderAnswerMarkdown` renders answers like posts: raw HTML as
+      text, images as links. Citation chips go in through its `keep()`
+      after the escaping.
+    - In every renderer, no element keeps a `style` attribute or a
+      `<style>` element except KaTeX output. Each formula is rendered and
+      sanitized alone, then swapped in after the rest is sanitized. A
+      DOMPurify hook drops attributes that hold a placeholder, so a
+      formula can't break out of one.
+    - KaTeX runs with `maxSize: 20` and `trust: false`.
+    - The prompts wrap each source in `<source id="S3" from="…">` tags,
+      defuse tags inside a source, say text in them is never an
+      instruction, and ask for Markdown only. `PROMPTS_VERSION` is 3.
+    - Podcasts now compare against their own `PODCAST_PROMPTS_VERSION`
+      (still 2). Otherwise the bump would have marked every stored
+      episode "Notes changed since" although no podcast prompt changed.
+  - **Smaller items:**
+    - The CSP allows only this app's Blob store, `BLOB_PUBLIC_HOST`
+      (S8); the `*.blob.vercel-storage.com` wildcard in `connect-src`
+      went too. `lib/env.ts` checks the host matches the token's store.
+    - Invitation links come from `NEXT_PUBLIC_APP_URL`, not request
+      headers (S10).
+    - The Clerk sync never clears `deletedAt`, skips a deleted user's
+      invitations, and `getCurrentUser()` treats a deleted user as signed
+      out (S11).
+    - `demo:reset` refuses unless every database URL's host is in
+      `DEMO_DB_HOSTS` (a Neon host covers its `-pooler` twin), before
+      touching Clerk or the database (R10).
+  - **Tests:** 41 new unit tests (env check, passcode, admin actions in
+    demo mode, quiz deadline and reveal, upload rules and records,
+    renderers and the poisoned answer, prompt sources, reset guard,
+    deleted-user sync). Full suite 380/380, plus lint, `tsc` and
+    `check:secrets`. The build passes.
+  - **Verified on the production build (`next start -p 3100`):**
+    - **Startup:** with `BLOB_PUBLIC_HOST` blank, the server exits 1 with
+      one message naming it; with two blank, both are named. With
+      `VERCEL_ENV=production`, `DEMO_MODE=true` and no passcode, it exits
+      naming `DEMO_PASSCODE`.
+    - **In Chrome, with a passcode:**
+      - An empty passcode is asked for; a wrong one is refused; the right
+        one signs in. The page (RSC payload included) has no password.
+      - `/dev/ui`, `/dev/tokens` and `/dev/jobs` answer 404.
+      - Roster Check file works and Import shows "Turned off in demo
+        mode."
+    - **Graded quiz, against the real database** (temporary quiz,
+      removed afterwards):
+      - Attempt 1 returned 50% and right/wrong, with no answers or
+        explanations.
+      - Review was refused now, at the due date and 1 ms before the
+        deadline, and showed everything after it.
+      - A submit at due + 11 min was refused and left the attempt open;
+        one at due + 9 min was accepted, still without answers.
+      - Another user and another lesson id were refused.
+      - The same in the browser: the results screen with its "shown
+        after the due date" line, and a past-due quiz's Review answers
+        showing "Correct: Beta" and the explanation.
+    - **Uploads:**
+      - Over HTTP with the student's session, a token for their own
+        ready note was refused (403 with the message); one for a note
+        still waiting was granted.
+      - With real blobs, a second file for a ready note was deleted, the
+        note's own file was kept, and the two uploads counted as 2.
+    - **Poisoned answer in the real player** (a planted turn, removed
+      afterwards): the `<a style="position:fixed…">` showed as text, no
+      styled element outside the maths, and the chip rendered and still
+      sought the video to 7:17.
+    - **Live assistant** with the new prompt: "Explain what a linear
+      combination is" was answered with two valid citations, and the
+      off-syllabus question was refused.
+    - **Accessibility and phones:** axe on the student, staff and sign-in
+      pages and the three 390px tests passed, with no CSP violation (so
+      the pinned Blob host serves the lecture, poster and captions).
+    - **Reset guard:** `demo:reset` with another host, and with an empty
+      allowlist, exited 1 with "Nothing was changed."
+  - **Not verified:**
+    - A real browser upload under the pinned `connect-src` (only the
+      token request was tested). @vercel/blob's client talks to
+      `vercel.com/api/blob` only, so it should be fine; step 8 of the
+      e2e suite with `E2E_UPLOAD=1` checks it.
+    - The positive `demo:reset` run: it signs out every demo session.
+    - Anything on Vercel itself, which isn't deployed yet.
+
+- **Feature 25: AI spend guardrails (2026-09-30).** It fixes audit
+  findings S2, S3 and S12. It also changes the "log only" scope in
+  `project-overview.md` and invariant 9. There is now a daily safety limit
+  per person. It is not a credit system. Built alongside feature 26
+  (session lms-62).
+  - **Daily AI limit** (`lib/ai/budget.ts`):
+    - `usageToday` counts a person's `ai_usage` calls and cost over the
+      last 24 hours. `checkBudget(user, attempt)` runs before the work
+      starts. The limits are set per role in env: students 150 calls and
+      $0.25, staff 1,000 and $3 (`AI_DAILY_CALLS_STUDENT`,
+      `AI_DAILY_USD_STUDENT`, `AI_DAILY_CALLS_STAFF`, `AI_DAILY_USD_STAFF`,
+      optional in `lib/env.ts`).
+    - It's checked before:
+      - an assistant question and a space-chat question;
+      - a new private note (file or link) and a note's retry;
+      - a lesson or note podcast;
+      - a regenerate on the review screen.
+    - A refusal reads "You've reached today's AI limit. It resets at
+      HH:MM." The time is when enough of the oldest calls are 24 hours
+      old (`limitClearsAt`), rounded up to the minute. It's in the
+      reader's zone: a `tz` cookie set by `TimeZoneCookie` in the root
+      layout. Without the cookie it says "UTC".
+    - Each refusal writes an `ai.limit_reached` audit row with ids only.
+    - Migration 0018 adds indexes on `ai_usage (user_id, created_at)` and
+      `audit_log (actor_id, action, created_at)`, plus the
+      `enforce_limit()` function.
+    - Charging: tasks already passed a user id. Two gaps are fixed:
+      - A regenerate was charged to the video's uploader. It now goes to
+        whoever pressed it (`requestedBy` in the `generate-*` payload).
+      - A document-only lesson's index was charged to nobody. `index-lesson`
+        now takes `requestedBy` (the publisher, or the document's
+        uploader).
+      - The rows with no user left in `ai_usage` are old dev tests.
+    - `/admin/users` shows "AI today" (calls and cost, with Near limit
+      and At limit badges), an "At AI limit · N" filter (`?ai=limit`),
+      and the limits in force.
+  - **Length limits (S2):**
+    - Recordings and YouTube videos over `DOCUMENT_MAX_MINUTES` (90) are
+      refused before transcription (`lib/documents/length.ts`):
+      - a recording by ffprobe;
+      - a YouTube video by yt-dlp's `--print duration`, before anything
+        downloads (`extractYoutube` returns `tooLong`). The captions' end
+        or the audio's length is checked too, in case YouTube doesn't give
+        a length.
+    - `transcribeAudio` also refuses audio that cuts into more 10-minute
+      pieces than the cap allows, for when ffprobe can't tell the length.
+  - **Retry only after a failure:**
+    - `canRetryNote` (`lib/space/view.ts`) allows a retry only when the
+      note's phase is failed. A ready note is refused.
+    - `retryNote` returns a result now. The failed state uses a new
+      `RetryNoteButton`, and `JobProgress` shows a refused retry's message.
+  - **Race-proof limits (S3):**
+    - `lib/db/limits.ts`: `lockFor` takes
+      `pg_advisory_xact_lock(hashtext('ai:'|'post:' || user))`, then
+      `underLimit` calls `enforce_limit(count < max)`, which aborts the
+      batch. The writes follow in the same `db.batch`. `isLimitError`
+      maps the abort to the refusal.
+    - `reserveQuestion` (`lib/db/chat.ts`) replaces count → `ensureThread`
+      → `listTurns` → `addUserTurn`. The history, the thread (created
+      only if the given one isn't the user's in this scope) and the
+      question go in one batch, which also saves two round trips per
+      question.
+    - `createPrivateNote` counts and writes the note, its document and
+      the audit row the same way.
+  - **Discussions (S12):** at most 10 new threads and 30 replies per
+    person per hour (`POSTING_LIMIT`), with the same pattern.
+  - **Tests:** 29 new unit tests, plus new cases in the env test:
+    - budget rules and `checkBudget` with fakes;
+    - `isLimitError`, the length cap, `canRetryNote`, yt-dlp's
+      `parseInfo`;
+    - the new env variables and the time-zone check.
+    Full suite 421/421 on the shared tree (with feature 26's), plus
+    lint, `tsc`, the build and `check:secrets`.
+  - **Verified against the dev database:**
+    - 30 parallel `reserveQuestion`s: exactly 20 reserved and 10 refused,
+      with 20 threads (none for the refused ones).
+    - A follow-up got its history. A course thread id sent to a note chat
+      made a new note thread.
+    - 11 discussion threads at once: 10 posted, 1 refused.
+    - Retrying the ready note: refused.
+  - **Verified over HTTP** (`next start -p 3100`, Clerk bearer tokens):
+    - 30 parallel `POST /api/assistant` from Aanya: 20 × 200 streamed to
+      "done", 10 × 429.
+    - With `AI_DAILY_CALLS_*=1`, each of these was refused with "It
+      resets at 12:11" (IST, from the cookie): the assistant, the space
+      chat, both new-note actions, the failed note's retry, the note
+      podcast, the lesson podcast, and Meera's regenerate.
+    - The ready note's retry was refused as "Only a note that stopped
+      with an error…".
+    - No new `ai_usage` rows, no jobs, and 8 `ai.limit_reached` rows with
+      ids only.
+    - `/admin/users` showed "At AI limit · 2", "115 calls · $0.04 At
+      limit", and the filter (also with ?role=student).
+    - Found and fixed on the way: the at-limit query's `case … then $1`
+      parameters were typed text (a 500); they're cast now.
+  - **Verified with real files:**
+    - A 3-hour recording (ffmpeg silence) was refused in 66 ms by
+      ffprobe.
+    - The piece check refused it too, with ffprobe's length withheld.
+    - No transcription row was written in either case.
+    - A real YouTube link (23.5 minutes) with a 1-second cap was refused
+      from its metadata in 11 s, with nothing downloaded.
+  - **Clean-up:** the test threads, discussions and audit rows were
+    deleted. The 20 real assistant questions' `ai_usage` rows (retrieval,
+    $0) were kept, so Aanya is at 115 of 150 calls until they age out.
+  - **Not verified:**
+    - The new messages in a browser (they use the existing error slots,
+      plus the new `RetryNoteButton`).
+    - The changed tasks on the Trigger.dev worker. The user's dev worker
+      picks them up on its next rebuild; the deployment needs
+      `npm run trigger:deploy`.
+
+- **Feature 26: job recovery and clean-up (2026-09-30).** It fixes audit
+  findings V2, V3, R8 and part of R5. It was built alongside feature 25
+  (session lms-c0), coordinated over cross-session messages; it has no
+  schema change or migration.
+  - **Stuck videos (V2):**
+    - `lib/video/recovery.ts` (pure, 12 tests) holds the rule.
+      `stuckVideoError`: a video still `processing` whose latest run
+      ended without completing (failed, crashed, cancelled or expired) is
+      stuck. A failed run's own message is kept.
+      `videoEditorControls`: what the editor shows.
+    - `lib/db/videos.ts` is shared by the web app and the task:
+      - `failProcessingVideo` moves only a `processing` row to failed.
+      - `restoreLessonStatus` puts a processing lesson back to ready (if
+        it has a ready video) or draft. A published lesson is never
+        touched.
+    - **Queueing fails:** `startVideoProcessing` catches `startJob`, marks
+      the video failed ("Processing couldn't start. Try again."), restores
+      the lesson and returns an error. `recordUpload` returns it, and
+      `confirmUpload` hands it to the uploader. The uploader then
+      refreshes the page, which offers Retry.
+    - **Retry:** `retryVideoProcessingRun` queues the run first and only
+      then sets the video back to `processing` (see Architecture
+      Decisions). If queueing fails, the video stays failed and says so.
+      `retryVideo` now returns an `ActionResult`.
+    - **The run ended, the video didn't:** `getLessonVideoState` applies
+      the rule on every editor load (documents already did this) and
+      returns the restored lesson status for the header badge.
+    - **Task side:**
+      - `video-process` got `onFailure` and `onCancel` hooks that fail a
+        still-processing video and restore the lesson.
+      - A crash or out-of-memory skips hooks; the editor catches those.
+      - `ingest-document` and `generate-podcast` already failed their
+        own rows in `onFailure`. The document and podcast views already
+        reconcile runs that were cancelled or crashed.
+  - **Lesson editor:**
+    - Retry shows whenever the newest video failed. It's a card with the
+      new `RetryNotice` (`components/jobs/retry-notice.tsx`), which is
+      also JobProgress's failed block, keeping feature 25's refusal
+      message.
+    - The uploader shows unless a run is working on the video, so a stuck
+      row can always be replaced.
+  - **Job expiry and the offline hint (V3):**
+    - `startJob` passes `ttl` (`DEFAULT_JOB_TTL` = "30m"). An expired run
+      is reconciled like a cancelled one.
+    - `JobProgress` shows "Processing hasn't started. The background worker
+      may be offline." once the Realtime run has been queued for 3
+      minutes. In `next dev` it adds "Run `npm run dev:all`."
+  - **Deleting content (R8):** `deleteLesson` and `deleteModule` now work
+    in `deleteNote`'s order:
+    1. `lessonLeftovers` (`lib/db/lesson-cleanup.ts`, one batch) collects
+       the Blob URLs of videos, posters, captions, documents and podcasts,
+       plus the unfinished jobs of the lessons, their videos, documents
+       and podcasts.
+    2. Cancel the jobs.
+    3. Delete the rows.
+    4. `deleteBlobs`, best effort. It still skips the demo lecture's
+       files.
+  - **Trigger.dev:** `runtime: "node-22"` (it was plain `node`, which is
+    Node 21).
+  - **Document downloads (part of R5):**
+    - PDF and DOCX stream to a temp file (`downloadTo`), then are read
+      once at their exact size.
+    - `ingestPdf` and `ingestDocx` also take bytes, so pdf.js keeps no
+      second copy.
+    - A failed download says "Couldn't download the file. Upload it
+      again."
+  - **Tests:** 12 new unit tests. Full suite 421/421. Lint and `tsc` are
+    clean. The build and `check:secrets` pass.
+  - **Verified against the real database, Blob and Trigger.dev dev (28
+    checks).** Temporary lessons, a module, files and runs were all
+    removed afterwards.
+    - Wrong `TRIGGER_SECRET_KEY` (401 "Invalid API key"):
+      - Upload start returns "The video uploaded, but processing couldn't
+        start…".
+      - The video is failed with "Processing couldn't start. Try again.",
+        and the lesson is back to draft.
+      - The editor offers Retry and the uploader.
+      - A retry with the key still wrong is refused, and the video stays
+        failed.
+    - A delayed run, then cancelled:
+      - While it waited, nothing was reconciled and the uploader was
+        hidden.
+      - Afterwards the job read `canceled`, the video failed, and the
+        lesson went back to draft.
+      - A second load changed nothing.
+      - For a published lesson, the video failed and the lesson stayed
+        published.
+    - **A live run on the owner's dev worker:** a generated 40 s
+      H.264/AAC clip was uploaded to Blob, and the run was cancelled
+      while executing. Before any page load, the video was already failed
+      and the lesson back to draft, so the new task hook ran on the
+      worker. The run carried `ttl: "30m"`.
+    - **Delete lesson:** it collected 5 files (video, poster, captions,
+      document, podcast) and 2 queued runs. After the steps, `headBlob`
+      returned nothing for each file, both runs were `CANCELED` on
+      Trigger.dev, and the jobs rows read `canceled`.
+    - **Delete module:** it collected both lessons' files and a lesson
+      run, and nothing from outside the module. The files were gone and
+      the run cancelled.
+  - **Verified over HTTP on the running dev server (10 checks),** as the
+    demo admin with a Clerk session (revoked afterwards):
+    - A video whose processing couldn't start renders the message, Try
+      again and "Choose a video".
+    - A video stuck behind a cancelled run was reconciled by the page
+      load: the video failed, the lesson went to draft, the header badge
+      read Draft, and there was no progress card.
+  - **Document memory, measured locally** with a generated 143 MB, 30-page
+    PDF:
+    - Old path: peak RSS +440 to +700 MB, `arrayBuffers` up to 562 MB.
+    - New path: +147 MB, `arrayBuffers` 143 MB (exactly one copy).
+    - DOCX (4 mammoth fixtures) and PDF text are identical from bytes
+      and from a Blob.
+  - **Not verified:**
+    - **`trigger deploy --dry-run` on node-22:** the owner's dev worker
+      was running, and a dry run's clean-up once deleted its bundle.
+    - **Live TTL expiry:** it needs the worker stopped for 30 minutes.
+      The TTL on the run and the reconcile path were both checked.
+    - **A 150 MB PDF on a real `small-1x` machine** (512 MB): only
+      measured locally.
+    - **In a browser:** clicking Retry, the uploader's error, the builder's
+      Delete buttons, and the offline hint appearing after 3 minutes.
+  - Not built: the optional weekly sweep of stale `uploading` rows and
+    orphaned blobs (task 3 says optional; each Blob `list()` is an
+    advanced operation).
+
+- **Feature 27: course-building flow (2026-09-30).** It fixes audit
+  findings V1, V4, V5, V6, N1, N2, N7 and N8. There is no schema change or
+  migration. It was built while lms-97 started feature 29, coordinated
+  over cross-session messages. Both spec decisions were taken as
+  recommended (Open Questions).
+  - **Upload lecture (V1):**
+    - A Primary `xs` button on each module header (the one exception to
+      the single-Terracotta rule, now in `ui-context.md`) opens
+      `UploadLectureDialog`.
+    - In the dialog: choose the MP4, and the title is filled in from the
+      file name (`titleFromVideoName`). Then press Upload.
+    - `startLectureUpload` checks the file, then makes the video lesson
+      and its `uploading` videos row in one batch, with both audit rows. A
+      refused file leaves nothing behind.
+    - The upload runs in the dialog. The dialog won't close, and leaving
+      the page asks first, until processing has started. Then it opens the
+      lesson's editor, where the progress shows.
+    - If the upload fails after the lesson was made, the dialog offers
+      "Open the lesson" to try again there.
+    - `VideoUploader` is now `useVideoUpload` (check → prepare → Blob) plus
+      `VideoDropZone`, shared by the editor and the dialog.
+    - `prepareVideoUpload` returns the lesson id too, so both prepares have
+      one shape.
+  - **New lessons (N1):** `addLesson` returns the id, and the builder
+    opens the editor, for every type.
+  - **Easier to find:**
+    - The row's "Upload video" is a Secondary button. It shows for any
+      video lesson without a ready video, whatever its status. The facts
+      come from `lessonBuilderFacts`.
+    - The type select has a visible "Type" label.
+    - With Video chosen, the form says "You upload the video next: MP4
+      (H.264 video, AAC audio), up to 2 GB and 60 minutes".
+  - **One Publish (V4, N2):**
+    - `publishLessonWithContent` (`lib/courses/publish.ts`) is used by
+      both `setLessonPublished` and the review screen's `publishLesson`.
+      The lesson and its drafted notes, flashcards and quiz go live in one
+      batch, audited as `lesson.published_with_content` with `via`, then
+      the index is queued.
+    - `publishRefusal` refuses a lesson still processing, and a video
+      lesson without a ready video: "Upload and process the video first."
+    - The row's Publish opens `PublishLessonDialog`. It lists what goes
+      live ("The lesson · Its notes · 31 flashcards · 24 quiz questions"),
+      links to the review, and warns when the module is a draft. For a
+      refused lesson it shows the reason and an "Upload video" link.
+    - Unpublish is unchanged.
+    - The course page's draft banner has "Publish the course and all its
+      modules" (`publishCourseWithModules`, audited
+      `course.published_with_modules`). Lessons still go one by one.
+  - **Lesson types (V5):**
+    - `ADDABLE_LESSON_KINDS` is video, reading and assignment. `addLesson`
+      refuses quiz. The enum is unchanged, so the seed's existing "Practice
+      set" quiz lesson still works as before.
+    - The row's new "⋯" menu has **Change type…** (`ChangeTypeDialog`).
+      `changeLessonType` checks emptiness in the UPDATE itself: no video,
+      documents, assignment, chapters, notes, cards, questions, graded
+      quizzes or podcasts (`lessonInUse`). A lesson that becomes a Video
+      lesson goes back to draft. On a lesson with content, the dialog
+      explains why it can't change.
+    - On non-video lessons, the documents card says "upload its audio
+      instead. For a lecture video, create a Video lesson."
+  - **Review screen (N7):**
+    - "Review and publish" is the Primary button in both AI drafts cards.
+    - A breadcrumb (Course › Module › Lesson › Review) replaces the back
+      link. The new `components/shell/breadcrumbs.tsx` is ready for
+      feature 28.
+    - The stale "Students study them in a later update" is gone.
+  - **Get your course live (N8):**
+    - `setupSteps` (pure, `lib/courses/setup.ts`) has six steps:
+      1. Details: the summary is filled in.
+      2. A module.
+      3. A lecture: a video lesson with a ready video.
+      4. Review: a lecture has AI content and no drafts left.
+      5. Publish: such a lesson is live, in a published module and a
+         published course.
+      6. Students: active enrollments.
+    - `courseSetupFacts` works them out in one query. Admins get links to
+      Enrollments; instructors get "An admin enrolls students…".
+    - `SetupChecklist` shows on `/instructor` for the newest unfinished
+      course the viewer is on the staff of, and on the course page. Admins
+      see only their own courses there, not everyone's.
+    - On the course page, steps done right there get no link to the same
+      page. "Add details" opens `?tab=details`.
+    - Hiding it is remembered per course in `localStorage`
+      (`useSyncExternalStore`, so it hydrates cleanly).
+    - The "Start your first course" empty state moved to the top of the
+      overview.
+  - **MP4 check (V6):** `videoFileProblem` (`lib/video/upload-check.ts`)
+    runs in the browser and in both prepares. A `.mp4` passes with any
+    browser type, and Blob always gets `video/mp4`.
+  - **Seed:**
+    - A fresh curriculum has only the lecture published (by
+      `seedLecture`), plus the reading and assignment lessons. The
+      Matrices module is a draft, and the practice set is a reading lesson.
+    - Every run now puts any published video lesson without a ready video
+      in the demo course back to draft, with a module left with nothing
+      published (`draftVideoLessonsWithoutVideo`).
+    - On the dev DB it drafted "What is a vector?", "Matrix
+      multiplication", "Inverses and determinants" and the Matrices module.
+      A second run changed nothing.
+  - **Found on the way:**
+    - `/admin/users` failed axe (critical): the "At AI limit" link had
+      `aria-pressed`. It now has `aria-current`, like the role filters.
+      That was feature 25's code.
+    - `Button asChild` drops `leading` (the Gradebook button has no icon
+      either). Noted in `ui-context.md`; the primitive is unchanged.
+    - `openCourseBuilder` in `e2e/support.ts` returned while the course
+      list's h1 was still showing. It now waits for the builder URL.
+  - **Tests:**
+    - 18 new unit tests (`lib/courses/courses.test.ts`,
+      `lib/video/upload-check.test.ts`). The suite is at 439/439.
+    - Lint and `tsc` are clean. The build and `check:secrets` pass.
+  - **Verified (production build on :3100, installed Chrome):**
+    - `e2e/builder.spec.ts`, 3/3:
+      - An upload is running 3 clicks from the course page, from a
+        `.mp4` with an empty type. The title was filled in, and the Blob
+        requests were held.
+      - "Add lesson" opened the new reading lesson's editor, with the new
+        documents copy. The type options are exactly Video, Reading and
+        Assignment.
+      - Change type worked on the empty lesson and was refused on the
+        lecture.
+      - Publish on "Diagonalisation" showed "Upload and process the video
+        first."
+      - The review breadcrumb works.
+      - axe is clean on the builder, the dialog and the review screen.
+      - The test modules were gone afterwards.
+    - The demo suite: 7 passed; 2 and 8 skipped as designed (no
+      `E2E_UPLOAD`).
+    - a11y: all pass, `/instructor` with the checklist included. The
+      player's keyboard test failed once while the video loaded and passed
+      on a re-run.
+    - **Same rows published, over HTTP:** two identical draft video
+      lessons (a ready video, a segment, a chapter, a note, 2 cards and 2
+      questions, all drafts) went through the real `setLessonPublished`
+      and `publishLesson` as the demo admin.
+      - Both came out published, with a `publishedAt`, and every note,
+        card and question published.
+      - Audit rows: `via: builder` and `via: review`.
+      - A third lesson (video, no video) was refused with the V4 message.
+      - `deleteModule` cleaned up.
+      - The owner's dev worker ran three of the four `index-lesson` runs
+        (one segment each) before the delete.
+    - **Checklist facts on the dev DB:** MATH 201 has all six steps done
+      (hidden). The empty 28-Sep course "MATHS" is at 0 of 6, with
+      details current, and shows on Meera's overview.
+    - Screenshots of the overview, builder, dialog and confirm step were
+      checked by eye.
+  - **Demo data:** the demo suite's changes were undone by running
+    `reset-demo.ts`'s activity steps without `resetAccounts()`, so no
+    Clerk sessions were signed out. The submission is back to ungraded,
+    and the question is open.
+  - **Not verified:**
+    - A real upload through the dialog to the lesson editor
+      (`E2E_UPLOAD=1` with the worker): the test has that path, but it
+      wasn't run.
+    - The `beforeunload` prompt by hand.
+    - Phones: the builder's rows wrap, but no 390px check was run.
+
+- **Feature 28: navigation and wayfinding (2026-09-30).** It fixes audit
+  findings N3, N4, N5, N6, N9 and N10. There is no schema change or
+  migration. It was built alongside lms-97 (feature 29) and lms-db
+  (feature 30), coordinated over cross-session messages: lms-97 handed
+  over the player, builder, editor and review pages page by page. The
+  "Study" decision was taken as recommended (Open Questions). The "As
+  built" nav table is in `ui-context.md` → Navigation.
+  - **Student view for staff (N3):**
+    - "View as student" is in the staff sidebar footer, the account menu
+      and the staff phone menu, and there's a button on the course
+      builder.
+    - It goes to `/instructor/view-as-student`, which opens the course
+      page of the course they teach (`taughtCourses`, new
+      `lib/db/navigation.ts`). With one published course, or only one
+      course, it goes straight there; otherwise they pick.
+    - `(topnav)` now admits instructors. The course page and its assistant
+      send an instructor who isn't on the course's staff to `/instructor`.
+    - A Student view banner (Butter strip, "Back to Teaching") shows on
+      the course pages, the lesson preview (a new
+      `(focus)/courses/[courseId]/layout.tsx`, back to that course's
+      builder) and, for admins, the student sidebar pages.
+    - Staff on the student sidebar get "Teaching home" instead of Home.
+      Student Home still redirects staff, now with that label explaining
+      where it goes.
+    - The player's back links needed no change: once staff get in, "Back
+      to course" opens, and the preview's header goes to the lesson
+      editor.
+  - **Admin area:**
+    - Admins get the Teaching / Admin switch (`AreaSwitch`) in place of
+      the badge, and each side shows only its own nav. Instructors keep
+      the "Teaching mode" badge.
+    - Course titles on `/admin/courses` open the builder, and "Manage" is
+      now "Enrollments".
+  - **Course page (N4):**
+    - The top bar is a breadcrumb: "My courses › MATH 201", "Explore › …"
+      when not enrolled, "Teaching › …" for staff, and "› Assistant" on
+      the assistant.
+    - It lives in a new `(topnav)/courses/[courseId]/layout.tsx`. The shell
+      renders at once, and the breadcrumb streams in (Suspense) from
+      `courseDetailFor`, a React `cache()` around lms-97's
+      `loadCourseDetail`. So the page's skeleton isn't held up and no
+      query is added.
+    - "My courses" stays on phones (the breadcrumb wraps to its own row).
+    - Enrolled students get quick links: Discussions, Grades, Flashcards
+      (`/study?course=`), Calendar and Assistant.
+  - **Staff breadcrumbs:** course builder (Courses › MATH 201), lesson
+    editor, review (feature 27), new graded quiz, gradebook and the
+    grading item (Grading › MATH 201 · Assignment › Student).
+  - **Staff tools (N5):**
+    - The Grading empty state says "Set an assignment: add an Assignment
+      lesson to a course" and links to the course list.
+    - The builder's Gradebook is a Secondary button with its icon, next to
+      "View as student".
+  - **Labels (N6):**
+    - "My courses" everywhere ("My learning" is gone).
+    - "Explore" everywhere: the catalog's empty state and search label,
+      and the Subject hint.
+    - The teacher's "Messages" is "Questions": nav, page title, the
+      thread's back link and the overview's card and link. The route stays
+      `/instructor/messages`, so stored notification links still work.
+    - The student "Study" is "Flashcards": nav, page title and eyebrow.
+  - **Phones (N9):**
+    - The tab bar is Home, My courses, Flashcards and More.
+    - More is a new `TabBarButton` (in `components/ui/nav.tsx`; `TabBar`
+      takes an `extra` slot) that opens a bottom sheet: Explore, Calendar,
+      Discussions, Grades, My space and Profile.
+    - Profile lost its old "More" list and is also in the students'
+      account menu on desktop.
+    - `FocusHeader` renders the bell and the account menu. It reads the
+      user from lib/auth's per-request cache, so the player page didn't
+      change.
+  - **Unbuilt pages (N10):** Learners and Progress are out of the nav.
+    Their pages still exist for feature 31.
+  - **Also:** `Button asChild` drops `leading`, so the builder's and
+    editor's button icons now sit inside the link.
+  - **Tests:**
+    - `components/shell/nav-config.test.ts` (5): no placeholders, one name
+      per href, every student page in the tab bar or More, Teaching home
+      for staff, `isActive`. The suite is at 468/468 (with the other
+      sessions' tests).
+    - Lint and `tsc` are clean. The build passes.
+  - **Verified (production build on :3100, installed Chrome):**
+    - mobile: 5/5, including the new "every student page in two taps or
+      fewer at 390px" (each tab, then More → each page, no sideways
+      scroll, More marked active, axe on the open sheet) and "the
+      player's header has the bell and the account menu".
+      - The first run lost the machine's network part-way
+        (`ERR_INTERNET_DISCONNECTED` on localhost). Both tests passed on
+        a re-run.
+    - a11y: 7/7, now including the student course page with its
+      breadcrumb and quick links, `/admin/courses`, and Student view via
+      "View as student".
+    - builder: 3/3. The demo suite: 7 passed; 2 and 8 skipped as designed.
+    - **A non-admin instructor, over HTTP:** a temporary Clerk + Neon
+      instructor on MATH 201's staff (removed afterwards).
+      - View as student reached MATH 201. The course page opened with the
+        banner and no student quick links.
+      - The course they don't teach sent them to `/instructor` with none
+        of its curriculum. The lesson preview and the assistant opened.
+      - All 15 in-app links on those pages (plus the favicon) returned 200
+        with no redirect:
+        9 lessons, the course, its assistant, `/instructor`, the course
+        list, the builder and the lesson editor.
+      - With lms-97's loading.tsx files, a page's `redirect()` arrives
+        streamed (a 200 carrying NEXT_REDIRECT), which the browser
+        follows.
+    - Screenshots of the admin switch, Student view, the student course
+      page and the More sheet were checked by eye.
+  - **Demo data:** the demo suite's changes were undone with the
+    activity-only reset; no sessions were signed out.
+  - **Not verified:**
+    - The staff phone menu with the switch, by hand.
+    - A real instructor account in a browser. The HTTP check used a
+      bearer token, so the menus' client-side behaviour wasn't clicked as
+      that user.
+- **Feature 30, error handling and resilience (2026-09-30).** Built in
+  parallel with features 28 and 29 (sessions lms-5a and lms-97).
+  - **Safe server actions (R2):**
+    - `lib/utils/safe-action.ts`: `safeAction(name, fn)` catches a throw,
+      logs it with a six-character ref and returns
+      `fail("internal", "Something went wrong. Try again. (ref ab12cd)")`.
+      `redirect()`/`notFound()` pass through (`unstable_rethrow`).
+    - All 76 actions in 23 files are wrapped, `startDemoSession`
+      included. It now returns the standard `ActionResult`, and the demo
+      picker reads `res.error.message`. `/dev/jobs`'s two form actions
+      are left alone: they're dev-only and redirect.
+    - `ActionErrorCode` gains `internal`.
+    - `retryDocument` returns an `ActionResult`. `retryDocumentIngest`
+      says whether the run was queued, so the lesson editor and a
+      private note's "Try again" show "Reading this document couldn't be
+      started…" in place. `retryVideo` already returned one (feature 26).
+    - `settle()` (`lib/utils/action-result.ts`) turns a request that
+      never arrives into the same inline failure. It wraps the awaited
+      calls in these components:
+      - the grade form, flashcard deck, hand-in and assignment forms;
+      - the graded-quiz form, notes tab and Mark complete;
+      - the Quiz tab (practice, and graded start, submit and review) and
+        the Podcast tab;
+      - the new-note dialog, delete-note button and document manager.
+      The builder's `useAction()` already caught.
+    - A test scans every `"use server"` file: each export must be
+      `safeAction("<its own name>", …)`.
+  - **Error pages (R3):**
+    - `ErrorView` gains a way home.
+    - New boundaries:
+      - `app/global-error.tsx`, with its own document; its fonts moved to
+        `app/fonts.ts`, shared with the root layout.
+      - `(student)/(focus)/error.tsx`, which draws a slim header back to
+        the course.
+      - `(student)/(topnav)/courses/[courseId]/error.tsx`, inside the
+        top-nav shell. The shell moved into that layout in feature 28.
+      - `(student)/(topnav)/error.tsx`, for when that layout itself
+        fails.
+      - `(auth)/error.tsx`, which draws the `AuthShell`.
+    - The instructor and admin pages link back to their own home.
+  - **Streaming time limits (R7):**
+    - Both assistant routes export `maxDuration = 300`.
+    - `answerStream` gives the answer 240 s, then sends "That took too
+      long. Try again." and aborts the engine.
+    - The engine's `withFallback` and `resilient()`'s backoff stop once
+      a caller's signal fires.
+    - The question stays saved, and nothing is saved after the limit.
+    - The stream's own failures are logged through `logServerError`.
+  - **One place for server errors (R1):**
+    - `lib/utils/server-error.ts` writes one JSON line: the route, path,
+      digest or ref, the Clerk id and the error with its cause.
+    - `instrumentation.ts → onRequestError` feeds it, once per failure.
+  - **Indexes (R12), migration 0019, applied to the dev DB:**
+    - `audit_log (created_at, id)` and `card_reviews (card_id)`.
+    - The dashboard's time indexes weren't added; the measurement is
+      under Architecture Decisions.
+  - **Retention (R12):**
+    - The daily `prune-old-rows` task (21:30 UTC) deletes read
+      notifications and finished jobs older than 90 days.
+    - Each entity keeps its newest run of each kind.
+    - The rules are in `lib/retention/rules.ts`, with tests; the SQL is
+      in `lib/db/retention.ts`.
+  - **"Drafts ready":** `notification_kind` gains `draft_ready`.
+    `video-process` calls `notifyDraftsReady(videoId)` after the four
+    drafts: one notice to the uploader, if they still teach the course,
+    linking to the review screen. It's keyed on the video.
+  - Docs: `architecture.md`, `code-standards.md`,
+    `security-architecture.md` (errors show a reference; logs are
+    treated like the database) and the runbook (migrate the demo branch
+    and redeploy the tasks once).
+  - **Verified:**
+    - Unit tests:
+      - `safeAction`, including redirect/notFound and the file scan;
+      - the log line, `clerkIdFromHeaders` and `firstReport`;
+      - `answerStream`: the time limit, dropped late text and the
+        messages;
+      - the engine and `resilient()` stopping on the caller's signal;
+      - the retention rules.
+    - **Production build, error pages in Chrome** (temporary throwing
+      pages in each shell, deleted afterwards):
+      - Sidebar, focus, top nav, instructor, admin and sign-in each
+        showed their error page with their own navigation, "Try again"
+        and the right way home.
+      - Each page's Ref equalled the digest on its single
+        `onRequestError` line, which carried the route, the path, the
+        Clerk id and the original error.
+      - The raw message never reached the browser. "Try again"
+        re-requested the page.
+    - **Production build with the database unreachable:**
+      - `rateCard` over HTTP answered
+        `{"ok":false,"error":{"code":"internal","message":"Something went wrong. Try again. (ref e0f230)"}}`.
+      - One log line with the same ref, `"route":"rateCard"`, the user
+        and Neon's "fetch failed" cause, and no error page.
+      - A page whose layouts failed showed the root error page in Chrome,
+        with its Ref equal to the single log line's digest.
+      - The first run found two problems, both fixed and re-checked on a
+        fresh build: the action was logged as "anonymous action", and a
+        page's failure was logged three times.
+    - **Against the dev DB:**
+      - `pruneOldRows` deleted exactly the old read notice and the two
+        superseded old jobs of nine fixtures. It kept the unread and
+        recent notices, the running job, each newest run and a run that
+        finished inside the window.
+      - `notifyDraftsReady` sent one `draft_ready` notice with the review
+        link, nothing on a second call, and nothing for an unknown video.
+      - The fixtures were removed afterwards.
+  - **Not verified:**
+    - A real 240 s timeout (covered by the unit test with a short limit).
+    - `global-error.tsx` at runtime: the root layout never failed in the
+      checks.
+    - A full upload through the dev worker ending in the drafts notice.
+      That needs `npm run dev:all`, which runs in your terminal.
+
+- **Feature 29: performance, software only (2026-09-30).** It covers
+  `report.md` section 7. No schema change or migration. It was built
+  alongside lms-5a (features 27 and 28) and lms-db (feature 30),
+  coordinated over cross-session messages.
+  - **Query counter:** `DB_LOG=1` (`lib/db/query-log.ts`, through
+    Neon's `fetchFunction`). It logs each Neon request with its
+    statement count, time, offset and round-trip number, grouped per page
+    render (React `cache()`), or by time outside a render. Optional in
+    `lib/env.ts` and `example.env`.
+  - **One batch per page.** The loaders are in `lib/db/`: `course-page.ts`
+    (`loadCourseDetail`, cached as `courseDetailFor` for feature 28's
+    breadcrumb), `player.ts`, `builder-page.ts`, `lesson-editor.ts`,
+    `lesson-review.ts`, `dashboard.ts` (`loadDashboard`), `study.ts`
+    (`loadStudyPage`) and `components/student/load-courses.ts`
+    (`loadStudentHome`).
+    - Domain modules export `*Query(ies)` builders and `to*` shapers
+      beside their old functions. `BatchRows<T>` types the rows.
+    - `getCourseForUser` is one batch (it was two round trips).
+    - Statements batched with the access check carry their own guard:
+      `canSeeCourse`, `isStaffOf`, `inCatalogCourse`.
+    - `requireCourseStaff` was dropped where `getCourseForUser` or
+      `getLessonForUser` already decides staff access (the builder, the
+      lesson editor, the review page).
+    - Reads that used to wait for another now go through subqueries:
+      transcript lines through the live video, chat turns through the
+      newest thread, the assignment work in one join, the home page's
+      progress through the enrollment subquery, the dashboard through
+      the staff subquery.
+    - The review page: one `DISTINCT ON (kind)` statement for the four
+      generate-* jobs. `draftSourceModeQuery` replaces
+      `loadDraftSource`, so the whole transcript is no longer downloaded.
+  - **Round trips before render,** measured with `DB_LOG=1` on a
+    production build (before is the spec's count):
+
+    | Page | Before | After |
+    |---|---|---|
+    | Course page | 5 in sequence | 2 (user, 1 batch of 7) |
+    | Course builder | 4 | 2 (user, 1 batch of 6) |
+    | Lesson editor | at least 6 | 3 (user, lesson gate, 1 batch of 9) |
+    | Review page | 5–7 | 3 (user, lesson gate, 1 batch of 7) |
+    | Lesson player | 4 in sequence, ~22 requests | 3 (user, lesson gate, 1 batch of 16); the closed tabs' batch of 10 streams in after |
+    | Student home | 3 | 2 (user, 1 batch of 4) |
+    | Teacher dashboard | 3 | 2 (user, 1 batch of 6) |
+    | Assistant, before retrieval | 6–7 | 3 (user, course + usage batch, the locked question batch) |
+
+    Measured times with a warm connection: the student home 0.76 s, the
+    course builder 0.78 s, the lesson editor 1.0 s, the dashboard 1.0 s
+    and the assistant page 1.1 s to the last byte; the first byte came in
+    0.33–0.45 s. A page whose first request opened a new connection took
+    ~1.1 s longer per new connection: the course page 3.0 s, /study 3.9 s,
+    and the player 5.4 s to its last streamed tab.
+  - **Loading:**
+    - `Skeleton`, `SkeletonText`, `SkeletonCard` and `SkeletonRegion`
+      are in `components/ui/skeleton.tsx`, in `/dev/ui` ("Loading") and
+      in `ui-context.md`. The pulse is `motion-safe:`.
+    - There's a `loading.tsx` in `(student)/(sidebar)`,
+      `(topnav)/courses/[courseId]`, the lesson player, `instructor/`,
+      the lesson editor and `admin/`.
+    - `PendingBar` (`components/shell/pending-bar.tsx`, root layout)
+      starts on an in-app link click (`lib/utils/page-navigation.ts`)
+      and ends when the URL changes. `useLinkStatus` couldn't drive it:
+      it reports a single `<Link>`'s pending state, only to that link's
+      own children, and skips prefetched routes.
+    - `<Suspense>` wraps the player's closed tabs (Transcript,
+      Flashcards, Quiz, Podcast, Discussion: `loadPlayerPanels`, one
+      batch sent after the first) and the dashboard's grading list. The
+      tab counts and flags come from the first batch, which shrank from
+      103 KB to 65 KB. On this link a response's size costs about as much
+      as a round trip.
+    - Side effect: under a `loading.tsx`, `notFound()` and `redirect()`
+      stream, so the status is 200 (with `noindex`) and redirects are
+      followed by the browser. The same holds for missing and forbidden
+      pages; `security-architecture.md` says so.
+  - **Assistant (first word):**
+    - The course check and the day's usage count are one batch
+      (`courseForQuestion`, `checkCountedBudget`). Two parallel requests
+      would open a second connection.
+    - `ai_usage` inserts start without waiting inside
+      `backgroundUsageWrites().run()`, and `after()` keeps the function
+      alive until they land.
+    - The chunk search joins document titles in (`documentTitles` is
+      gone). It sends the ~30 KB query vector once per statement, not
+      three times: the vector list orders by a `distance` column, the
+      same index-served expression.
+    - For a new thread, the history read costs nothing extra: it's inside
+      the locked question batch (feature 25), which stays before any AI
+      work.
+    - Timed with `first-word.ts` (scratchpad), 8 runs each, alternating,
+      replaying the old and new sequences up to the model call:
+      median time to the model call 4,121 ms before and 2,879 ms after
+      (mean 4,240 → 3,214 ms). Setup (to the start of answer()): 2,054 →
+      1,052 ms.
+  - **Caching:** `dueCountsByCourse` is read once per request (a React
+    `cache()` box). `/study` reads it in its own batch and shares it with
+    the sidebar notice. The notice waits ~60 ms (`afterPageReads`), so the
+    page's batch gets the warm connection. The user lookup stays a
+    per-request `cache()`, with no `unstable_cache` or
+    `'use cache: private'`.
+  - **Fewer Trigger.dev calls:** `reconcileJob` calls `runs.retrieve` only
+    for a job row untouched for 3 minutes (`RECONCILE_AFTER_MS`).
+    `latestJobsFor` had passed the map index as the second argument; fixed.
+  - **A lighter player:**
+    - The Ask, Quiz and Podcast tab bodies load with `next/dynamic` from
+      `components/player/lazy-tabs.tsx`. Next splits code only for dynamic
+      imports made in a client component.
+    - Flashcards arrive as server-rendered HTML (`renderCards`); the deck
+      no longer imports `lib/markdown`. The rendered cards add ~120 KB raw
+      to the flight data (KaTeX markup, which compresses well) in place of
+      ~95 KB gzipped of JavaScript.
+  - **Tests:** 4 new unit test files (the counter, the click rule,
+    reconcile's 3-minute rule, background usage writes). Suite
+    57 files, 506 tests, all passing. Lint and `tsc` are clean. `npm run
+    build` passes, and `check:secrets` passes (72 files).
+  - **Checked against the real database** (`verify-loaders.ts`,
+    scratchpad), as the demo student, the demo admin and a non-enrolled
+    student:
+    - Every loader matches the per-function reads it replaced: curriculum,
+      deck, progress, thread, documents, work, the quiz/podcast/discussion
+      flags, playback, editor counts, review source and content, builder,
+      dashboard and `/study`.
+    - A non-enrolled student gets the catalog preview only. The builder
+      is a 404 for a student.
+  - **E2E:** only the perf project was run (17 runs across the two
+    builds); it passes. The a11y and mobile projects were not re-run after
+    the last changes: the owner stopped the session there. lms-5a's a11y
+    (7/7) and mobile runs passed earlier with the loading.tsx files and
+    the skeletons in place. The demo suite wasn't run.
+  - **Not verified:**
+    - The pending bar and the skeletons were not watched by eye on a slow
+      network; only their markup and the unit rule are checked.
+    - The deployed site (same-region app and database) wasn't measured.
+- **Feature 35, course deletion (2026-09-30).** Spec:
+  `features/feature-35-course-deletion.md`. The owner chose the
+  recommended rule.
+  - **The rule** (`lib/courses/delete.ts`, pure, tested): a course can go
+    only with no active enrollment, no submission, no submitted graded
+    attempt and no pending invitation. Otherwise the refusal says why,
+    and "Unpublish it instead". Only the course's staff (instructors and
+    admins) can delete it.
+  - **Data** (`lib/db/course-delete.ts`):
+    - `courseDeleteFacts` reads the counts.
+    - `deleteUnusedCourse` is one statement. It deletes the course only
+      if the same four checks still pass, deletes the notifications
+      linking into it, and writes the `course.delete` audit row (code,
+      title, modules, lessons, files, runs cancelled) only when the
+      course went.
+    - Everything else cascades. Submissions never do: the rule refuses
+      first, and their FK refuses too.
+  - **Actions** (`instructor/courses/actions.ts`): `courseDeleteCheck`
+    (what goes, or why not) and `deleteCourse` (typed code, the rule,
+    then the feature 26 order). `lessonLeftovers` takes `{ courseId }`.
+    The order:
+    1. cancel unfinished runs;
+    2. the guarded delete;
+    3. delete the Blob files.
+  - **UI:** "Delete this course" at the foot of the builder's Details tab
+    (`components/course-builder/delete-course.tsx`). The dialog asks the
+    server when it opens, so the page's single batch is unchanged. It
+    lists what goes, and Delete stays disabled until the course code is
+    typed (case and spaces don't matter). After deleting, it lands on
+    the course list with a toast.
+  - **Verified:**
+    - Unit tests: the rule, the contents list and the code match. The
+      safeAction file scan covers the two new actions.
+    - Dev DB, with a throwaway course: refused (by the facts and by the
+      delete statement) for an active student, a pending invitation, a
+      submission and a submitted graded attempt. Then deleted: the
+      course, sections, enrollments, staff, modules, lessons, documents
+      and assignments all gone. Notices into the course went and others
+      stayed, and there was one audit row. A second delete found nothing.
+    - Chrome, production build, as the demo admin: MATH 201 was refused
+      ("1 student is enrolled…", no confirm box). A throwaway course
+      listed "1 module and 1 lesson…", kept Delete disabled for a wrong
+      code, and was deleted. The page landed on the course list with
+      "… was deleted.", and the row and its audit entry were in the
+      database. The test rows were removed afterwards.
+    - Build, lint, check:secrets and 513 unit tests pass.
+  - **Not verified:** deleting a course whose lessons have real Blob files
+    and a running job. That path is the same `lessonLeftovers` → cancel →
+    `deleteBlobs` code the module delete uses (feature 26).
+- **Feature 31, Learners and Progress pages (2026-09-30).** Spec:
+  `features/feature-31-learners-progress.md`. It was built alongside
+  lms-db (feature 35), lms-42 (feature 33) and lms-00 (feature 34). No
+  schema change or migration. The spec's decision was taken as
+  recommended: teachers don't see a count of a student's assistant
+  questions.
+  - **Rules** (`lib/progress/`, pure, tested):
+    - `learners.ts`: a table row per student and the course's average
+      completion. It uses `learnerCompletion`, new in
+      `lib/dashboard/stats.ts`, the dashboard's rule, so a course's
+      average here equals its dashboard completion. The CSV goes through
+      `lib/coursework/csv.ts`, and its name through `csvFileName`
+      (shared with the gradebook now).
+    - `report.ts`:
+      - per-lesson state (done, started with "% watched" for a video,
+        not started), grouped by module;
+      - mastery per topic across the course through
+        `lib/study/mastery.ts`, where a topic asked in two lessons is one
+        topic, placed where it's first taught;
+      - the student's grades so far (the `/grades` total, plus graded,
+        waiting, missing and open counts).
+    - `next-up.ts`: one suggestion. In order: work due within three days
+      that isn't handed in, the lesson "Continue learning" opens (in the
+      course watched most recently), the weakest topic under 50% (at its
+      moment in the video), else "all caught up".
+  - **Data** (`lib/db/learners.ts`, one `db.batch` per page after the
+    user lookup):
+    - `loadLearners` (every taught course) and `courseLearners` (one
+      course) put the staff check in a course-id subquery. Each row's
+      numbers are correlated subqueries over the course's published
+      lessons.
+    - `loadStudentReport`: every statement carries "teaches the course"
+      and "student actively enrolled".
+    - `loadProgress`: only the viewer's own rows, through the
+      `enrolledCourses` subquery (now exported from `progress.ts`).
+    - Reads that had to become batchable got `*Queries` builders and
+      `to*` shapers beside the old functions, which still work:
+      `gradebookQueries` (with `student`, `guard` and `publishedOnly`),
+      `studentGradeQueries` and `weightRowsQuery` in `grades.ts`.
+  - **Routes:**
+    - `/instructor/learners`: a table per course. Courses without
+      students show an empty state.
+    - The builder's **Students** tab (`?tab=students`, with the student
+      count). Its batch is sent after the page's and streams in behind
+      Suspense, the feature 29 pattern.
+    - `/instructor/courses/[id]/students/[studentId]`: the report. Stat
+      cards, lessons, mastery, and grades with the gradebook's cells.
+    - `/instructor/courses/[id]/students/export`: the CSV. No ".csv" in
+      the path, like the gradebook's.
+    - `/progress`: the Next up card (the page's one Terracotta action;
+      Butter when work is due), then a card per course.
+  - **Components:** `components/learners/course-learners.tsx` (the
+    table), `components/progress/` (lesson list, topic mastery, next up,
+    course card), and `components/coursework/gradebook-cell.tsx`, moved
+    out of the gradebook page so the report shows the same cells.
+  - **Nav:** Learners (teaching sidebar, after Courses). Progress
+    (student sidebar after Grades, and the phone's More sheet).
+    `nav-config.test.ts` checks both.
+  - **Verified:**
+    - Unit tests: 19 new (`lib/progress/progress.test.ts`). The full
+      suite is 61 files, 543 tests. Lint and `tsc` are clean. The build
+      passes, and `check:secrets` passes (76 files).
+    - **Against the dev DB** (`verify31.ts` in the scratchpad, 34/34):
+      - Every number for the demo student equals hand-written SQL. That
+        covers the table row, the report's lessons, mastery and grades,
+        and `/progress`. The seeded activity includes a completed watch
+        of a draft lesson, which isn't counted but is the last activity,
+        and an unsubmitted attempt, which isn't averaged.
+      - MATH 201's average equals the dashboard's completion.
+      - A temporary course covered the other cases: a missing
+        assignment, a returned grade, a draft grade (handed in, not
+        graded), a student in two sections, a draft lesson's overdue
+        assignment (never missing) and a formula-looking name in the CSV.
+      - Access: a temporary instructor saw only their own course. The
+        other course's table and report were null for them, and a
+        student saw nothing through the staff loaders. Two temporary
+        students' `/progress` showed only their own work.
+      - Everything created was deleted.
+    - **Over HTTP on a production build** (`http31.ts`, 28/28), as the
+      demo admin, the demo student and a temporary real Clerk instructor
+      of HISTORY101 only (deleted afterwards):
+      - The pages, the tab, the report and the CSV render with the right
+        numbers. The CSV has a BOM and the file name
+        `math-201-learners-<date>.csv`.
+      - For the temporary instructor, MATH 201's report and builder were
+        not found, and its CSV was a 404.
+      - The student is sent home from the staff pages and gets a 404 for
+        the CSV. A made-up or junk student id is not found.
+    - **axe:** `e2e/a11y.spec.ts` now also checks `/progress`,
+      `/instructor/learners` and a student report. The three axe tests
+      passed.
+    - **Screenshots** at 1440 and 390px, checked by eye. The first pass
+      found the report's and `/progress`'s two-column grids 7–32px wider
+      than a phone (long lesson titles). The columns are
+      `minmax(0, …)` now, and nothing scrolls sideways.
+    - The demo student's seeded activity was removed. So were the two
+      demo sessions the axe run opened through the picker.
+  - **Not verified:**
+    - A real instructor account clicking through in a browser: the HTTP
+      check used a bearer token.
+    - Many students or courses: the table's numbers are correlated
+      subqueries per row. They were fine for the demo's sizes, but a
+      500-student course wasn't measured.
+- **Feature 33, data export and account deletion (2026-09-30).** Spec:
+  `features/feature-33-data-export-deletion.md`, including its
+  "Implementation decisions". Both decisions were taken as recommended.
+  Feature 32 (private messages) was parked first, so nothing depends on
+  it.
+  - **Migration 0020:**
+    - `data_exports` (building/ready/failed, file, `expires_at`).
+    - `users.erased_at`.
+    - A delete rule on all ten foreign keys to `users` that had none:
+      `set null` for audit and AI usage actors and `createdBy` columns;
+      `cascade` for course staff, enrollments, submissions, grades and
+      announcements.
+  - **Export:**
+    - Profile → "Your data" (`components/account/data-export-card.tsx`,
+      action `requestDataExport`).
+    - The request is limited to 3 per 24 hours in one locked batch
+      (`createExportRequest`), and the `export-user-data` task (queue
+      `data-export`) builds the file.
+    - `userExportQueries` (`lib/db/data-export.ts`) makes fifteen
+      owner-scoped reads in one batch. `buildExportDocument`
+      (`lib/account/export-document.ts`, pure) shapes them:
+      - profile, enrollments, watch progress, lesson notes, card reviews;
+      - quiz attempts with their answers (never the answer key);
+      - submissions with links to their files, and returned grades;
+      - discussion threads and replies;
+      - private notes as Markdown with their sources;
+      - assistant chats.
+    - Files are linked through the access-checked routes on
+      `NEXT_PUBLIC_APP_URL`, never by Blob URL.
+    - `/exports/[id]` redirects the owner to the file until it expires
+      and gives everyone else a 404. The card follows the run live with
+      `JobProgress`.
+  - **Erase:**
+    - `markUserDeleted` is one statement: the audit row is written only
+      if it marked the row.
+    - `deleteAccount` then starts `erase-user` (queue `account-erase`,
+      key `user:{id}:erase`).
+    - `eraseUser` (`lib/account/erase.ts`) runs in this order:
+      1. cancel the person's unfinished runs;
+      2. one batch deletes private notes (with everything made from them),
+         documents, chunks, chats, lesson notes, card reviews, watch
+         progress, practice attempts, notifications, exports, course
+         staff rows and invitations to their email, drops their
+         enrollments, and anonymises the row;
+      3. delete the files: the rows' URLs plus everything listed under
+         `private/{userId}/` and `exports/{userId}/`.
+    - A Blob failure throws, so the task retries.
+    - The admin's **Delete user** (`/admin/users`) goes Clerk first, then
+      mark, then task. It refuses the admin's own account and, in demo
+      mode, the demo accounts. The dialog asks for the email, typed.
+    - The Clerk webhook's `user.deleted` does the same, minus Clerk. The
+      sync no longer updates a deleted row (`setWhere`), so a late
+      `user.updated` can't restore the name.
+  - **Daily clean-up** (`prune-old-rows`, `lib/account/cleanup.ts`, rules
+    `exportExpired` / `needsErase` in `lib/retention/rules.ts`): expired
+    exports go, file first, then row. A deleted account still not erased
+    after an hour is erased in place, 20 a run.
+  - `demo:reset` clears both demo accounts' exports (rows and files), and
+    puts `erased_at` back to null. The privacy page (feature 34) now
+    points students to Profile → "Prepare my data".
+  - **Verified:**
+    - Unit tests: rules, the export document and the retention rules. The
+      sync test now covers an erased row, and the safeAction scan covers
+      the two new actions. 566 tests pass. Lint, build and check:secrets
+      pass.
+    - Dev DB, scratch script:
+      - the demo student's export has every category and no other user's
+        email or any Blob URL;
+      - 5 parallel requests made exactly 3 exports;
+      - the owner gets the file, another user and an expired export get
+        nothing;
+      - a throwaway account's erase removed its notes, documents, chats,
+        lesson notes, watch progress, notifications, invitations, exports
+        and practice attempts. It kept the graded attempt and the thread,
+        dropped the enrollment and anonymised the row;
+      - `headBlob` is null for all three files, including a stray one no
+        row pointed at;
+      - a second erase was harmless, and a late sync left the row
+        anonymised;
+      - the account then hard-deleted cleanly under the new FK rules;
+      - the daily steps pruned an expired export and its file, and
+        erased an unfinished account.
+    - Chrome, production build on :3103 with the owner's dev worker:
+      - As the demo student: "Prepare my data" → ready → download
+        (307, `download=1`, the student's own JSON). The admin got a 404
+        on the same link.
+      - As the demo admin: Delete is disabled for the demo student ("The
+        demo accounts can't be deleted in demo mode.") and for themself.
+        For a throwaway Clerk account, the dialog stayed disabled for a
+        wrong email and enabled for the right one in any case. Deleting
+        removed the Clerk account, the worker's `erase-user` run
+        anonymised the row within seconds, and `user.delete` and
+        `user.erase` audit rows were written.
+      - `/profile` joined the axe list, and all 7 a11y tests pass.
+    - Everything the checks created was removed, the export files and the
+      sessions they opened included.
+  - **Not verified:**
+    - A real Clerk `user.deleted` webhook: it can't reach localhost. The
+      handler calls the same `deleteAccount` the admin path does.
+    - A person with a running job at deletion: `cancelJob` is the same
+      code the note and lesson deletes use.
+
+- **Feature 34, public landing page (2026-09-30).** Spec:
+  `features/feature-34-landing-page.md`. The public course list was taken
+  as recommended; the institute's details are placeholders until the owner
+  sets them (Open Questions). Built alongside features 31 and 33, with
+  builds taken in turns.
+  - **Routing** (`proxy.ts`):
+    - A signed-out `/` redirects to `/welcome`; a signed-in `/welcome`
+      redirects to `/`, which sends staff on to `/instructor`.
+    - Every other page still goes to `/sign-in?redirect_url=…`.
+    - The demo picker now returns there too (`safeReturnPath`,
+      `lib/utils/return-path.ts`: same origin only, never back to sign-in,
+      tested).
+    - Privacy and terms skip Clerk, and so does `/welcome` for a request
+      with no session cookie. The matcher leaves out `.txt`/`.xml` and the
+      share image.
+    - Reason: on Clerk's development instance (the demo deployment), every
+      cookieless request is otherwise sent round Clerk's "dev browser"
+      handshake, which loops for crawlers and link previews. It was found
+      with curl, and fixed before the build.
+  - **Pages** (`app/(public)/`, components in `components/landing/`):
+    - `/welcome`:
+      - the hero: the institute's name, "Lectures you can *ask questions
+        of.*", the tagline, **Sign in**, and **Try the demo** (a dialog with
+        the sign-in page's picker, `demoPickerProps`);
+      - five "what students get" cards, drawn in HTML from the app's own
+        patterns;
+      - this term's courses;
+      - how to join, with the office's contacts.
+    - `/privacy` and `/terms` state only what the system does. Feature 33
+      added the self-service export steps to privacy.
+    - A shared header and footer, and an `error.tsx` that keeps them.
+    - The sign-in page's logo now links back to `/welcome`.
+  - **Data:** `listPublicCatalog` (`lib/db/catalog.ts`) selects only the
+    title, summary, cover tint, instructor, lesson count and length, with
+    up to 12 courses and a total. No id, code or outcomes.
+  - **Static:**
+    - `/welcome` has `revalidate = 3600`. At build, a failed read builds
+      the page without the list and warns. A failed regeneration throws, so
+      the last good page stays. (`NEXT_PHASE` is inherited by the prerender
+      workers; checked in Next's source, not by forcing a failed build.)
+    - Privacy, terms, `robots.ts`, `sitemap.ts` and the share image are
+      fully static.
+  - **Settings:** `lib/institute.ts` reads `INSTITUTE_NAME` (required),
+    `INSTITUTE_TAGLINE`, `INSTITUTE_EMAIL` / `INSTITUTE_PHONE` (one
+    required: "contact the office") and `INSTITUTE_ADDRESS`.
+    - They're checked in `lib/env.ts`, documented in `example.env`, and
+      added to CI's env with `NEXT_PUBLIC_APP_URL`, because the build
+      needs them now.
+    - The build stops, naming the variable, if the name is missing.
+  - **SEO:** the title, description, canonical link, Open Graph and
+    Twitter tags, a 1200×630 share image (Instrument Serif TTFs in
+    `assets/fonts/instrument-serif/`, OFL), `robots.txt` (only the public
+    pages and `/`), and a sitemap of `/welcome`, `/privacy` and `/terms`.
+  - **Verified** (production build, `next start -p 3100`, installed
+    Chrome):
+    - The build lists `/welcome` as static with a 1-hour revalidate, and
+      the rest as static. The build made exactly 1 Neon request (the
+      course list, 111 ms).
+    - `DB_LOG=1`: 0 `[db]` lines over 20 requests to `/welcome`,
+      privacy, terms, robots, the sitemap and the share image. `/welcome`
+      answered in 10–17 ms (`x-nextjs-cache: HIT`,
+      `s-maxage=3600`).
+    - Playwright `landing` project, 9 tests, green three runs in a row:
+      - the redirects both ways, including staff to `/instructor`;
+      - "Try the demo" signing in from the dialog;
+      - a deep link to a course returning after sign-in, and the lesson and
+        assistant routes sending a signed-out browser to sign-in;
+      - no links in the course list;
+      - robots, the sitemap and the share tags, with the image a PNG;
+      - axe on `/welcome`, the dialog, privacy and terms;
+      - 390px with no sideways scroll;
+      - LCP 536, 480 and 424 ms (the test enforces 1.5 s).
+    - The a11y project's sign-in test still passes after the logo link.
+    - The 390px overflow (76px) and the hero drawing's overlap were found
+      in screenshots and fixed. Terracotta links on Oat measure 4.3:1, so
+      the footer and "How to join" sit on Cream and Paper.
+    - Lint, 566 unit tests, the build and `check:secrets` pass.
+    - The 17 demo sessions the runs opened were revoked.
+  - **Seen once, not from this feature:** in 1 of 4 runs of the staff
+    test, React error #419 ("switched to client rendering") was logged
+    while signing in as Admin and landing on `/instructor`. The student
+    home redirects staff with `redirect()` after its `loading.tsx` shell
+    has streamed (feature 29). A hard load of `/` as the admin didn't
+    reproduce it. Worth a look if it recurs.
+  - **Not verified:** the hourly regeneration itself (it would need an
+    hour, or a smaller `revalidate`), and link previews on a real chat app
+    (the tags and image are served without Clerk).
+
 ## In Progress
 
 - **Feature 23, hardening and demo polish (started 2026-09-29).** Local
@@ -1253,7 +2629,8 @@ Update this file after every meaningful implementation change.
     - Upload rate limit: students 30 an hour, staff 120, checked before a
       Blob token.
     - CI (`.github/workflows/ci.yml`): lint, unit tests, build, secret
-      check; e2e on demand against a URL.
+      check. The e2e job on demand was removed on 2026-09-30 (owner's
+      call: no e2e in CI); the suite runs locally.
   - **Accessibility:**
     - Captions on by default.
     - The player is a tab stop with its keys described.
@@ -1291,10 +2668,10 @@ Update this file after every meaningful implementation change.
     set graded, a question posted, a note, a card rating, a quiz attempt).
     `npm run demo:reset` puts it back.
   - **Still to do** (needs the owner's accounts and go-ahead): the
-    deployment per the runbook's one-time setup, Playwright against the
-    deployed URL (with `E2E_UPLOAD=1` and `E2E_ASSERT_LCP=1`), two
-    rehearsals with `demo:reset` in between, and a push so CI runs (with
-    the repository secrets set).
+    deployment per the runbook's one-time setup, a walk-through on the
+    deployed URL (Playwright can't sign in behind the demo passcode, and
+    the owner doesn't want e2e in CI), two rehearsals with `demo:reset` in
+    between, and a push so CI runs (with the repository secrets set).
 
 - **Running cost at demo usage (2026-09-29, for feature 23):**
   - **OpenRouter (from `ai_usage`):** $0.1436 for all 330 AI calls since
@@ -1405,7 +2782,8 @@ are the same plan grouped for reading.
 19. ~~Student private space: PDF/DOCX/URL/audio ingest tasks with an SSRF
     guard (the ingest task and the guard are done, feature 18), plus the
     NitroAI features on private notes.~~ Done (feature 19).
-20. `ai_usage` logging on every AI call (no quotas).
+20. ~~`ai_usage` logging on every AI call.~~ Done (feature 09), with a
+    daily limit per person since feature 25.
 
 **Phase 5: Coursework (demo step 9)**
 
@@ -1429,16 +2807,195 @@ are the same plan grouped for reading.
     demo script~~ (done locally, feature 23; the run against the
     deployment is still to do). A manual screen-reader pass (NVDA or
     VoiceOver) would still be worth doing before a real rollout.
-27. Data export and deletion.
+27. Data export and deletion (now feature 33).
+
+**Phase 7: Production readiness, software only (features 24–33)**
+
+These come from the audit in `report.md` (2026-09-29). There are no
+infrastructure or plan changes while the app is on free tiers. The specs
+are in `features/`.
+
+28. **P0**, before anyone outside the team gets the URL:
+    - ~~Feature 24: security lockdown. Covers demo mode, graded quiz
+      answers, the private-upload loophole, raw HTML in answers, the
+      startup config check and `security-architecture.md`.~~ Done
+      (2026-09-30).
+    - ~~Feature 25: AI spend guardrails. Covers the daily limit per
+      person, source length limits and race-proof rate limits.~~ Done
+      (2026-09-30).
+    - ~~Feature 26: job recovery and clean-up. Covers stuck "processing"
+      videos, job expiry, and files and jobs on delete.~~ Done
+      (2026-09-30).
+29. **P1:**
+    - ~~Feature 27: course-building flow. Covers "Upload lecture", one
+      Publish behaviour, lesson types and the setup checklist.~~ Done
+      (2026-09-30).
+    - ~~Feature 28: navigation and wayfinding.~~ Done (2026-09-30).
+    - ~~Feature 29: performance, software only.~~ Done (2026-09-30).
+    - ~~Feature 30: error handling and resilience.~~ Done (2026-09-30).
+    - ~~Feature 31: Learners and Progress pages.~~ Done (2026-09-30).
+    - ~~Feature 33: data export and account deletion.~~ Done
+      (2026-09-30).
+30. **New:**
+    - ~~Feature 32: private messages between a student and the course's
+      staff.~~ Parked: the owner removed it from the plan for now
+      (2026-09-30). The spec stays in `features/` in case it comes back.
+    - ~~Feature 34: a public landing page for signed-out visitors.~~ Done
+      (2026-09-30).
+    - ~~Loading screens (skeletons plus a pending bar) are part of
+      feature 29.~~ Done (2026-09-30).
+    - ~~Feature 35: course deletion (the owner's request).~~ Done
+      (2026-09-30).
+
+**Deferred until paid plans (infrastructure; not started on purpose)**
+
+- **Region:** move the database, functions and Blob store to Singapore.
+  - That means Neon `ap-southeast-1` (a new project, since a Neon
+    region is fixed when the project is created), Vercel `sin1` and a
+    `sin1` Blob store.
+  - Neon has no India region.
+  - Estimated effect: pages ~0.3–0.5 s for students in India.
+- **Video storage on Cloudflare R2.** Delivery (egress) is free, and it
+  gives private signed links (audit S6).
+  - It saves about $200+ a month at 500 students.
+  - Check Cloudflare's terms for serving video before switching.
+- **Paid plans:**
+  - Vercel Pro: Hobby is non-commercial only.
+  - Neon Launch: 7-day restore, and compute that stays awake.
+  - Trigger.dev Pro.
+  - Clerk Pro, if the branding must go.
+- **Paid-only AI chains.** The `:free` models share 20 requests a minute
+  and 1,000 a day per key, and NVIDIA's free endpoint logs prompts.
+- **Sentry** error reporting. Feature 30 put every server error through
+  one function, `logServerError` (`lib/utils/server-error.ts`): the
+  capture goes there, and nothing else changes.
+- **Bigger Trigger.dev machines** for ingest, faststart and transcription.
+- **Cost estimate:** see `report.md` section 8.
+  - About $245–360 a month for a typical 500-student month with R2.
+  - About $470–665 a month on Vercel Blob.
 
 ## Open Questions
 
+- **Neon connection cost (found in feature 29, 2026-09-30).** After
+  feature 29 the round trips are few, but each *new* HTTPS connection to
+  Neon costs ~1.1 s more than a warm one from India (TLS connect alone
+  1.5 s; a warm request 310 ms, a new one 1.4 s). Node's `fetch` speaks
+  HTTP/1.1, so a request sent beside another, or after ~4 s idle, opens
+  a new connection. Neon's endpoint offers HTTP/2 (ALPN `h2`).
+  - Proposed: give the Neon driver a `fetchFunction` backed by an undici
+    `Agent` with `allowH2: true` and a long keep-alive. Parallel requests
+    would then share one connection, and it would stay warm between page
+    views. It needs `undici` as a direct dependency (7.x is already
+    installed through another package).
+  - It changes the transport for every query, so it waits for the
+    owner's go-ahead. It isn't in feature 29's scope, and it's not the
+    deferred region move.
+
+- **Decisions for features 24–33** (each spec has a "Decision(s) needed"
+  section):
+  - ~~24: when graded quiz answers are revealed.~~ Decided: after the due
+    date, as recommended. Precisely, when the submit window closes (due
+    date + 10 minutes), so no attempt can still be submitted once answers
+    are visible.
+  - ~~25: approve the daily AI limit, which changes the "log only" scope,
+    and set the limits.~~ Taken as approved: the owner asked for feature
+    25 to be built as specified (2026-09-30). The suggested limits are the
+    defaults (students 150 calls and $0.25 a day, staff 1,000 and $3).
+    Each is an env variable, so it can change without a code change.
+  - ~~27: what the curriculum row's Publish does; removing the Quiz lesson
+    type.~~ Taken as recommended (2026-09-30), since the owner asked for
+    feature 27 as specified. The row's Publish publishes the lesson with
+    its drafted content after a confirm step that lists it. Quiz is gone
+    from the add-lesson and Change type lists, and existing quiz lessons
+    keep working.
+  - ~~28: rename "Study" to "Flashcards", or build a Study hub.~~ Taken as
+    recommended (2026-09-30), since the owner asked for feature 28 as
+    specified: renamed "Flashcards". A Study hub (due cards, quizzes and
+    podcasts across courses) can come later.
+  - ~~30: retention periods.~~ Taken as suggested (2026-09-30), since
+    the owner asked for feature 30 as specified: read notifications and
+    finished jobs go after 90 days; `ai_usage` and `audit_log` are kept.
+    One refinement: each entity keeps its newest run of each kind, because
+    pages read it for their state (a failed note's "Try again"). The 90
+    days is `RETENTION_DAYS` in `lib/retention/rules.ts`.
+  - ~~31: whether teachers see a count of each student's assistant
+    questions.~~ Taken as recommended (2026-09-30), since the owner asked
+    for feature 31 as specified: no. Nothing on the Learners pages reads
+    the assistant's chats, and "last activity" leaves them out too.
+  - ~~32: whether admins can read private messages; conversations with
+    subjects or one thread each.~~ On hold while feature 32 is parked.
+  - ~~33: what to keep of a deleted user's academic records and posts.~~
+    Decided as recommended (2026-09-30), since the owner asked for feature
+    33 with them: submissions, grades and graded quiz attempts stay with
+    the anonymised account; discussion posts stay under "Deleted user";
+    everything else private goes.
+  - ~~34: whether signed-out visitors see the course list (catalog fields
+    only).~~ Taken as recommended (2026-09-30), since the owner asked for
+    feature 34 as specified: yes, the published courses of the current
+    term with title, summary, instructor, lesson count and length only.
+  - **34: the institute's details, your action.** The name, tagline and
+    contact details are env settings (`INSTITUTE_*`, see `example.env`).
+    `.env.local` holds placeholders ("Studyhall Demo University",
+    `office@example.edu`). Replace them with the real ones, locally and on
+    the deployment, then rebuild. No logo was added: the page uses the
+    Studyhall mark. An institute logo would be a file in `public/` plus a
+    setting; say if it's wanted.
+
 - **Clerk Dashboard, your action:**
   - Add the session-token claim `{"metadata": "{{user.public_metadata}}"}`.
+    Still missing on 2026-09-30: a real account set to `admin` in Clerk
+    stayed `student` in the app until the 10-minute re-sync, so it
+    couldn't open the instructor or admin area. It was re-synced by hand.
+    The server now logs a warning while the claim is missing.
   - Before deploying, add the webhook endpoint and set
     `CLERK_WEBHOOK_SIGNING_SECRET`.
+  - The webhook must subscribe to `user.deleted` as well as
+    `user.created` and `user.updated`. Since feature 33, `user.deleted` is
+    what erases an account deleted in Clerk.
   - Details are in `features/feature-02-database-and-auth.md` under
     "Manual steps".
+
+- **Feature 31 decisions to confirm (2026-09-30):**
+  - **What each number counts.** Everything is over a course's published
+    lessons (module and lesson published), as on the dashboard.
+    - **Graded** means the grade was returned. A draft grade still reads
+      as "handed in".
+    - **Missing** means a published assignment is past its due date with
+      nothing handed in. Graded quizzes are left out of it, but they're
+      in the report's grades.
+    - **Average quiz score** is the mean of submitted attempts, practice
+      and graded, each 0–100%.
+  - **Last activity** is the latest watch, flashcard review, quiz or
+    hand-in in the course. Assistant questions are left out (the spec's
+    decision), and so are discussion posts. That differs from the
+    dashboard's "active this week", which counts both.
+  - **The report's grades show published work only.** The gradebook still
+    lists assignments on unpublished lessons, and marks them "Missing"
+    once past due. Should it skip them too?
+  - **Next up** order: work due within three days, then the lesson to
+    continue, then the weakest topic under 50%.
+  - **Only active enrollments are listed.** A dropped student's report is
+    a 404.
+
+- **Feature 33 follow-ups (2026-09-30):**
+  - **Instructors have no self-serve export.** The Profile page is for
+    students and admins (feature 28 sends instructors to `/instructor`),
+    so "Download my data" isn't reachable for them. Owner's call: add the
+    card to an instructor page, or have the office export for them.
+  - **Delete user in demo mode.** Anyone can be the admin in demo mode.
+    The spec protects only the demo accounts, so another account on a
+    demo deployment can still be deleted there. Refuse all deletes in demo
+    mode, as role changes are? It's the owner's call; today only the demo
+    accounts are refused.
+  - **Before the demo deployment works:**
+    - `npm run db:migrate` (0020) on the demo branch.
+    - `npm run trigger:deploy` (two new tasks, and `prune-old-rows`
+      changed).
+    - `NEXT_PUBLIC_APP_URL` in the Trigger.dev prod environment, for the
+      export's links.
+  - **Accounts deleted before feature 33** (`deleted_at` set, `erased_at`
+    null) will be erased by the next daily `prune-old-rows`, 20 a run.
+    That's intended: their private data should go.
 
 - **Demo lecture for the seed (feature 12), your action:** the seeded
   lecture is the 20-minute *test* video (a 5-minute vectors-and-span
@@ -1497,6 +3054,24 @@ are the same plan grouped for reading.
   after `npm run trigger:deploy`. The deploy creates its schedule from the
   task's `cron`; check it in the dashboard's Schedules page. The dev
   worker registers a dev copy of the schedule when it starts.
+- **Trigger.dev for feature 26, your action:**
+  - Stop `npm run dev:all`, then run `npm run trigger:deploy -- --dry-run`.
+    It should import every task on `node-22` with no Node 21 warning.
+  - Then run `npm run trigger:deploy`, so production gets Node 22, the
+    `video-process` failure and cancel hooks, and the disk-backed document
+    download.
+  - While the worker is stopped, the TTL can be seen live: upload a
+    video. After 3 minutes the offline hint shows; after 30 the run
+    expires, and the editor offers Retry and the uploader.
+- **Feature 26 decisions to confirm:**
+  - **30-minute TTL for every run** (the spec's default). It also covers
+    time spent waiting behind a queue's concurrency limit, e.g. a student's
+    own uploads. An expired run can be retried.
+  - **The uploader shows while a video is `processing` with no run at
+    all** (a crash between marking it and queueing). The spec's rule is
+    "whenever no job is running". A replacement upload then supersedes
+    it. Nothing marks such a row failed by age; that was the optional
+    sweep.
 - **Feature 22 decisions to confirm:**
   - **Active learners** = enrolled students who, in the last 7 days,
     watched, reviewed a card, took a quiz, asked the assistant, handed in
@@ -1527,8 +3102,9 @@ are the same plan grouped for reading.
   - **Invitations go through Clerk** (it sends the email). Accepting one
     enrolls the person on their first sign-in. The Clerk ticket flow on
     `/sign-up` hasn't been tried in a browser yet.
-  - **The Learners page** (instructor nav) isn't in any feature spec, so
-    it's still a placeholder. Should it be part of feature 23?
+  - ~~**The Learners page** (instructor nav) is still a placeholder. It is
+    now specified as feature 31, together with the student's `/progress`
+    page.~~ Built in feature 31 (2026-09-30).
 - **Feature 21 decisions to confirm:**
   - The whole class reads a discussion (a course Q&A forum), with names
     shown. The "Ask your instructor" dialog says so before posting.
@@ -1577,8 +3153,8 @@ are the same plan grouped for reading.
     - The Clerk webhook.
   - **Push** to GitHub, and set the repository secrets listed in
     `.github/workflows/ci.yml`, so CI runs.
-  - **Rehearse twice** with `npm run demo:reset` in between, and run the
-    suite against the deployed URL.
+  - **Rehearse twice** with `npm run demo:reset` in between. The
+    Playwright suite runs locally only.
 - **Feature 23 decisions to confirm:**
   - **The CSP allows `'unsafe-inline'` scripts** (the spec puts the
     policy in `next.config.ts`, which can't carry a per-request nonce).
@@ -1599,6 +3175,192 @@ are the same plan grouped for reading.
   commercial pitch (Pro)?
 
 ## Architecture Decisions
+
+- **Feature 34 decisions (2026-09-30):**
+  - **`/` redirects to `/welcome`, it doesn't rewrite.** The spec names
+    `/welcome`. One URL per page keeps the canonical link and the sitemap
+    simple, and "/" stays the student home.
+  - **Static with hourly ISR** (`revalidate = 3600`), not per-request
+    rendering. The course list changes rarely. Waking the free Neon
+    database at most once an hour, and only when someone visits, is
+    cheap. No on-demand revalidation on publish was added: a newly
+    published course shows within the hour.
+  - **A build that can't reach the database still succeeds.** The page
+    is built without its course list and logs a warning, and the next
+    regeneration fills the list in. A failed *regeneration* throws, so
+    the last good page keeps being served (`NEXT_PHASE` tells them apart).
+  - **Institute details are required settings, read at build.**
+    `INSTITUTE_NAME` is required, plus an email or a phone for "contact the
+    office". The build also stops without a name, so no page is baked
+    nameless. Changing them means a rebuild, like any static content.
+  - **Public course tiles aren't links.** A tile leads nowhere a
+    prospective student could open, and the query selects no id. Signed-in
+    students have the real catalog. There are at most 12 tiles, then "And N
+    more".
+  - **Drawings, not screenshots.** The "what students get" pictures are
+    the app's own UI patterns redrawn in HTML with the tokens. They stay
+    sharp at any size, weigh nothing, can't go stale with seeded data, and
+    show no one's name.
+  - **The share image uses Instrument Serif** from
+    `assets/fonts/instrument-serif/` (OFL 1.1, licence included), because
+    `next/og` bundles only Geist. It is made once, at build.
+  - **Clerk is skipped where it isn't needed** (`proxy.ts`): on privacy
+    and terms, on `/welcome` when there's no session cookie, and on
+    `robots.txt`, the sitemap and the share image. On Clerk's development
+    instance (the demo deployment), a cookieless request is otherwise sent
+    round the "dev browser" handshake, which loops for crawlers and link
+    previews. `/` still always asks Clerk.
+  - **The demo picker returns to the deep link** (`safeReturnPath`: same
+    origin, never back to sign-in), as Clerk's form does.
+  - **"Try the demo" is a dialog** holding the sign-in page's picker, with
+    the same passcode rule (`demoPickerProps`). It follows `DEMO_MODE` as it
+    was at build time.
+  - **Privacy and terms state only what the system does**, taken from
+    `architecture.md` and `security-architecture.md`: what's kept, who sees
+    it, the services, cookies and the 90-day pruning. They defer to the
+    institute's own policies. Feature 33 (lms-42) added the self-service
+    export steps to "Your data".
+
+- **Feature 31 decisions (2026-09-30):**
+  - **One set of facts for both roles.** The teacher's report and the
+    student's `/progress` read the same statements and shape them with
+    the same pure functions (`lib/progress/report.ts`), so they can't
+    disagree. The student's loader takes no student id: it can only read
+    the viewer.
+  - **Completion reuses the dashboard's rule** (`learnerCompletion` in
+    `lib/dashboard/stats.ts`). A course's average of the Learners
+    column is its dashboard completion, and the check compares them.
+  - **Access in a subquery of course ids.** The staff check lives in
+    `(select courses.id from courses where … staffPredicate …)`, and every
+    statement filters on it. The report's per-student statements also
+    carry "actively enrolled", as feature 29's `isStaffOf` guards do.
+  - **The Students tab streams.** The builder's batch is unchanged. The
+    table is a second batch, sent after it and awaited in Suspense, as
+    the player's closed tabs are.
+  - **Grid columns are `minmax(0, …)`** wherever a card holds truncated
+    text. A plain `fr` track grows to fit the longest title, which pushed
+    the report 32px wider than a phone.
+
+- **Feature 35 decisions (2026-09-30):**
+  - **Delete only what nobody depends on; no override, not even for
+    admins.** Grades and submissions are kept for audit (code standards),
+    so a course with work is unpublished instead. Dropped enrollments go
+    with the course; the audit log keeps their history.
+  - **A pending invitation blocks it,** so nobody signs up to find their
+    course gone. Withdraw it under Admin → Users.
+  - **The rule is checked inside the delete statement** (a data-modifying
+    CTE), with the audit row written by the same statement only when the
+    course went. A student enrolled between the dialog and the click
+    can't be deleted out from under.
+  - **The dialog fetches its facts through an action** rather than the
+    builder page's batch, so the page's round trips (feature 29) are
+    unchanged.
+
+- **Feature 30 decisions (2026-09-30):**
+  - **`safeAction` takes the action's name as a string:**
+    `export const x = safeAction("x", async (…) => {…})`. The first
+    version read the name from a named function expression, but the
+    production check logged `"anonymous action"`: the minifier strips
+    function names. A test scans every `"use server"` file for an
+    unwrapped action or a mismatched name. Only the header and the
+    closing line of each action changed, so none was re-indented.
+    Exported non-async values are allowed in a `"use server"` file as
+    long as they're functions, and bound actions (`retryVideo.bind`)
+    still work.
+  - **`onRequestError` logs a failure once.** Next reports it once per
+    segment that awaited it: a page and its two layouts waiting on the
+    same failed user lookup gave three identical lines. The same (digest,
+    path, user) within 5 s is logged once (`firstReport`). A retry's path
+    carries `?_rsc=`, so it's logged again.
+  - **`startDemoSession` now returns the standard `ActionResult`**, so it
+    could be wrapped like the rest. The two dev-only `/dev/jobs` form
+    actions aren't wrapped: they redirect, and their errors should reach
+    the error page.
+  - **`settle()` on the client too.** `safeAction` can't catch a request
+    that never reaches the server (offline, a new deploy). In a
+    transition that throw replaces the page, so callers that await an
+    action wrap it.
+  - **The user id in a request's log line** comes from the
+    `x-clerk-auth-token` header, the session token `clerkMiddleware`
+    verified and passed on. `onRequestError` can't call `auth()`. The id
+    is for the log only.
+  - **The time limit is a signal, not a smaller per-model timeout.**
+    `answerStream` owns one `AbortController` (240 s). The engine's
+    `withFallback` and `resilient()` stop once the caller's signal fires,
+    whatever the error. `answerStream` also races the deadline, so the
+    stream ends on time even if the retrieval embed (which doesn't take
+    the signal) is slow. Nothing is saved after the limit.
+  - **Retention keeps each entity's newest run of each kind.** Deleting
+    it would turn a failed private note into a "ready" one with no "Try
+    again", and blank the review screen's last-run state.
+  - **The dashboard's time indexes weren't added.** The spec made them
+    conditional on the query being slow. Measured on the dev database,
+    the whole 7-day activity query takes ~0.2 ms in Postgres; the ~300 ms
+    is the round trip. Four of the five would sit on hot tables:
+    `watch_progress` is updated every 15 s per viewer, and `card_reviews`
+    on every rating. Add them when `DB_LOG=1` or `EXPLAIN` shows this
+    query slow on real data.
+  - **`audit_log (created_at, id)`, not `(created_at)` alone:** the Audit
+    page orders and pages by both.
+
+- **Feature 25 decisions (2026-09-30):**
+  - **The daily limit is a rolling 24 hours, not a calendar day.** The
+    reset time is when enough of the oldest calls expire. There's no
+    midnight in a zone to agree on.
+  - **The time zone comes from a cookie.** The browser sets `tz` once
+    (`TimeZoneCookie`), so any server-written time can use the reader's
+    clock. It falls back to "UTC", labelled.
+  - **Race-proof limits abort in SQL.** `enforce_limit()` raises
+    SQLSTATE `SH429` inside the batch, after the person's advisory lock.
+    So the existing Drizzle inserts stay as they are, and nothing is
+    written over the limit. Conditional inserts would have needed raw SQL
+    for every table.
+  - **Counts come from the audit log** for new notes and discussion
+    posts, as for uploads, so deleting doesn't give a slot back.
+  - **Staff uploads aren't checked against the daily limit.** A lesson
+    video's pipeline and a lesson document's reading are still charged to
+    the uploader. The spec lists only what students and regenerate start.
+  - **`demo:reset` doesn't clear the limit:** `ai_usage` is the cost
+    record. The runbook says how to check it and raise it before a demo.
+
+- **Feature 26 decisions (2026-09-30):**
+  - **Stuck videos are reconciled in three places.** The task's
+    `onFailure` and `onCancel` hooks, `startVideoProcessing` when
+    queueing throws, and the editor's `getLessonVideoState` on every load.
+    A crash or out-of-memory skips the hooks, so the read-side check is
+    what guarantees recovery, as for documents.
+  - **A retry queues the run before marking the video `processing`.** In
+    the other order, an editor load in between would see a processing
+    video beside the old failed run and fail it again.
+  - **Only a `processing` row is failed, and only a `processing` lesson is
+    restored.** A finished, rejected or already-failed video is never
+    overwritten. A published lesson stays published, since it keeps
+    playing its live video.
+  - **Delete reads first, cancels, deletes rows, then files.** The
+    video, document and podcast rows cascade away with the lesson, so
+    their URLs and runs have to be collected beforehand. File deletion is
+    best effort after the rows are gone, as in `deleteNote`.
+  - **Documents are read once, at exact size.** A temp file plus
+    `readFile`, passed as a whole-buffer `Uint8Array`. A disk-backed Blob
+    was tried first: its `arrayBuffer()` still doubled the file in
+    memory.
+
+- **Feature 24 decisions (2026-09-30):**
+  - **Graded answers are revealed when submitting closes** (due date +
+    10 minutes), not at the due date itself. Otherwise a student with an
+    attempt still open could read the answers and then submit within the
+    grace period.
+  - **A bad config exits the server**, from `instrumentation.ts`. A throw
+    in `register()` leaves `next start` running and answering every
+    request with a 500.
+  - **Demo passcode wherever `DEMO_PASSCODE` is set**, and required on
+    `VERCEL_ENV=production`. Setting it locally tries the passcode step.
+  - **Maths is sanitized on its own and swapped in after the rest**, so
+    `style` can be forbidden everywhere else, rather than trusting any
+    element that claims to be KaTeX (raw HTML in notes could fake that).
+  - **Podcasts have their own prompt version** (`PODCAST_PROMPTS_VERSION`).
+    It is the only stored artifact that compares versions, so the global
+    bump would have marked every episode stale for nothing.
 
 - **`isomorphic-dompurify` for Markdown.** Notes will render in server
   components, so sanitizing has to work without a browser. The old code
@@ -1812,8 +3574,9 @@ are the same plan grouped for reading.
   what the course teaches.
 - **FSRS state per (student, card).** Cards are shared, but review history
   is personal.
-- **No AI credits or quotas in v1.** Usage is logged only, so a budget can
-  be set later from real numbers.
+- **No AI credits in v1.** Usage is logged. The only ceiling is the daily
+  safety limit per person (feature 25), set from the real numbers in
+  `ai_usage`.
 - **No email provider in the demo.** Notifications are in-app only.
 
 - **Role mismatch redirects home, not to an error page.** App-shell
@@ -1917,6 +3680,21 @@ are the same plan grouped for reading.
 
 ## Session Notes
 
+- **"Worker timed out" on `npm run dev:all` (2026-09-30), fixed:**
+  - Trigger.dev's dev worker imports every file in `trigger/` to index the
+    tasks, with a hard 20-second limit. Those imports took ~5.2 s on a
+    quiet machine, 2.3 s of it jsdom (isomorphic-dompurify, pulled in
+    through `lib/markdown.ts` by `lib/ai/generation/*`). With the
+    OpenTelemetry import hooks, and Next.js compiling its first page at
+    the same moment, indexing went past 20 s.
+  - Fix: the block model and text helpers moved to `lib/markdown-blocks.ts`
+    (pure). `lib/markdown.ts` re-exports them for the UI, and the
+    generation modules import the pure one. An esbuild pass over
+    `trigger/` shows no jsdom, DOMPurify or KaTeX left, and the task
+    imports now take ~0.7 s. The running worker rebuilt on its own.
+  - `build.external: ["jsdom"]` in `trigger.config.ts` is now unused but
+    harmless. Leave it; it matters again if a task ever imports jsdom.
+
 - **Don't edit code while a dev-worker run is in flight (2026-09-29):**
   `trigger dev` rebuilds on every file change and deletes the previous
   bundle folder in `.trigger/tmp`. A child run triggered afterwards is
@@ -1936,8 +3714,9 @@ are the same plan grouped for reading.
     now imports all 10 task bundles.
   - The CLI also pinned `@trigger.dev/*` to exactly `4.6.4` in
     `package.json`.
-  - Still open: Trigger.dev warns the image uses Node 21 (deprecated) and
-    suggests `runtime: "node-24"`.
+  - ~~Still open: Trigger.dev warns the image uses Node 21 (deprecated) and
+    suggests `runtime: "node-24"`.~~ Feature 26 set `runtime: "node-22"`
+    (the spec's choice; local Node is 22.14). The dry run is still to do.
   - Check a dry run like this before deploying after adding a dependency
     that reads its own files.
   - **Never clear `.trigger/tmp/build-*` while `npm run dev:all` is

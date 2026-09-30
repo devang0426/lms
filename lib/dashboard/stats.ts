@@ -19,6 +19,15 @@ export function courseCompletion(c: CourseFacts): number | null {
   return Math.round((c.completions / (c.learners * c.lessons)) * 100);
 }
 
+/* One student's completion in one course (feature 31), by the same rule:
+   completed published lessons ÷ published lessons, 0–100, or null when
+   nothing is published. Averaged over a course's students (before
+   rounding), it is courseCompletion. */
+export function learnerCompletion(completed: number, lessons: number): number | null {
+  if (lessons === 0) return null;
+  return Math.round((completed / lessons) * 100);
+}
+
 /* Across courses, each enrollment weighs the same. */
 export function overallCompletion(courses: CourseFacts[]): number | null {
   const counted = courses.filter((c) => c.learners > 0 && c.lessons > 0);

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "./client";
 import { isUuid } from "./courses";
 import { users, type Role, type User } from "./schema";
@@ -19,9 +19,28 @@ export interface UserRow {
   /* Active enrollments, and courses taught. */
   courses: number;
   teaching: number;
+  /* AI calls and cost over the last 24 hours (feature 25). */
+  aiCalls: number;
+  aiUsd: number;
 }
 
-export async function listUsers(filter: { q?: string; role?: Role; limit?: number }): Promise<UserRow[]> {
+/* The daily AI limits by group, from lib/ai/budget (the page passes them in). */
+export interface AiLimitsByGroup {
+  student: { calls: number; usd: number };
+  staff: { calls: number; usd: number };
+}
+
+const aiWindow = sql`a.user_id = users.id and a.created_at > now() - interval '24 hours'`;
+
+/* The person has reached their role's daily AI limit (calls or cost). */
+function atAiLimit(limits: AiLimitsByGroup): SQL {
+  return sql`exists (
+    select 1 from (select count(*) as n, coalesce(sum(a.cost_usd), 0) as usd from ai_usage a where ${aiWindow}) u
+    where u.n >= case when users.role = 'student' then ${limits.student.calls}::int else ${limits.staff.calls}::int end
+       or u.usd >= case when users.role = 'student' then ${limits.student.usd}::numeric else ${limits.staff.usd}::numeric end)`;
+}
+
+export async function listUsers(filter: { q?: string; role?: Role; atAiLimit?: AiLimitsByGroup; limit?: number }): Promise<UserRow[]> {
   const q = filter.q?.trim();
   const pattern = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
   return db
@@ -35,6 +54,8 @@ export async function listUsers(filter: { q?: string; role?: Role; limit?: numbe
       courses: sql<number>`(select count(distinct s.course_id) from enrollments e join sections s on s.id = e.section_id
         where e.user_id = users.id and e.status = 'active')`.mapWith(Number),
       teaching: sql<number>`(select count(*) from course_staff cs where cs.user_id = users.id)`.mapWith(Number),
+      aiCalls: sql<number>`(select count(*) from ai_usage a where ${aiWindow})`.mapWith(Number),
+      aiUsd: sql<number>`(select coalesce(sum(a.cost_usd), 0) from ai_usage a where ${aiWindow})`.mapWith(Number),
     })
     .from(users)
     .where(
@@ -42,6 +63,7 @@ export async function listUsers(filter: { q?: string; role?: Role; limit?: numbe
         isNull(users.deletedAt),
         filter.role ? eq(users.role, filter.role) : undefined,
         pattern ? or(ilike(users.name, pattern), ilike(users.email, pattern)) : undefined,
+        filter.atAiLimit ? atAiLimit(filter.atAiLimit) : undefined,
       ),
     )
     .orderBy(asc(users.name), asc(users.id))
@@ -55,6 +77,15 @@ export async function roleCounts(): Promise<Record<Role, number>> {
     .where(isNull(users.deletedAt))
     .groupBy(users.role);
   return { admin: 0, instructor: 0, student: 0, ...Object.fromEntries(rows.map((r) => [r.role, r.n])) };
+}
+
+/* How many people are at their daily AI limit now, for the filter chip. */
+export async function countAtAiLimit(limits: AiLimitsByGroup): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(users)
+    .where(and(isNull(users.deletedAt), atAiLimit(limits)));
+  return row?.n ?? 0;
 }
 
 export async function getUser(id: string): Promise<User | null> {

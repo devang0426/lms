@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { notePhase, noteSummary, noteTitleFromFileName } from "./view";
+import { canRetryNote, notePhase, noteSummary, noteTitleFromFileName } from "./view";
+
+describe("canRetryNote (feature 25)", () => {
+  it("allows a retry only after the latest run failed", () => {
+    expect(canRetryNote({ status: "failed" }, "failed")).toBe(true);
+    expect(canRetryNote({ status: "failed" }, null)).toBe(true);
+    expect(canRetryNote({ status: "processing" }, "failed")).toBe(true);
+    expect(canRetryNote({ status: "ready" }, "failed")).toBe(true);
+    expect(canRetryNote({ status: "ready" }, "canceled")).toBe(true);
+  });
+
+  it("refuses a ready note: a retry would pay again for its drafts and embeddings", () => {
+    expect(canRetryNote({ status: "ready" }, "completed")).toBe(false);
+    expect(canRetryNote({ status: "ready" }, null)).toBe(false);
+  });
+
+  it("refuses while a run is going, or before the file has arrived", () => {
+    expect(canRetryNote({ status: "processing" }, "running")).toBe(false);
+    expect(canRetryNote({ status: "ready" }, "queued")).toBe(false);
+    expect(canRetryNote({ status: "uploading" }, null)).toBe(false);
+    expect(canRetryNote({ status: "uploading" }, "failed")).toBe(false);
+  });
+});
 
 describe("notePhase", () => {
   it("follows the source while it's read", () => {

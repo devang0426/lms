@@ -1,8 +1,9 @@
-import { ArrowLeft, Download } from "lucide-react";
-import Link from "next/link";
+import { Download } from "lucide-react";
 import { notFound } from "next/navigation";
+import { GradebookCellView } from "@/components/coursework/gradebook-cell";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { PageHeader } from "@/components/shell/page-header";
-import { Badge, Button, Card, EmptyState, Icon } from "@/components/ui";
+import { Button, Card, EmptyState, Icon } from "@/components/ui";
 import { requireCourseStaff } from "@/lib/auth";
 import {
   buildGradebook,
@@ -10,9 +11,8 @@ import {
   CATEGORY_ORDER,
   formatPercent,
   weightPercents,
-  type GradebookCell,
 } from "@/lib/coursework/gradebook";
-import { CATEGORY_LABELS, formatPoints } from "@/lib/coursework/rules";
+import { CATEGORY_LABELS } from "@/lib/coursework/rules";
 import { getCourseForUser } from "@/lib/db/courses";
 import { gradebookData } from "@/lib/db/grades";
 import { requestTime } from "@/lib/utils/clock";
@@ -37,10 +37,7 @@ export default async function GradebookPage({ params }: PageProps<"/instructor/c
 
   return (
     <>
-      <Link href={`/instructor/courses/${courseId}`} className="flex items-center gap-2 text-small text-ink-soft no-underline hover:text-ink">
-        <Icon icon={ArrowLeft} size={16} />
-        {course.code} · Curriculum
-      </Link>
+      <Breadcrumbs items={[{ label: course.code, href: `/instructor/courses/${courseId}` }, { label: "Gradebook" }]} />
       <PageHeader
         eyebrow={`${course.code} · Gradebook`}
         title={course.title}
@@ -98,7 +95,7 @@ export default async function GradebookPage({ params }: PageProps<"/instructor/c
                     </th>
                     {row.cells.map((cell, i) => (
                       <td key={data.items[i].id} className="px-4 py-4">
-                        <Cell cell={cell} />
+                        <GradebookCellView cell={cell} />
                       </td>
                     ))}
                     <td className="px-[22px] py-4 text-right font-serif text-[22px] whitespace-nowrap">{formatPercent(row.total.percent)}</td>
@@ -111,59 +108,4 @@ export default async function GradebookPage({ params }: PageProps<"/instructor/c
       )}
     </>
   );
-}
-
-function Cell({ cell }: { cell: GradebookCell }) {
-  switch (cell.kind) {
-    case "score": {
-      const value = (
-        <span className="whitespace-nowrap">
-          <span className="text-[15px] text-ink">{formatPoints(cell.score)}</span>
-          <span className="text-ink-soft"> / {cell.maxScore}</span>
-        </span>
-      );
-      return (
-        <span className="flex flex-wrap items-center gap-2">
-          {cell.submissionId ? (
-            <Link href={`/instructor/grading/${cell.submissionId}`} className="no-underline hover:underline">
-              {value}
-            </Link>
-          ) : (
-            value
-          )}
-          {cell.late && (
-            <Badge tone="warning" size="sm">
-              Late
-            </Badge>
-          )}
-        </span>
-      );
-    }
-    case "draft":
-      return (
-        <Link href={`/instructor/grading/${cell.submissionId}`} className="whitespace-nowrap text-ink-soft hover:text-ink">
-          Draft · {formatPoints(cell.score)} / {cell.maxScore}
-        </Link>
-      );
-    case "to_grade":
-      return (
-        <Link href={`/instructor/grading/${cell.submissionId}`} className="no-underline">
-          <Badge tone="warning" size="md">
-            To grade{cell.late ? " · late" : ""}
-          </Badge>
-        </Link>
-      );
-    case "missing":
-      return <span className="text-ink-soft">Missing</span>;
-    case "none":
-      return (
-        <span className="text-ink-soft" aria-label="Not due yet">
-          —
-        </span>
-      );
-    default: {
-      const never: never = cell;
-      return never;
-    }
-  }
 }

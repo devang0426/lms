@@ -1,29 +1,11 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { PendingBar } from "@/components/shell/pending-bar";
+import { TimeZoneCookie } from "@/components/shell/time-zone-cookie";
 import { Toaster } from "@/components/ui/overlay";
 import { clerkAppearance } from "@/lib/auth/appearance";
+import { fontVariables } from "./fonts";
 import "./globals.css";
-
-/* Font variables are mapped to font-sans / font-serif / font-mono in
-   globals.css (@theme). They use a -src suffix so the theme tokens don't
-   reference themselves. */
-const geist = Geist({
-  variable: "--font-geist-src",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono-src",
-  subsets: ["latin"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif-src",
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-});
 
 export const metadata: Metadata = {
   title: "Studyhall",
@@ -32,10 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full`}
-    >
+    <html lang="en" className={`${fontVariables} h-full`}>
       <body className="min-h-full bg-page font-sans text-body text-ink antialiased">
         <ClerkProvider
           appearance={clerkAppearance}
@@ -44,8 +23,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           signInFallbackRedirectUrl="/"
           signUpFallbackRedirectUrl="/"
         >
+          <PendingBar />
           {children}
           <Toaster />
+          <TimeZoneCookie />
         </ClerkProvider>
       </body>
     </html>

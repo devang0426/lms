@@ -85,3 +85,15 @@ export function clerkMessage(err: unknown, fallback: string): string {
   const first = errors?.[0];
   return first?.longMessage ?? first?.message ?? fallback;
 }
+
+/* Delete the Clerk account (feature 33): its sessions end and it can't
+   sign in again. An account Clerk no longer has counts as done, so a
+   second try after a half-finished delete goes through. */
+export async function deleteClerkUser(clerkId: string): Promise<void> {
+  try {
+    await clerk().users.deleteUser(clerkId);
+  } catch (err) {
+    if ((err as { status?: number })?.status === 404) return;
+    throw err;
+  }
+}

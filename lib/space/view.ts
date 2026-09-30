@@ -31,6 +31,15 @@ export function notePhase(source: { status: SourceStatus } | null, job: JobState
   }
 }
 
+/* "Try again" is only for a note whose latest run failed (feature 25):
+   its source couldn't be read, or its drafts or indexing stopped. A ready
+   note would pay again for its drafts, embeddings and podcast; one still
+   uploading or being made has nothing to retry. */
+export function canRetryNote(source: { status: SourceStatus }, job: JobState | null): boolean {
+  if (source.status === "uploading") return false;
+  return notePhase(source, job) === "failed";
+}
+
 /* "Week 2 Slides.pdf" → "Week 2 Slides": a note's first title, until the
    source is read (a web page or video then brings its own). */
 export function noteTitleFromFileName(name: string): string {

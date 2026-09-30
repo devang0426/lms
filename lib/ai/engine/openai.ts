@@ -67,7 +67,10 @@ export interface OpenAIEngineOptions {
 }
 
 /* A slow upstream model can hold a request open indefinitely; without a
-   limit, one stuck provider stalls a whole lesson pipeline (feature 12). */
+   limit, one stuck provider stalls a whole lesson pipeline (feature 12).
+   These are per model: a chain of fallbacks (and resilient()'s backoff)
+   can add up to many minutes, so a caller with a hard limit (a web
+   request, feature 30) passes a `signal` that ends the whole chain. */
 const REQUEST_TIMEOUT_MS = 180_000;
 const STREAM_IDLE_MS = 90_000;
 
@@ -124,7 +127,7 @@ export class OpenAIEngine implements Engine {
         ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
         ...(opts.maxTokens !== undefined ? { max_tokens: opts.maxTokens } : {}),
       }, withSignal(opts.signal, idle.signal));
-    }).catch((err) => {
+    }, opts.signal).catch((err) => {
       idle?.stop();
       throw err;
     });
@@ -212,7 +215,7 @@ export class OpenAIEngine implements Engine {
       } catch {
         throw new EngineError(`${this.label()} (${model}) returned invalid JSON.`, "unknown");
       }
-    });
+    }, opts.signal);
   }
 
   async transcribe(audio: Blob, signal?: AbortSignal): Promise<TranscriptResult> {
@@ -251,7 +254,7 @@ export class OpenAIEngine implements Engine {
         }
         if (!r.ok) throw await this.mapError(r);
         return r;
-      });
+      }, signal);
       const json = await res.json();
       const lastEnd = Array.isArray(json.segments) && json.segments.length ? json.segments.at(-1).end : 0;
       this.report("transcription", used, json.usage, {
@@ -284,7 +287,7 @@ export class OpenAIEngine implements Engine {
           },
           opts.signal,
         );
-      });
+      }, opts.signal);
       this.report("tts", used, undefined, { chars: text.length });
       return res.blob();
     }
@@ -334,7 +337,7 @@ export class OpenAIEngine implements Engine {
     const res = await this.withFallback(this.chains?.embeddings ?? ["text-embedding-3-small"], (model) => {
       used = model;
       return this.post("/embeddings", { model, input: texts, ...this.usageRequest() }, signal);
-    });
+    }, signal);
     const json = await res.json();
     this.report("embeddings", used, json.usage);
     return (json.data ?? []).map((d: { embedding: number[] }) => d.embedding);
@@ -410,14 +413,17 @@ export class OpenAIEngine implements Engine {
      credit, user cancelled — an AbortError, not an EngineError) stop the chain
      at once; anything else — model down, 429, 5xx, rejected schema, broken
      JSON — moves on to the next. The last model's error is what the user sees
-     if every one fails. */
-  private async withFallback<R>(models: string[], run: (model: string) => Promise<R>): Promise<R> {
+     if every one fails. Once the caller's `signal` has fired (a request's
+     time limit, feature 30), no further model is tried, whatever the error
+     says: that's what caps the engine's total time. */
+  private async withFallback<R>(models: string[], run: (model: string) => Promise<R>, signal?: AbortSignal): Promise<R> {
     let last: unknown;
     for (let i = 0; i < models.length; i++) {
       try {
         return await run(models[i]);
       } catch (e) {
         last = e;
+        if (signal?.aborted) throw signal.reason ?? e;
         const fatal =
           !(e instanceof EngineError) || e.kind === "auth" || e.kind === "quota";
         if (fatal || i === models.length - 1) throw e;

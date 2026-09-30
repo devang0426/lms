@@ -8,6 +8,7 @@ import { auditInsert } from "@/lib/db/audit";
 import { db } from "@/lib/db/client";
 import { getCourseAccess } from "@/lib/db/courses";
 import { fail, ok, type ActionResult } from "@/lib/utils/action-result";
+import { safeAction } from "@/lib/utils/safe-action";
 
 /* Announcements (feature 21), posted from the dashboard's "Post
    announcement" and Messages. zod → course staff → the announcement, one
@@ -19,7 +20,7 @@ const postInput = z.object({
   body: z.string().trim().min(1, "Write the announcement first.").max(10_000, "Keep it under 10,000 characters."),
 });
 
-export async function postAnnouncement(raw: z.input<typeof postInput>): Promise<ActionResult<{ id: string }>> {
+export const postAnnouncement = safeAction("postAnnouncement", async (raw: z.input<typeof postInput>): Promise<ActionResult<{ id: string }>> => {
   const parsed = postInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", parsed.error.issues[0]?.message ?? "Check the announcement and try again.");
   const { courseId, title, body } = parsed.data;
@@ -37,11 +38,11 @@ export async function postAnnouncement(raw: z.input<typeof postInput>): Promise<
   revalidatePath("/instructor");
   revalidatePath("/instructor/messages");
   return ok({ id });
-}
+});
 
 const deleteInput = z.object({ id: z.uuid() });
 
-export async function deleteAnnouncement(raw: z.input<typeof deleteInput>): Promise<ActionResult> {
+export const deleteAnnouncement = safeAction("deleteAnnouncement", async (raw: z.input<typeof deleteInput>): Promise<ActionResult> => {
   const parsed = deleteInput.safeParse(raw);
   if (!parsed.success) return fail("invalid", "That announcement can't be found.");
 
@@ -57,4 +58,4 @@ export async function deleteAnnouncement(raw: z.input<typeof deleteInput>): Prom
   revalidatePath(`/courses/${found.courseId}`);
   revalidatePath("/instructor/messages");
   return ok();
-}
+});

@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { useTransition } from "react";
 import { markComplete } from "@/app/(student)/(focus)/courses/[courseId]/lessons/[lessonId]/actions";
 import { Button, Icon, toast } from "@/components/ui";
+import { settle } from "@/lib/utils/action-result";
 
 /* "Mark complete" in the focus header (feature 11). Once complete it
    stays complete; the action refreshes the page so the header count and
@@ -28,7 +29,7 @@ export function MarkCompleteButton({ lessonId, completed }: { lessonId: string; 
       leading={<Icon icon={Check} size={16} />}
       onClick={() =>
         start(async () => {
-          const result = await markComplete(lessonId);
+          const result = await settle(markComplete(lessonId));
           if (!result.ok) toast.error(result.error.message);
         })
       }
