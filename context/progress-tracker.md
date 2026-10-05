@@ -47,20 +47,32 @@ Update this file after every meaningful implementation change.
   - Still to do: the Clerk webhook for the deployed URL, and the
     Trigger.dev prod key. The dev key runs jobs only while the
     local worker is up.
-  - **Node pinned to 22.x (2026-10-05).** Every page that renders
+  - **jsdom pinned to 26.1.0 (2026-10-05).** Every page that renders
     Markdown on the server returned a 500 on Vercel: `/study`, a
     student's course and lesson pages, `/discussions/[id]`,
     `/instructor/messages` and `/instructor/grading/[id]`. Every other
-    page worked. `lib/markdown` loads jsdom 29 (through
-    isomorphic-dompurify), and jsdom 29 `require()`s ESM-only packages
-    (`@exodus/bytes`, `parse5` 8, `@asamuzakjp/css-color`). That needs
-    Node 20.19+ or 22.12+, and the Vercel project ran an older Node,
-    almost certainly 20.x (deprecated on Vercel since 2026-10-01).
-    Reproduced page for page: a trace-only copy of the build on Node
-    20.18 failed with `Failed to load external module jsdom-…:
-    ERR_REQUIRE_ESM`, and gave 200s on 22.14. `package.json`
-    `engines.node` is now `22.x`. It overrides the dashboard setting
-    and matches local dev and Trigger.dev's `node-22`.
+    page worked. Vercel's log: `Failed to load external module jsdom-…:
+    ERR_REQUIRE_ESM: require() of ES Module @exodus/bytes/encoding-lite.js
+    from html-encoding-sniffer`. `lib/markdown` loads jsdom through
+    isomorphic-dompurify, and jsdom 27+ `require()`s ESM-only packages.
+    That works on local Node 22.14 but not in Vercel's function runtime.
+    - First try: `engines.node: 22.x` in `package.json` (commit
+      48ecd80). It's kept, since it matches local dev and Trigger.dev's
+      `node-22` and Node 20 is deprecated on Vercel. But the deploy built
+      with it still threw `ERR_REQUIRE_ESM`. On Node 22.12+ that error
+      shouldn't occur, so the function may still be on Node 20. Open:
+      check the Node line in the Vercel build log.
+    - Fix: jsdom `26.1.0` (devDependency plus `"overrides": {"jsdom":
+      "$jsdom"}`, so isomorphic-dompurify gets it too). 26.1.0 is the
+      last release whose whole tree is CommonJS; 27.4 and 28.1 fail the
+      same way. DOMPurify itself stays current.
+    - Verified: on Node 20.18, which has no `require()` of ES modules, a
+      trace-only copy of the jsdom 29 build reproduced the 13 failing
+      pages one for one. The jsdom 26 build gave 200 on all 41 crawled
+      pages, with no `ERR_REQUIRE_ESM` in the log. 568 unit tests pass
+      and the build is clean.
+    - Don't upgrade jsdom past 26 until a Vercel deploy proves the
+      runtime can `require()` ES modules.
 - **Trigger.dev prod deploy (2026-10-05):** version 20261005.1, every task
   in `trigger/` on `node-22`, built from the clean `main` (6a57bc5).
   - Still to do (owner): set the prod env vars in the Trigger.dev

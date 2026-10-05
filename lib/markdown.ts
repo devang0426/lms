@@ -1,7 +1,9 @@
 /* Markdown to sanitized HTML (DOMPurify, KaTeX). The block model and the
    plain text helpers live in lib/markdown-blocks.ts, re-exported here so
    UI code can import everything from one place. Server-side background
-   tasks import lib/markdown-blocks directly: this module loads jsdom. */
+   tasks import lib/markdown-blocks directly: this module loads jsdom.
+   jsdom stays at 26.1.0 (package.json overrides): later releases
+   require() ES modules, which failed in Vercel's functions. */
 
 import DOMPurify from "isomorphic-dompurify";
 import { Marked, marked } from "marked";

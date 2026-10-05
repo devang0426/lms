@@ -14,8 +14,9 @@ Do this once, and again only if something below changes.
 2. **Vercel project** from the GitHub repo, with the function region
    `iad1` (Washington, D.C.), next to Neon. Node comes from
    `package.json` (`engines.node: 22.x`), whatever the dashboard says.
-   Don't drop that field: on Node 20 every page that renders Markdown
-   fails (jsdom needs `require()` of ES modules). Set these environment
+   Keep jsdom at `26.1.0` (pinned with `overrides`): newer jsdom
+   `require()`s ES modules, which Vercel's functions refused, and every
+   page that renders Markdown returned a 500. Set these environment
    variables for Production. `example.env` explains each one.
    - `DATABASE_URL`, `DATABASE_URL_POOLED` (the `demo` branch)
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`,
