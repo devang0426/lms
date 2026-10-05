@@ -12,7 +12,10 @@ Do this once, and again only if something below changes.
    (same region, us-east-2). Apply migrations to it (`npm run db:migrate`
    with its direct URL), then `npm run db:seed` with its URLs.
 2. **Vercel project** from the GitHub repo, with the function region
-   `iad1` (Washington, D.C.), next to Neon. Set these environment
+   `iad1` (Washington, D.C.), next to Neon. Node comes from
+   `package.json` (`engines.node: 22.x`), whatever the dashboard says.
+   Don't drop that field: on Node 20 every page that renders Markdown
+   fails (jsdom needs `require()` of ES modules). Set these environment
    variables for Production. `example.env` explains each one.
    - `DATABASE_URL`, `DATABASE_URL_POOLED` (the `demo` branch)
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`,
@@ -61,8 +64,15 @@ Do this once, and again only if something below changes.
    (Production → Environment variables) set `DATABASE_URL`,
    `DATABASE_URL_POOLED`, `BLOB_READ_WRITE_TOKEN`, `OPENROUTER_API_KEY`,
    `VIDEO_MAX_MINUTES` and `NEXT_PUBLIC_APP_URL` (the deployment's URL,
-   for the links in a data export, feature 33). Check that the
-   `notify-due-soon` and
+   for the links in a data export, feature 33), all with the same values
+   as Vercel. Also `DEMO_MODE`, the same as Vercel: the daily
+   `prune-old-rows` erases accounts deleted in Clerk, and skips the demo
+   accounts only when it sees `DEMO_MODE=true`. `DOCUMENT_MAX_MINUTES` is
+   optional (default 90). Don't set `FFMPEG_PATH`/`FFPROBE_PATH` (the
+   image has ffmpeg) or `TRIGGER_SECRET_KEY` (Trigger.dev provides it).
+   Then put the **prod** secret key (API keys → Production, `tr_prod_…`)
+   in Vercel's `TRIGGER_SECRET_KEY` and redeploy Vercel: with the dev key,
+   jobs go to the dev environment. Check that the `notify-due-soon` and
    `prune-old-rows` schedules show under Schedules.
 5. **Clerk:** the development instance works on the Vercel URL (it shows a
    small "Development mode" badge). Add the webhook endpoint

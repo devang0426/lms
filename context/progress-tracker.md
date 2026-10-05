@@ -45,8 +45,32 @@ Update this file after every meaningful implementation change.
     with one-click sign-in (`lib/env.ts`, `lib/demo/accounts.ts`;
     `security-architecture.md` §13).
   - Still to do: the Clerk webhook for the deployed URL, and the
-    Trigger.dev prod deploy and key. The dev key runs jobs only while the
+    Trigger.dev prod key. The dev key runs jobs only while the
     local worker is up.
+  - **Node pinned to 22.x (2026-10-05).** Every page that renders
+    Markdown on the server returned a 500 on Vercel: `/study`, a
+    student's course and lesson pages, `/discussions/[id]`,
+    `/instructor/messages` and `/instructor/grading/[id]`. Every other
+    page worked. `lib/markdown` loads jsdom 29 (through
+    isomorphic-dompurify), and jsdom 29 `require()`s ESM-only packages
+    (`@exodus/bytes`, `parse5` 8, `@asamuzakjp/css-color`). That needs
+    Node 20.19+ or 22.12+, and the Vercel project ran an older Node,
+    almost certainly 20.x (deprecated on Vercel since 2026-10-01).
+    Reproduced page for page: a trace-only copy of the build on Node
+    20.18 failed with `Failed to load external module jsdom-…:
+    ERR_REQUIRE_ESM`, and gave 200s on 22.14. `package.json`
+    `engines.node` is now `22.x`. It overrides the dashboard setting
+    and matches local dev and Trigger.dev's `node-22`.
+- **Trigger.dev prod deploy (2026-10-05):** version 20261005.1, every task
+  in `trigger/` on `node-22`, built from the clean `main` (6a57bc5).
+  - Still to do (owner): set the prod env vars in the Trigger.dev
+    dashboard (`demo-runbook.md` step 4), then put the **prod**
+    `TRIGGER_SECRET_KEY` (`tr_prod_…`) in Vercel and redeploy. Until
+    then Vercel still uses the dev key, so jobs go to the dev
+    environment.
+  - The deploy warned that `prune-old-rows` and `notify-due-soon` got the
+    60-minute default cron window (they may fire up to an hour late),
+    and that the CLI is 4.6.4 (latest 4.7.2). Neither was changed.
 - **Production-readiness audit (2026-09-29).** The full report is
   `report.md` at the repo root. Its findings became features 24–33 (see
   Next Up → Phase 7).
@@ -3189,10 +3213,10 @@ are in `features/`.
   - **Upload limits:** 30 an hour for a student, 120 for staff.
   - **The transcript is virtualized from 400 lines.** Shorter ones stay
     whole, so find-in-page works.
-- **Trigger.dev prod env vars, your action:** in the Trigger.dev
-  dashboard, set `DATABASE_URL`, `DATABASE_URL_POOLED`,
-  `BLOB_READ_WRITE_TOKEN` and `OPENROUTER_API_KEY` for the prod
-  environment (dev runs locally from `.env.local`).
+- **Trigger.dev prod env vars, your action:** the tasks are deployed
+  (2026-10-05). In the Trigger.dev dashboard, set the prod environment's
+  variables listed in `demo-runbook.md` step 4 (dev runs locally from
+  `.env.local`), then swap Vercel's `TRIGGER_SECRET_KEY` to the prod key.
 - **Vercel plan:** is Hobby acceptable for the demo, or is this a
   commercial pitch (Pro)?
 
