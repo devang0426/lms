@@ -6,7 +6,7 @@
 
 ## Goal
 
-The original NitroAI experience inside Studyhall. A student uploads their
+A dedicated private study space inside Studyhall. A student uploads their
 own material and gets private notes, flashcards, quiz, chat and podcast.
 It is visible only to them.
 

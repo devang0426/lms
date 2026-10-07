@@ -244,7 +244,7 @@ Update this file after every meaningful implementation change.
 ## Completed
 
 - Design system extracted into `ui-context.md`.
-- NitroAI code (`lib/`, `ytdlp.mjs`) reviewed, with a per-module plan
+- Core library code (`lib/`, `ytdlp.mjs`) reviewed, with a per-module plan
   (`architecture.md`).
 - Product scope settled:
   - One university, one deployment.
@@ -300,7 +300,7 @@ Update this file after every meaningful implementation change.
     `globals.css`.
   - To do in a browser: a visual check and a keyboard pass at `/dev/ui`.
 
-- **Feature 05, port the NitroAI `lib/` (2026-09-25):**
+- **Feature 05, port the `lib/` modules (2026-09-25):**
   - AI code moved to `lib/ai/` and made server-only. Desktop, publik and
     BYO-key code deleted.
   - `getEngine()` added. PDF uses `unpdf`, with per-page text.
@@ -826,7 +826,7 @@ Update this file after every meaningful implementation change.
       least 6 lines and both speakers.
     - `synthesizePodcastLines`: TTS, 4 lines at a time, with host
       `am_michael` and guest `af_heart`.
-    - The NitroAI version that glued MP3 Blobs together is gone from
+    - The legacy version that glued MP3 Blobs together is gone from
       `generation/index.ts`.
   - Task `generate-podcast`:
     - Queue `podcast`, 2 at a time, no retries.
@@ -919,7 +919,7 @@ Update this file after every meaningful implementation change.
        keyed per document.
     3. Index the lesson.
   - **Document mode** (`lib/ai/generation/document.ts`): notes from
-    NitroAI's ported `generateNoteBody`. Cards and quiz use the lecture
+    ported `generateNoteBody`. Cards and quiz use the lecture
     generators, with the notes' `##` sections standing in for chapters.
     No chapters, and `startSec` is null. `loadDraftSource` picks video or
     document mode. The review screen hides Chapters in document mode.
@@ -2841,7 +2841,7 @@ are the same plan grouped for reading.
     (feature 17).
 19. ~~Student private space: PDF/DOCX/URL/audio ingest tasks with an SSRF
     guard (the ingest task and the guard are done, feature 18), plus the
-    NitroAI features on private notes.~~ Done (feature 19).
+    core study features on private notes.~~ Done (feature 19).
 20. ~~`ai_usage` logging on every AI call.~~ Done (feature 09), with a
     daily limit per person since feature 25.
 
@@ -3696,7 +3696,7 @@ are in `features/`.
   the lecture's length, chapters under 20 s apart are merged, and an
   answer where one chapter covers more than 40% of the lecture is
   retried.
-- **The note merge adds, it doesn't rewrite.** NitroAI's reduce step
+- **The note merge adds, it doesn't rewrite.** The legacy reduce step
   rewrote all sections, which would lose the chapter headings' times. The
   strong-tier merge here writes only an overview and key takeaways around
   the chapter sections.

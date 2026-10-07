@@ -7,7 +7,7 @@ deployment**. Instructors run courses, upload lecture videos and material,
 set coursework and grade it. Students watch lectures, study and hand in
 work.
 
-It keeps all of NitroAI's study features (the code in `lib/`) and builds on
+It includes comprehensive study features (the code in `lib/`) and builds on
 them. Any source (PDF, Word, web page, YouTube, audio **or an uploaded
 lecture video**) becomes:
 
@@ -129,12 +129,12 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
 4. Studies with flashcards (a "due today" queue across courses), quizzes and
    the podcast.
 5. Hands in assignments and sees grades and feedback.
-6. Uploads their own material to a private space for NitroAI-style notes,
+6. Uploads their own material to a private space for AI-generated notes,
    cards, quiz, chat and podcast.
 
 ## Features
 
-### From NitroAI (keep, then port to the server; see `architecture.md`)
+### Core Study Tools (see `architecture.md`)
 
 - Ingest: PDF, DOCX, text, web page, YouTube, audio.
 - Whisper transcription with timestamped segments. The engine already
@@ -216,7 +216,7 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
   - Teachers never see a student's assistant questions or private space,
     and there are no rankings.
 
-### Student private space (from NitroAI)
+### Student private space
 
 - A student uploads their own sources to get private notes, cards, quiz,
   chat and podcast.
@@ -262,7 +262,7 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
 - Roles: admin, instructor, student. TA is v1.1.
 - Everything under Video learning, Course assistant, LMS core and Student
   private space.
-- All NitroAI features, now server-side and multi-user.
+- All core study features, now server-side and multi-user.
 
 ### Out of Scope (v1)
 

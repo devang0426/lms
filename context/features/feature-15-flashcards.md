@@ -6,7 +6,7 @@
 
 ## Goal
 
-Students review published lesson flashcards with the NitroAI FSRS
+Students review published lesson flashcards with the FSRS
 scheduler. Each student has their own schedule, and there is a "due today"
 queue across courses.
 

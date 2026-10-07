@@ -36,7 +36,7 @@ one-click picker does not need it.
 | 02 | [Database and auth (Neon + Drizzle + Clerk)](feature-02-database-and-auth.md) | 1, 4 |
 | 03 | [Demo accounts and seed](feature-03-demo-accounts-and-seed.md) | 1, 4 |
 | 04 | [UI components](feature-04-ui-components.md) | all |
-| 05 | [Port NitroAI `lib/`](feature-05-port-nitro-lib.md) | — |
+| 05 | [Port `lib/`](feature-05-port-lib.md) | — |
 | 06 | [App shells and navigation](feature-06-app-shells.md) | 1, 4 |
 | 07 | [Courses, modules, lessons](feature-07-courses-modules-lessons.md) | 1, 3 |
 | 08 | [Student screens](feature-08-student-screens.md) | 4 |

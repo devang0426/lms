@@ -88,6 +88,6 @@ Replace the create-next-app styling with the Studyhall design system from
   `text-body`, `text-small`, `text-meta`, `text-label`.
 - **Removed:** `public/{file,globe,next,vercel,window}.svg`. The default
   `favicon.ico` stays until a Studyhall icon exists.
-- **`tsconfig.json` excludes `lib/`** because the unported NitroAI code
+- **`tsconfig.json` excludes `lib/`** because the unported `lib/` code
   doesn't compile yet (33 missing-module errors). Feature 05 must remove
   this exclude.

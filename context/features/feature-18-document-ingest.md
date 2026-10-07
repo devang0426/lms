@@ -75,7 +75,7 @@ blobUrl, pathname, url, pageCount, text, status, error.
     indexed and cited, but not drafted from. The video's notes stay tied
     to its timeline.
 - **Document mode:**
-  - Notes come from NitroAI's ported `generateNoteBody`: map over ~6k-token
+  - Notes come from ported `generateNoteBody`: map over ~6k-token
     pieces, then merge.
   - Cards and quiz reuse the lecture generators, with the notes' `##`
     sections standing in for chapters.

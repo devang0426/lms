@@ -1,4 +1,4 @@
-# Feature 05: Port NitroAI `lib/`
+# Feature 05: Port `lib/`
 
 **Status:** Done (2026-09-25)
 **Depends on:** 02
@@ -6,7 +6,7 @@
 
 ## Goal
 
-The NitroAI code compiles in this Next.js app and runs on the server, with
+The core `lib/` code compiles in this Next.js app and runs on the server, with
 its tests passing. There is no new behavior yet.
 
 ## Scope
@@ -61,9 +61,9 @@ its tests passing. There is no new behavior yet.
    - Every remaining test must pass.
    - Tests must not call real providers.
 9. **`tsconfig`:**
-   - Remove the NitroAI entries from `exclude` in `tsconfig.json`.
+   - Remove the unported library entries from `exclude` in `tsconfig.json`.
      Features 01 and 02 added them so the build could pass.
-   - `lib/db/index.ts`, `idb.ts` and `memory.ts` are NitroAI's store, and
+   - `lib/db/index.ts`, `idb.ts` and `memory.ts` are legacy store files, and
      they sit next to the new `lib/db/client.ts` and `schema.ts`. Move or
      delete them per step 2.
    - `tsc --noEmit` is clean.
@@ -86,14 +86,14 @@ its tests passing. There is no new behavior yet.
 
 - **Layout:**
   - `lib/ai/{engine,generation,prompts,ingest,audio}`: the AI code.
-  - `lib/ai/types.ts`: the NitroAI domain types.
+  - `lib/ai/types.ts`: the domain types.
   - `lib/utils/ids.ts`.
   - `lib/study/` and `lib/markdown.ts` stay where they were.
   - `lib/export.ts` stays too.
   - YouTube is now `lib/ai/ingest/youtube/{index.ts,ytdlp.mjs}`.
 - **Deleted:** `app.tsx`, `prefs.ts`, `theme.ts`, `publik*.ts`,
   `localSetup.ts`, `engine/keys.ts`, `db/idb.ts`, plus their tests and
-  `copy.test.ts`, which tested NitroAI's own source tree.
+  `copy.test.ts`, which tested legacy copy.
 - **`lib/ai/legacy/` holds the old browser pipeline:** `pipeline.ts` and its
   key-value store `repo.ts` and `memory-store.ts`, with their tests. It is
   kept only as a tested reference for features 09 and 10, which replace it

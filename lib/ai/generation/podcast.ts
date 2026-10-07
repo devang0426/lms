@@ -21,7 +21,7 @@ import { withOneRetry } from "./retry";
 export type PodcastLength = "short" | "medium" | "long";
 export type PodcastLanguage = "en" | "hinglish";
 
-/* Grounding cap, the same as NitroAI's study tools. */
+/* Grounding cap, the same as the study tools. */
 const PODCAST_SOURCE_TOKENS = 8000;
 /* Fewer lines than this isn't a conversation: retry. */
 const MIN_LINES = 6;

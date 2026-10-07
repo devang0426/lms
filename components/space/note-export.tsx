@@ -6,7 +6,7 @@ import type { Block } from "@/lib/ai/types";
 import { downloadText, exportDocxHtml, exportMarkdown, printPdf } from "@/lib/export";
 import { safeFileName } from "@/lib/storage/upload-kinds";
 
-/* Export a private note (feature 19) with NitroAI's lib/export.ts:
+/* Export a private note (feature 19) with lib/export.ts:
    Markdown, Word (.doc: Word-compatible HTML) or the browser's print
    dialog, which also saves a PDF. All of it happens in the browser. */
 export function NoteExport({ title, blocks }: { title: string; blocks: Block[] }) {

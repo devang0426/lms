@@ -117,7 +117,7 @@ the permission helpers that every later feature uses.
   tables.
 - **`/no-access`** is the friendly 403 page. `requireRole` redirects there.
 - **`tsconfig` exclude narrowed** from all of `lib/` to only the unported
-  NitroAI files, so the new `lib/db` and `lib/auth` are type-checked.
+  legacy files, so the new `lib/db` and `lib/auth` are type-checked.
 - **The token preview at `/`** now requires sign-in and shows the signed-in
   user's name, email and role, with Clerk's `<UserButton>`.
 

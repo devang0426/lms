@@ -31,7 +31,7 @@ export function unsupportedMessage(task: Task, _provider?: Provider): string {
       return "This engine doesn't support chat. Switch to a cloud key or a chat-capable local model.";
     case "transcription":
       // Local speech-to-text (whisper.cpp) isn't implemented yet — there's no
-      // setting anywhere to point NitroAI at a local Whisper server, so don't
+      // setting anywhere to point the engine at a local Whisper server, so don't
       // suggest one. The one real path today is a cloud key.
       return "Local mode can't transcribe audio yet. Use the cloud (OpenRouter) engine for transcription.";
     case "tts":

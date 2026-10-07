@@ -36,7 +36,7 @@ export interface RenderedCard extends StudyCard {
   backHtml: string;
 }
 
-/* fsrs.ts works on NitroAI's Flashcard shape; only the schedule matters. */
+/* fsrs.ts works on the core Flashcard shape; only the schedule matters. */
 export function asFsrsCard(c: StudyCard): Flashcard {
   return {
     id: c.id,

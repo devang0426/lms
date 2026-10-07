@@ -76,10 +76,10 @@ is part of a paid pitch, move to Pro. Nothing in the code changes.
    space-chat question, a new private note or its retry, a podcast and a
    regenerate. There are no credits or top-ups.
 
-## Where the NitroAI code stands
+## Where the core `lib/` code stands
 
-`lib/` was copied from NitroAI (a single-user Vite and Electron/Tauri app
-that stores data in the browser). It does **not** compile here yet: 33
+`lib/` contains the initial study library modules (ported from a single-user
+app that stored data in the browser). It does **not** compile here yet: 33
 missing-module errors (`idb`, `uuid`, `katex`, `marked`, `dompurify`,
 `pdfjs-dist`, `mammoth`, `vitest`, `@tauri-apps/api`).
 

@@ -1,5 +1,5 @@
 /* Document mode (feature 18): drafts for a reading lesson, whose source is
-   its documents instead of a video. Notes come from NitroAI's document
+   its documents instead of a video. Notes come from the document
    note writer (generateNoteBody: map over sections, then merge); cards
    and quiz reuse the lecture generators, with the notes' own sections
    standing in for chapters. Nothing links to a moment in a video, so

@@ -1,4 +1,4 @@
-/* NitroAI domain model (ported to Studyhall; tables replace these per feature) — shared contract for db, engine, generation, and UI.
+/* Studyhall domain model (tables replace these per feature) — shared contract for db, engine, generation, and UI.
    Everything persisted lives here. IDs are uuid strings. Timestamps are epoch ms. */
 
 export type ID = string;

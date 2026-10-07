@@ -2,7 +2,7 @@
 
 ## General
 
-- Keep modules small, with one job each. The NitroAI split (ingest, engine,
+- Keep modules small, with one job each. The core library split (ingest, engine,
   generation, prompts, study) is the model to follow.
 - Keep business logic in pure functions (like `lib/study/fsrs.ts` and
   `lib/generation/*`) that take their dependencies (Engine, clock, db) as
@@ -39,7 +39,7 @@
 - Match exhaustively on unions with a `never` check, as `lib/ingest/index.ts`
   does.
 - Use UUID strings for IDs. Store timestamps as Postgres `timestamptz`
-  (NitroAI used epoch ms in IndexedDB; convert at the boundary while porting).
+  (IndexedDB legacy used epoch ms; convert at the boundary while porting).
 
 ## Next.js 16
 

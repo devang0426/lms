@@ -12,9 +12,9 @@ define:
 
 Always implement against these specs. Do not invent behavior.
 
-`lib/` holds working, tested NitroAI code. Port it: move it, adapt it, keep
+`lib/` holds working, tested core code. Port it: move it, adapt it, keep
 its tests. Do not rewrite it from scratch. The per-module plan is in
-`architecture.md` under "Where the NitroAI code stands".
+`architecture.md` under "Where the core `lib/` code stands".
 
 ## Scoping Rules
 
@@ -32,7 +32,7 @@ Split an implementation step if it combines any of these:
 
 - UI work and Trigger.dev task work.
 - Schema migrations and feature UI (land the migration first).
-- Porting a NitroAI module and changing its behavior (port first, keeping
+- Porting a core module and changing its behavior (port first, keeping
   the tests green, then change).
 - More than one role's screens, e.g. a teacher grading view and the
   student's grade view.
