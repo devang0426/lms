@@ -162,6 +162,13 @@ Update this file after every meaningful implementation change.
     days.
   - The demo branch needs `npm run db:migrate` (0019), and the tasks need
     `npm run trigger:deploy` (see the runbook).
+- **Feature 36 (course notes download) is done (2026-10-12).** The owner
+  asked for one button that downloads several lectures' notes together.
+  - The course page's Curriculum tab has "Download notes": pick lessons
+    (all ticked) and PDF (print), Word or Markdown. The published study
+    notes come in one file, in course order, each lesson under its own
+    heading.
+  - No migration or task deploy needed.
 - **Feature 35 (course deletion) is done (2026-09-30).** The owner asked
   why a course couldn't be deleted; no spec had covered it.
   - A course with no active student, no handed-in work and no pending
@@ -2327,6 +2334,47 @@ Update this file after every meaningful implementation change.
     - The pending bar and the skeletons were not watched by eye on a slow
       network; only their markup and the unit rule are checked.
     - The deployed site (same-region app and database) wasn't measured.
+- **Feature 36, course notes download (2026-10-12).** Spec:
+  `features/feature-36-course-notes-download.md`. The owner chose the
+  published study notes, all three formats and a lesson picker.
+  - **Export** (`lib/export.ts`): `exportCombinedMarkdown` and
+    `exportCombinedHtml(notes, "word" | "print")`. The file opens with the
+    course title, code, lesson count and contents. Then each lesson
+    follows under "Lesson N · Title" and its module, starting a new page
+    in Word and print. A note's `heading1` becomes `heading2`. The
+    single-note export now shares the same HTML wrapper (`htmlDocument`).
+    - Both now hide KaTeX's HTML half (`.katex-html`): without KaTeX's
+      stylesheet every formula printed twice. Only the MathML shows,
+      which browsers draw natively.
+  - **Data** (`lib/db/course-notes.ts`): `courseNoteLessonsQuery` joins
+    the course page's batch (no extra round trip). `loadCourseNotes` is
+    one batch: `courseForUserQueries` (access, order, numbering) beside
+    the notes. Staff get published notes only, like students.
+  - **Route** `/courses/[courseId]/notes/export`: `format` md|doc|print,
+    `lessons` an optional comma list of up to 300 UUIDs (zod). md and doc
+    are attachments named `<code>-notes.<ext>`. print is an HTML page
+    whose inline script calls `print()` on load (the CSP allows inline
+    scripts). Responses are `private, no-store`.
+  - **UI** (`components/student/course-notes-download.tsx`): md and doc
+    are fetched and saved from a blob, so a failure shows a toast instead
+    of a broken download. PDF opens the print page in a new tab, inside
+    the click handler, so the browser doesn't block it.
+  - **Verified** on a production build (:3100) as the Demo Student, over
+    HTTP:
+    - The CC course page shows "Download notes", "Notes for 2 lessons".
+    - md, doc and print each returned 200 with both lessons in order;
+      `lessons=<one id>` returned that lesson only.
+    - `format=pdf` and `lessons=nope` returned 400, an unknown course
+      404, and a signed-out request redirected to sign-in.
+    - In Chrome, unticking lesson 1 and choosing Markdown downloaded
+      `cc-notes.md`, and PDF opened the print tab.
+    - axe was clean on the dialog at 1280 and 390 px.
+    - 575 unit tests pass (7 new in `lib/export.test.ts`), and lint and
+      the build are clean.
+  - **Not verified:**
+    - No course here has a student who isn't enrolled, so the 404 for
+      one was checked only through the shared access predicate.
+    - The Word file wasn't opened in Word.
 - **Feature 35, course deletion (2026-09-30).** Spec:
   `features/feature-35-course-deletion.md`. The owner chose the
   recommended rule.

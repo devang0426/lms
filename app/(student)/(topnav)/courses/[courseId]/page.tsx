@@ -18,6 +18,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AnnouncementList } from "@/components/announcements/announcement-list";
 import { StatusBadge } from "@/components/course-builder/status-badge";
+import { CourseNotesDownload, type NotesModule } from "@/components/student/course-notes-download";
 import {
   Accordion,
   AccordionRow,
@@ -66,7 +67,7 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
   // An instructor sees only the courses they teach as a student would.
   if (user.role === "instructor" && detail?.full?.access !== "staff") redirect("/instructor");
   if (!detail) notFound();
-  const { full, preview, instructors, announcements, completed } = detail;
+  const { full, preview, instructors, announcements, completed, noteLessons } = detail;
 
   const course = (full?.course ?? preview?.course) as Course;
   const modules = full?.modules ?? [];
@@ -81,6 +82,17 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
   const firstLesson = lessonsInOrder.find((l) => !completed.has(l.id)) ?? lessonsInOrder[0];
   const started = completed.size > 0;
   const firstHref = firstLesson ? `/courses/${course.id}/lessons/${firstLesson.id}` : null;
+
+  // Feature 36: the lessons whose notes can be downloaded, numbered as below.
+  const notesModules: NotesModule[] = modules
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      lessons: m.lessons
+        .filter((l) => noteLessons.has(l.id))
+        .map((l) => ({ id: l.id, number: lessonsInOrder.indexOf(l) + 1, title: l.title })),
+    }))
+    .filter((m) => m.lessons.length > 0);
 
   return (
     <>
@@ -165,6 +177,14 @@ export default async function CourseDetailPage({ params, searchParams }: PagePro
         <TabsContent value="curriculum">
           <div className="grid items-start gap-8 lg:grid-cols-[1.6fr_1fr] lg:gap-12">
             <div className="flex flex-col gap-2.5">
+              {notesModules.length > 0 && (
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-3">
+                  <p className="m-0 text-small text-ink-soft">
+                    Notes for {plural(notesModules.reduce((n, m) => n + m.lessons.length, 0), "lesson")}, ready to keep in one file.
+                  </p>
+                  <CourseNotesDownload courseId={course.id} modules={notesModules} />
+                </div>
+              )}
               {!full ? (
                 <Card padded={false} className="border-dashed">
                   <EmptyState

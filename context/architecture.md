@@ -359,6 +359,18 @@ instructor". The cost is logged as `space-chat`.
   - The actions `courseDeleteCheck` and `deleteCourse` are in the
     builder's `actions.ts`; the dialog is
     `components/course-builder/delete-course.tsx`, on the Details tab.
+- Course notes download (feature 36):
+  - `lib/export.ts`: `exportCombinedMarkdown` and `exportCombinedHtml`
+    (Word or print) put the picked lessons' notes in one file, beside the
+    single-note export; `combinedFileName` names it.
+  - `lib/db/course-notes.ts`: `courseNoteLessonsQuery` (in the course
+    page's batch) and `loadCourseNotes` (one batch: the access check, the
+    curriculum for order and numbering, and the notes). Both read
+    published notes of published lessons only, staff included.
+  - The route `/courses/[courseId]/notes/export` (`format`, `lessons`)
+    returns the file; the dialog is
+    `components/student/course-notes-download.tsx`, on the course page's
+    Curriculum tab.
 - Data export and account deletion (feature 33):
   - `lib/account/rules.ts` (pure): the 7-day expiry, the daily limit of 3
     exports, the typed-email check, `deleteRefusal`, the Profile card's

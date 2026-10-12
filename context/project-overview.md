@@ -147,6 +147,9 @@ The setup is in `features/feature-03-demo-accounts-and-seed.md`.
 - Grounded study chat.
 - Podcast: two-voice script, then TTS.
 - Markdown and KaTeX rendering. Export to Markdown, Word and print.
+- Course notes download (feature 36): a student picks lessons on the
+  course page and gets their published notes as one file (PDF through
+  print, Word or Markdown), in course order.
 
 ### Video learning (new)
 

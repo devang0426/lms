@@ -5,6 +5,7 @@ import { cache } from "react";
 import { courseAnnouncementsQuery, type AnnouncementView } from "./announcements";
 import { catalogCourseQuery, courseInstructorsQuery, inCatalogCourse, type CourseSummary } from "./catalog";
 import { db } from "./client";
+import { courseNoteLessonsQuery } from "./course-notes";
 import { canSeeCourse, courseForUserQueries, isUuid, toCourseForUser, type CourseForUser, type Viewer } from "./courses";
 import { completedLessonsQuery } from "./progress";
 
@@ -23,17 +24,20 @@ export interface CourseDetail {
   announcements: AnnouncementView[];
   /* The student's finished lessons; empty for staff. */
   completed: Set<string>;
+  /* Lessons with published notes to download (feature 36). */
+  noteLessons: Set<string>;
 }
 
 export async function loadCourseDetail(courseId: string, viewer: Viewer): Promise<CourseDetail | null> {
   if (!isUuid(courseId)) return null;
   const inCourse = canSeeCourse(courseId, viewer);
-  const [access, mods, lessonRows, [preview], instructors, announcements, completed] = await db.batch([
+  const [access, mods, lessonRows, [preview], instructors, announcements, completed, noteLessons] = await db.batch([
     ...courseForUserQueries(courseId, viewer),
     catalogCourseQuery(courseId, viewer),
     courseInstructorsQuery(courseId, or(inCourse, inCatalogCourse(courseId))!),
     courseAnnouncementsQuery(courseId, inCourse),
     completedLessonsQuery(viewer.id, courseId),
+    courseNoteLessonsQuery(courseId, viewer),
   ]);
   const full = toCourseForUser([access, mods, lessonRows]);
   if (!full && !preview) return null;
@@ -43,6 +47,7 @@ export async function loadCourseDetail(courseId: string, viewer: Viewer): Promis
     instructors,
     announcements: full ? announcements : [],
     completed: new Set(full?.access === "student" ? completed.map((r) => r.lessonId) : []),
+    noteLessons: new Set(full ? noteLessons.map((r) => r.lessonId) : []),
   };
 }
 
